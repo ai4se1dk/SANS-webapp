@@ -1,0 +1,144 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sans-webapp"
+version = "0.1.0"
+description = "A webapp for SANS data fitting using SANS-fitter module."
+requires-python = ">=3.10"
+license = {text = "BSD-3-Clause"}
+authors = [
+    {name = "SANS-webapp contributors"}
+]
+readme = "README.md"
+dependencies = [
+    "numpy>=1.20",
+    "matplotlib>=3.5",
+    "scipy>=1.7",
+    "sasmodels>=1.0",
+    "sasdata>=0.8",
+    "bumps>=0.9",
+    "streamlit>=1.28.0",
+    "plotly>=5.17.0",
+    "pandas>=2.0.0",
+    "openai>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
+
+[tool.pixi.pypi-dependencies]
+sans-webapp = { path = ".", editable = true }
+
+[tool.pixi.dependencies]
+python = ">=3.10,<3.14"
+numpy = ">=1.20"
+sasmodels = ">=1.0"
+pytest = ">=7.0"
+pytest-cov = ">=4.0"
+ruff = ">=0.8.0"
+
+[tool.pixi.tasks]
+test = "pytest tests/ -v"
+test-verbose = "pytest tests/ -vv"
+test-coverage = "pytest tests/ --cov=. --cov-report=html --cov-report=term --cov-report=xml"
+test-quick = "pytest tests/ -v -x"
+lint = "ruff check src/ tests/ --fix"
+lint-check = "ruff check src/ tests/"
+format = "ruff format src/ tests/"
+format-check = "ruff format --check src/ tests/"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "Q",   # flake8-quotes
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+    "W191",  # indentation contains tabs
+    "Q001",  # single quotes for multiline strings (conflicts with formatter)
+]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+multiline-quotes = "single"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports in __init__.py
+"tests/*" = ["F401", "F811"]  # allow unused imports and redefinitions in tests
+
+[tool.pytest.ini_options]
+# Pytest configuration for SANS Fitter tests
+
+# Test discovery
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Output options
+addopts = [
+    "-v",                          # Verbose output
+    "--tb=short",                  # Shorter traceback format
+    "--strict-markers",            # Strict marker usage
+    "-ra",                         # Show summary of all test outcomes
+    "--disable-warnings",          # Disable warnings display
+]
+
+# Markers
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+# Coverage options (if pytest-cov is installed)
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/env/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
