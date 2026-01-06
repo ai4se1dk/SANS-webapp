@@ -5,16 +5,15 @@ Shared utility functions for SANS data analysis that can be used by both
 the Streamlit web application and command-line scripts without importing Streamlit.
 """
 
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 import plotly.graph_objects as go
+from sans_fitter import SANSFitter
 from sasmodels import core
 
-from sans_fitter import SANSFitter
 
-
-def get_all_models() -> List[str]:
+def get_all_models() -> list[str]:
     """
     Fetch all available models from sasmodels.
 
@@ -48,7 +47,7 @@ def analyze_data_for_ai_suggestion(q_data: np.ndarray, i_data: np.ndarray) -> st
     slope = np.polyfit(log_q, log_i, 1)[0]
 
     # Intensity ratio (high Q to low Q)
-    low_q_intensity = np.mean(i_data[:len(i_data) // 10])
+    low_q_intensity = np.mean(i_data[: len(i_data) // 10])
     high_q_intensity = np.mean(i_data[-len(i_data) // 10 :])
     intensity_ratio = low_q_intensity / (high_q_intensity + 1e-10)
 
@@ -64,7 +63,7 @@ def analyze_data_for_ai_suggestion(q_data: np.ndarray, i_data: np.ndarray) -> st
     return description
 
 
-def suggest_models_simple(q_data: np.ndarray, i_data: np.ndarray) -> List[str]:
+def suggest_models_simple(q_data: np.ndarray, i_data: np.ndarray) -> list[str]:
     """
     Simple heuristic-based model suggestion.
 
@@ -104,7 +103,10 @@ def suggest_models_simple(q_data: np.ndarray, i_data: np.ndarray) -> List[str]:
 
 
 def plot_data_and_fit(
-    fitter: SANSFitter, show_fit: bool = False, fit_q: Optional[np.ndarray] = None, fit_i: Optional[np.ndarray] = None
+    fitter: SANSFitter,
+    show_fit: bool = False,
+    fit_q: Optional[np.ndarray] = None,
+    fit_i: Optional[np.ndarray] = None,
 ) -> go.Figure:
     """
     Create an interactive Plotly figure with data and optionally fitted curve.
@@ -125,10 +127,10 @@ def plot_data_and_fit(
         go.Scatter(
             x=fitter.data.x,
             y=fitter.data.y,
-            error_y=dict(type='data', array=fitter.data.dy, visible=True),
+            error_y={'type': 'data', 'array': fitter.data.dy, 'visible': True},
             mode='markers',
             name='Data',
-            marker=dict(size=6, color='blue', symbol='circle'),
+            marker={'size': 6, 'color': 'blue', 'symbol': 'circle'},
         )
     )
 
@@ -140,7 +142,7 @@ def plot_data_and_fit(
                 y=fit_i,
                 mode='lines',
                 name='Fitted Model',
-                line=dict(color='red', width=2),
+                line={'color': 'red', 'width': 2},
             )
         )
 

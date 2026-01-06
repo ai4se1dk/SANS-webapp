@@ -16,13 +16,14 @@ sys.path.insert(0, '.')
 sys.path.insert(0, 'src')
 
 # Import utilities first (no Streamlit dependency)
-import sans_analysis_utils as utils
 from sans_fitter import SANSFitter
 
+import sans_analysis_utils as utils
 
 # =============================================================================
 # Utility Function Tests (sans_analysis_utils.py)
 # =============================================================================
+
 
 def test_utils_get_all_models():
     """Test model listing from utils module."""
@@ -57,7 +58,7 @@ def test_utils_analyze_data():
 def test_utils_suggest_models_simple():
     """Test simple model suggestion from utils module."""
     print('\nTesting utils.suggest_models_simple()...')
-    
+
     # Test with steep decay (spherical particles)
     q = np.logspace(-3, -1, 50)
     i_steep = 100 * q ** (-4) + 0.1  # Porod law for spheres
@@ -65,19 +66,19 @@ def test_utils_suggest_models_simple():
     assert len(suggestions_steep) > 0, 'No suggestions generated for steep decay!'
     assert 'sphere' in suggestions_steep, 'sphere not suggested for steep decay!'
     print(f'✓ Steep decay suggestions: {suggestions_steep}')
-    
+
     # Test with moderate decay (cylindrical)
     i_moderate = 100 * q ** (-2.5) + 0.1
     suggestions_moderate = utils.suggest_models_simple(q, i_moderate)
     assert len(suggestions_moderate) > 0, 'No suggestions generated for moderate decay!'
     print(f'✓ Moderate decay suggestions: {suggestions_moderate}')
-    
+
     # Test with gentle decay (flat structures)
     i_gentle = 100 * q ** (-1.5) + 0.1
     suggestions_gentle = utils.suggest_models_simple(q, i_gentle)
     assert len(suggestions_gentle) > 0, 'No suggestions generated for gentle decay!'
     print(f'✓ Gentle decay suggestions: {suggestions_gentle}')
-    
+
     return True
 
 
@@ -88,14 +89,14 @@ def test_utils_plot_data_and_fit():
 
     try:
         fitter.load_data('simulated_sans_data.csv')
-        
+
         # Test plot without fit
         fig = utils.plot_data_and_fit(fitter, show_fit=False)
         assert fig is not None, 'No figure generated!'
         assert hasattr(fig, 'data'), 'Figure has no data attribute!'
         assert len(fig.data) >= 1, 'Figure should have at least one trace!'
         print('✓ Plot without fit created successfully')
-        
+
         # Test plot with fit (using dummy fit data)
         fit_q = fitter.data.x
         fit_i = fitter.data.y * 0.9  # Dummy fit
@@ -103,7 +104,7 @@ def test_utils_plot_data_and_fit():
         assert fig_with_fit is not None, 'No figure with fit generated!'
         assert len(fig_with_fit.data) >= 2, 'Figure with fit should have at least two traces!'
         print('✓ Plot with fit created successfully')
-        
+
         return True
     except Exception as e:
         print(f'✗ Plot creation failed: {e}')
@@ -113,6 +114,7 @@ def test_utils_plot_data_and_fit():
 # =============================================================================
 # SANSFitter Integration Tests
 # =============================================================================
+
 
 def test_fitter_integration():
     """Test SANSFitter integration."""
@@ -142,7 +144,7 @@ def test_fitter_integration():
     assert 'radius' in fitter.params, 'radius parameter not found!'
     assert 'scale' in fitter.params, 'scale parameter not found!'
     print(f'✓ Found {len(fitter.params)} parameters: {list(fitter.params.keys())}')
-    
+
     return True
 
 
@@ -150,26 +152,29 @@ def test_fitter_integration():
 # App Module Tests (requires Streamlit)
 # =============================================================================
 
+
 def test_app_imports():
     """Test that app module can be imported and has expected functions."""
     print('\nTesting app module imports...')
-    
+
     try:
         import app
-        
+
         # Check that app imports the utility functions
         assert hasattr(app, 'get_all_models'), 'get_all_models not available in app!'
-        assert hasattr(app, 'analyze_data_for_ai_suggestion'), 'analyze_data_for_ai_suggestion not available in app!'
+        assert hasattr(app, 'analyze_data_for_ai_suggestion'), (
+            'analyze_data_for_ai_suggestion not available in app!'
+        )
         assert hasattr(app, 'suggest_models_simple'), 'suggest_models_simple not available in app!'
         assert hasattr(app, 'plot_data_and_fit'), 'plot_data_and_fit not available in app!'
         print('✓ Utility functions imported into app')
-        
+
         # Check app-specific functions
         assert hasattr(app, 'suggest_models_ai'), 'suggest_models_ai not found in app!'
         assert hasattr(app, 'main'), 'main function not found in app!'
         assert hasattr(app, 'clamp_for_display'), 'clamp_for_display not found in app!'
         print('✓ App-specific functions available')
-        
+
         return True
     except ImportError as e:
         print(f'✗ App import failed: {e}')
@@ -179,21 +184,21 @@ def test_app_imports():
 def test_app_clamp_for_display():
     """Test the clamp_for_display function in app module."""
     print('\nTesting app.clamp_for_display()...')
-    
+
     try:
         import app
-        
+
         # Test normal values
         assert app.clamp_for_display(1.0) == 1.0, 'Normal value should be unchanged!'
         assert app.clamp_for_display(-5.0) == -5.0, 'Negative value should be unchanged!'
-        
+
         # Test infinity values
         clamped_inf = app.clamp_for_display(float('inf'))
         assert clamped_inf < float('inf'), 'Positive infinity should be clamped!'
-        
+
         clamped_neg_inf = app.clamp_for_display(float('-inf'))
         assert clamped_neg_inf > float('-inf'), 'Negative infinity should be clamped!'
-        
+
         print('✓ clamp_for_display working correctly')
         return True
     except Exception as e:
@@ -210,14 +215,14 @@ if __name__ == '__main__':
     print('SANS Analysis - Test Suite')
     print('=' * 70)
     print('\nThis test covers both utility functions and the Streamlit app module.')
-    
+
     results = {}
-    
+
     # Run utility tests (no Streamlit dependency)
     print('\n' + '-' * 70)
     print('UTILITY FUNCTION TESTS (sans_analysis_utils.py)')
     print('-' * 70)
-    
+
     try:
         results['utils_get_all_models'] = test_utils_get_all_models()
         results['utils_analyze_data'] = test_utils_analyze_data()
@@ -226,50 +231,53 @@ if __name__ == '__main__':
     except Exception as e:
         print(f'\n✗ Utility tests failed with exception: {e}')
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
-    
+
     # Run fitter integration tests
     print('\n' + '-' * 70)
     print('SANSFITTER INTEGRATION TESTS')
     print('-' * 70)
-    
+
     try:
         results['fitter_integration'] = test_fitter_integration()
     except Exception as e:
         print(f'\n✗ Fitter integration tests failed with exception: {e}')
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
-    
+
     # Run app module tests (requires Streamlit)
     print('\n' + '-' * 70)
     print('APP MODULE TESTS (app.py)')
     print('-' * 70)
-    
+
     try:
         results['app_imports'] = test_app_imports()
         results['app_clamp'] = test_app_clamp_for_display()
     except Exception as e:
         print(f'\n✗ App module tests failed with exception: {e}')
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
-    
+
     # Summary
     print('\n' + '=' * 70)
     print('TEST SUMMARY')
     print('=' * 70)
-    
+
     passed = sum(1 for v in results.values() if v)
     total = len(results)
-    
+
     for test_name, result in results.items():
         status = '✓ PASSED' if result else '✗ FAILED'
         print(f'  {test_name}: {status}')
-    
+
     print(f'\nTotal: {passed}/{total} tests passed')
-    
+
     if passed == total:
         print('\n' + '=' * 70)
         print('✓ All tests passed!')

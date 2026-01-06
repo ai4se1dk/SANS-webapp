@@ -8,21 +8,19 @@ and interactive visualization.
 
 import os
 import tempfile
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
-from sasmodels import core
+from sans_fitter import SANSFitter
 from sasmodels.direct_model import DirectModel
 
-from sans_fitter import SANSFitter
 from sans_analysis_utils import (
-    get_all_models,
     analyze_data_for_ai_suggestion,
-    suggest_models_simple,
+    get_all_models,
     plot_data_and_fit,
+    suggest_models_simple,
 )
 
 # Maximum value that Streamlit's number_input can handle
@@ -34,10 +32,10 @@ def clamp_for_display(value: float) -> float:
     """
     Clamp a value to a range that Streamlit's number_input can handle.
     Converts inf/-inf to displayable bounds.
-    
+
     Args:
         value: The value to clamp
-        
+
     Returns:
         The clamped value
     """
@@ -48,7 +46,7 @@ def clamp_for_display(value: float) -> float:
 
 def suggest_models_ai(
     q_data: np.ndarray, i_data: np.ndarray, api_key: Optional[str] = None
-) -> List[str]:
+) -> list[str]:
     """
     AI-powered model suggestion using OpenAI API.
 
@@ -76,23 +74,23 @@ def suggest_models_ai(
         data_description = analyze_data_for_ai_suggestion(q_data, i_data)
 
         # Create prompt
-#         prompt = f"""You are a SANS (Small Angle Neutron Scattering) data analysis expert.
-# Analyze the following SANS data characteristics and suggest 3 most appropriate models
-# from the sasmodels library.
+        #         prompt = f"""You are a SANS (Small Angle Neutron Scattering) data analysis expert.
+        # Analyze the following SANS data characteristics and suggest 3 most appropriate models
+        # from the sasmodels library.
 
-# {data_description}
+        # {data_description}
 
-# Available models include: {', '.join(all_models[:50])}... (and more)
+        # Available models include: {', '.join(all_models[:50])}... (and more)
 
-# Common model types:
-# - Spherical: sphere, core_shell_sphere, fuzzy_sphere
-# - Cylindrical: cylinder, core_shell_cylinder, flexible_cylinder
-# - Ellipsoidal: ellipsoid, core_shell_ellipsoid
-# - Lamellar: lamellar, core_shell_lamellar
-# - Complex: parallelepiped, pringle, fractal
+        # Common model types:
+        # - Spherical: sphere, core_shell_sphere, fuzzy_sphere
+        # - Cylindrical: cylinder, core_shell_cylinder, flexible_cylinder
+        # - Ellipsoidal: ellipsoid, core_shell_ellipsoid
+        # - Lamellar: lamellar, core_shell_lamellar
+        # - Complex: parallelepiped, pringle, fractal
 
-# Based on the data characteristics (slope, Q range, intensity decay), suggest 3 models
-# that would fit the provided data. Return ONLY the model names, one per line, no explanations."""
+        # Based on the data characteristics (slope, Q range, intensity decay), suggest 3 models
+        # that would fit the provided data. Return ONLY the model names, one per line, no explanations."""
 
         prompt = f"""You are a SANS (Small Angle Neutron Scattering) data analysis expert.
 Analyze the following SANS data and suggest 3 most appropriate models
@@ -101,7 +99,7 @@ from the sasmodels library.
 The data:
 Q (Å⁻¹), I(Q) (cm⁻¹)
 
-{chr(10).join([f"{q_data[i]:.6f}, {i_data[i]:.6f}" for i in range(len(q_data))])}
+{chr(10).join([f'{q_data[i]:.6f}, {i_data[i]:.6f}' for i in range(len(q_data))])}
 
 Data description:
 
@@ -318,7 +316,7 @@ def main():
         if 'pending_preset' in st.session_state:
             preset = st.session_state.pending_preset
             del st.session_state.pending_preset
-            
+
             for param_name in params.keys():
                 if preset == 'scale_background':
                     vary = param_name in ('scale', 'background')
@@ -465,13 +463,15 @@ def main():
                     max=updates['max'],
                     vary=updates['vary'],
                 )
-            
+
             with st.spinner(f'Fitting with {engine}/{method}...'):
                 try:
                     # Check if any parameters are set to vary
                     any_vary = any(p['vary'] for p in fitter.params.values())
                     if not any_vary:
-                        st.warning('⚠️ No parameters are set to vary. Please enable at least one parameter to fit.')
+                        st.warning(
+                            '⚠️ No parameters are set to vary. Please enable at least one parameter to fit.'
+                        )
                     else:
                         result = fitter.fit(engine=engine, method=method)
                         st.session_state.fit_completed = True
@@ -514,7 +514,7 @@ def main():
                 fitted_params = []
                 for name, info in fitter.params.items():
                     if info['vary']:
-                        fitted_params.append({'Parameter': name, 'Value': f"{info['value']:.4g}"})
+                        fitted_params.append({'Parameter': name, 'Value': f'{info["value"]:.4g}'})
 
                 if fitted_params:
                     df_fitted = pd.DataFrame(fitted_params)
