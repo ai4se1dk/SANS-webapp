@@ -327,6 +327,14 @@ def main():
                 else:
                     vary = False
                 fitter.set_param(param_name, vary=vary)
+                # Also update the widget session state so checkboxes reflect the change
+                st.session_state[f'vary_{param_name}'] = vary
+
+        # Apply pending fit results update before widgets are rendered
+        if 'pending_update_from_fit' in st.session_state:
+            del st.session_state.pending_update_from_fit
+            for param_name, param_info in params.items():
+                st.session_state[f'value_{param_name}'] = float(param_info['value'])
 
         st.markdown(
             """
@@ -519,6 +527,11 @@ def main():
                 if fitted_params:
                     df_fitted = pd.DataFrame(fitted_params)
                     st.dataframe(df_fitted, hide_index=True, width='stretch')
+
+                    # Button to update parameter table with fit results
+                    if st.button('Update Parameters with Fit Results'):
+                        st.session_state.pending_update_from_fit = True
+                        st.rerun()
                 else:
                     st.info('No parameters were fitted')
 
