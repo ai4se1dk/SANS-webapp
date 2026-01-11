@@ -13,7 +13,7 @@ A Streamlit-based web application for Small Angle Neutron Scattering (SANS) data
 ### 🎯 Model Selection
 **Manual Mode:**
 - Browse all available models from the SasModels library
-- Comprehensive dropdown with 100+ models
+- Comprehensive dropdown with 79+ models
 - Categories include spherical, cylindrical, ellipsoidal, lamellar, and complex shapes
 
 **AI-Assisted Mode:**
@@ -50,14 +50,14 @@ A Streamlit-based web application for Small Angle Neutron Scattering (SANS) data
 
 ## Installation
 
-### Option 1: Basic Installation
+### Option 1: Basic Installation (Recommended)
 
 ```bash
 # Clone the repository
 git clone https://github.com/ai4se1dk/SANS-webapp.git
 cd SANS-webapp
 
-# Install dependencies
+# Install all dependencies
 pip install -e .
 
 # Run the web application
@@ -71,26 +71,22 @@ streamlit run src/app.py
 git clone https://github.com/ai4se1dk/SANS-webapp.git
 cd SANS-webapp
 
-# Install in editable mode with all dependencies
+# Install in editable mode with dev dependencies
 pip install -e ".[dev]"
-pip install streamlit plotly openai
 
 # Run the web application
 streamlit run src/app.py
 ```
 
-### Option 3: Using Pixi (Recommended for Development)
+### Option 3: Using Pixi
 
 ```bash
 # Clone the repository
 git clone https://github.com/ai4se1dk/SANS-webapp.git
 cd SANS-webapp
 
-# Install dependencies
+# Install dependencies (streamlit is already included)
 pixi install
-
-# Add Streamlit dependencies
-pixi add streamlit plotly openai
 
 # Run the web application
 pixi run streamlit run src/app.py
@@ -280,26 +276,12 @@ heroku open
 
 ### Docker Deployment
 
-1. Create `Dockerfile`:
-```dockerfile
-FROM python:3.10-slim
+A `Dockerfile` is already included in the repository.
 
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY . .
-
-EXPOSE 8501
-
-CMD ["streamlit", "run", "src/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-```
-
-2. Build and run:
+Build and run:
 ```bash
-docker build -t SANS-webapp-app .
-docker run -p 8501:8501 SANS-webapp-app
+docker build -t sans-webapp-app .
+docker run -p 8501:8501 sans-webapp-app
 ```
 
 Access at `http://localhost:8501`
@@ -365,7 +347,6 @@ echo "OPENAI_API_KEY=your-key-here" > .env
 
 - **Documentation**: See main [README.md](README.md)
 - **Issues**: Report at [GitHub Issues](https://github.com/ai4se1dk/SANS-webapp/issues)
-- **Examples**: Check `examples/` directory
 - **Tests**: Run `pytest tests/` for validation
 
 ## Development
@@ -411,20 +392,16 @@ SANS-webapp/
 ├── src/
 │   ├── app.py                  # Main Streamlit application
 │   ├── demo_app.py             # Command-line demo
-│   ├── sans_analysis_utils.py  # Shared utility functions (no Streamlit dependency)
-│   └── sans_fitter/
-│       ├── __init__.py
-│       └── sans_fitter.py      # Core fitting module
+│   └── sans_analysis_utils.py  # Shared utility functions (no Streamlit dependency)
 ├── tests/
 │   └── test_app.py             # Unit tests for app and utilities
-├── requirements.txt            # Web app dependencies
+├── pyproject.toml              # Package configuration and dependencies
 ├── example_sans_data.dat       # Sample dataset
 ├── simulated_sans_data.csv     # Example data
+├── Dockerfile                  # Docker deployment
+├── Procfile                    # Heroku deployment
 ├── README.md                   # Main documentation
-├── WEBAPP_README.md            # This file
-└── examples/
-    ├── plotting_example.py
-    └── structure_factor_example.py
+└── WEBAPP_README.md            # This file
 ```
 
 ## License

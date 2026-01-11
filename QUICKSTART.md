@@ -51,8 +51,8 @@ python tests/test_app.py
 ├── src/
 │   ├── app.py                  # Main Streamlit application
 │   ├── demo_app.py             # Command-line demo
-│   ├── sans_analysis_utils.py  # Shared utility functions
-├── pyproject.toml              # Package config with [web] optional deps
+│   └── sans_analysis_utils.py  # Shared utility functions
+├── pyproject.toml              # Package configuration
 ├── tests/
 │   └── test_app.py             # Test suite
 ├── simulated_sans_data.csv     # Example dataset (200 points)
@@ -60,7 +60,7 @@ python tests/test_app.py
 ├── Dockerfile                  # For Docker deployment
 ├── Procfile                    # For Heroku deployment
 ├── setup.sh                    # Heroku setup script
-├── WEBAPP_README.md            # Detailed web app documentation
+└── WEBAPP_README.md            # Detailed web app documentation
 ```
 
 ## Usage Workflow
@@ -167,7 +167,6 @@ For enhanced AI model suggestions, get an API key from [OpenAI](https://platform
 
 - **Documentation**: See [README.md](README.md) and [WEBAPP_README.md](WEBAPP_README.md)
 - **Issues**: [GitHub Issues](https://github.com/ai4se1dk/SANS-webapp/issues)
-- **Examples**: Check `examples/` directory
 
 ## License
 

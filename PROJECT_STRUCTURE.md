@@ -187,9 +187,8 @@ This document describes all files added for the Streamlit web application.
 
 ### Installation
 ```bash
-pip install -e .              # Install core library
-pip install -r requirements.txt  # Install web dependencies
-streamlit run src/app.py           # Launch application
+pip install -e .              # Install package with all dependencies
+streamlit run src/app.py      # Launch application
 ```
 
 ## API Integration
