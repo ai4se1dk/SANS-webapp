@@ -59,4 +59,5 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage.xml
-        slug: ai4se1dk/SANS-webapp
+        fail_ci_if_error: true
+        verbose: true
