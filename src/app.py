@@ -554,6 +554,61 @@ def main():
                     df_fitted = pd.DataFrame(fitted_params)
                     st.dataframe(df_fitted, hide_index=True, width='stretch')
 
+                    # Parameter slider for real-time profile adjustment
+                    st.markdown('**Adjust Parameter**')
+                    
+                    # Get list of fitted parameter names
+                    fitted_param_names = [p['Parameter'] for p in fitted_params]
+                    
+                    # Parameter selector
+                    selected_param = st.selectbox(
+                        'Select parameter to adjust',
+                        options=fitted_param_names,
+                        key='selected_slider_param',
+                        label_visibility='collapsed'
+                    )
+                    
+                    if selected_param:
+                        # Get current value from fitter.params
+                        current_value = fitter.params[selected_param]['value']
+                        
+                        # Check if parameter changed, reset slider value
+                        if 'prev_selected_param' not in st.session_state or st.session_state.prev_selected_param != selected_param:
+                            st.session_state.slider_value = current_value
+                            st.session_state.prev_selected_param = selected_param
+                        
+                        # Calculate ±20% range
+                        if current_value != 0:
+                            slider_min = current_value * 0.8
+                            slider_max = current_value * 1.2
+                        else:
+                            slider_min = -0.1
+                            slider_max = 0.1
+                        
+                        # Slider with on_change callback
+                        def update_profile():
+                            """Callback to recalculate profile when slider is released."""
+                            # Update the parameter value in fitter
+                            new_value = st.session_state.slider_value
+                            fitter.set_param(selected_param, value=new_value)
+                            
+                            # Update session state parameter value for UI consistency
+                            if f'value_{selected_param}' in st.session_state:
+                                st.session_state[f'value_{selected_param}'] = new_value
+                        
+                        slider_value = st.slider(
+                            f'{selected_param}',
+                            min_value=float(slider_min),
+                            max_value=float(slider_max),
+                            value=float(st.session_state.slider_value),
+                            format='%.4g',
+                            key='slider_value',
+                            on_change=update_profile,
+                            label_visibility='collapsed'
+                        )
+                        
+                        st.caption(f'Range: {slider_min:.4g} to {slider_max:.4g}')
+
                     # Button to update parameter table with fit results
                     if st.button('Update Parameters with Fit Results'):
                         st.session_state.pending_update_from_fit = True
