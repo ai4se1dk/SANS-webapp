@@ -365,9 +365,11 @@ def main():
 
             # Value input
             with cols[1]:
+                # Initialize session state if not exists
+                if f'value_{param_name}' not in st.session_state:
+                    st.session_state[f'value_{param_name}'] = clamp_for_display(float(param_info['value']))
                 value = st.number_input(
                     'Value',
-                    value=clamp_for_display(float(param_info['value'])),
                     format='%g',
                     key=f'value_{param_name}',
                     label_visibility='collapsed',
@@ -375,9 +377,10 @@ def main():
 
             # Min bound
             with cols[2]:
+                if f'min_{param_name}' not in st.session_state:
+                    st.session_state[f'min_{param_name}'] = clamp_for_display(float(param_info['min']))
                 min_val = st.number_input(
                     'Min',
-                    value=clamp_for_display(float(param_info['min'])),
                     format='%g',
                     key=f'min_{param_name}',
                     label_visibility='collapsed',
@@ -385,9 +388,10 @@ def main():
 
             # Max bound
             with cols[3]:
+                if f'max_{param_name}' not in st.session_state:
+                    st.session_state[f'max_{param_name}'] = clamp_for_display(float(param_info['max']))
                 max_val = st.number_input(
                     'Max',
-                    value=clamp_for_display(float(param_info['max'])),
                     format='%g',
                     key=f'max_{param_name}',
                     label_visibility='collapsed',
@@ -395,9 +399,10 @@ def main():
 
             # Vary checkbox
             with cols[4]:
+                if f'vary_{param_name}' not in st.session_state:
+                    st.session_state[f'vary_{param_name}'] = param_info['vary']
                 vary = st.checkbox(
                     'Fit',
-                    value=param_info['vary'],
                     key=f'vary_{param_name}',
                     label_visibility='collapsed',
                 )
@@ -516,13 +521,34 @@ def main():
                     st.error(f'Error plotting results: {str(e)}')
 
             with col2:
+                # Display Chi-squared value
+                if 'fit_result' in st.session_state and 'chisq' in st.session_state.fit_result:
+                    chi_squared = st.session_state.fit_result['chisq']
+                    st.markdown(f'**Chi² (χ²):** {chi_squared:.4f}')
+                    st.markdown('---')
+
                 st.markdown('**Fitted Parameters**')
 
-                # Display fitted parameters in a table
+                # Display fitted parameters in a table with error values
                 fitted_params = []
-                for name, info in fitter.params.items():
-                    if info['vary']:
-                        fitted_params.append({'Parameter': name, 'Value': f'{info["value"]:.4g}'})
+                if 'fit_result' in st.session_state and 'parameters' in st.session_state.fit_result:
+                    # Get parameters from fit_result which includes error information
+                    for name, param_info in st.session_state.fit_result['parameters'].items():
+                        if name in fitter.params and fitter.params[name]['vary']:
+                            fitted_params.append({
+                                'Parameter': name,
+                                'Value': f'{param_info["value"]:.4g}',
+                                'Error': f'{param_info["stderr"]:.4g}'
+                            })
+                else:
+                    # Fallback to fitter.params if fit_result not available
+                    for name, info in fitter.params.items():
+                        if info['vary']:
+                            fitted_params.append({
+                                'Parameter': name,
+                                'Value': f'{info["value"]:.4g}',
+                                'Error': 'N/A'
+                            })
 
                 if fitted_params:
                     df_fitted = pd.DataFrame(fitted_params)
