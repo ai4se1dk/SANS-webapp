@@ -92,6 +92,14 @@ def apply_pending_preset(fitter: SANSFitter, params: dict[str, ParamInfo]) -> No
         fitter.set_param(param_name, vary=vary)
         st.session_state[f'vary_{param_name}'] = vary
 
+    # Update param_updates to reflect the preset changes for fitting
+    if 'param_updates' in st.session_state:
+        for param_name in params.keys():
+            if param_name in st.session_state.param_updates:
+                st.session_state.param_updates[param_name]['vary'] = fitter.params[param_name][
+                    'vary'
+                ]
+
 
 def apply_fit_results_to_params(fitter: SANSFitter, params: dict[str, ParamInfo]) -> None:
     """Apply pending fit results to session state and fitter parameters."""
