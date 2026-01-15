@@ -215,6 +215,7 @@ def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdat
 
     return param_updates
 
+
 # UI constants
 APP_PAGE_TITLE = 'SANS Data Analysis'
 APP_PAGE_ICON = '🔬'
@@ -333,12 +334,10 @@ ERROR_EXAMPLE_NOT_FOUND = 'Example data file not found!'
 
 INFO_NO_DATA = '👆 Please upload a SANS data file or load example data from the sidebar.'
 WARNING_NO_API_KEY = (
-    "⚠️ No API key provided. Please enter your OpenAI API key in the sidebar under "
+    '⚠️ No API key provided. Please enter your OpenAI API key in the sidebar under '
     "'AI-Assisted' model selection."
 )
-WARNING_NO_VARY = (
-    '⚠️ No parameters are set to vary. Please enable at least one parameter to fit.'
-)
+WARNING_NO_VARY = '⚠️ No parameters are set to vary. Please enable at least one parameter to fit.'
 SUCCESS_DATA_UPLOADED = '✓ Data uploaded successfully!'
 SUCCESS_EXAMPLE_LOADED = '✓ Example data loaded successfully!'
 SUCCESS_MODEL_LOADED_PREFIX = '✓ Model "'
@@ -418,13 +417,9 @@ def send_chat_message(user_message: str, api_key: Optional[str], fitter) -> str:
                         if value is None:
                             continue
                         if isinstance(stderr, (int, float)):
-                            context_parts.append(
-                                f'    - {name}: {value:.4g} ± {stderr:.4g}'
-                            )
+                            context_parts.append(f'    - {name}: {value:.4g} ± {stderr:.4g}')
                         else:
-                            context_parts.append(
-                                f'    - {name}: {value:.4g} ± {stderr}'
-                            )
+                            context_parts.append(f'    - {name}: {value:.4g} ± {stderr}')
 
         system_message = '\n'.join(context_parts)
         system_message += (
