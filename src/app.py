@@ -8,7 +8,7 @@ and interactive visualization.
 
 import os
 import tempfile
-from typing import Optional
+from typing import Optional, TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -16,6 +16,7 @@ import streamlit as st
 from sans_fitter import SANSFitter
 from sasmodels.direct_model import DirectModel
 
+from openai_client import create_chat_completion
 from sans_analysis_utils import (
     analyze_data_for_ai_suggestion,
     get_all_models,
@@ -26,6 +27,336 @@ from sans_analysis_utils import (
 # Maximum value that Streamlit's number_input can handle
 MAX_FLOAT_DISPLAY = 1e300
 MIN_FLOAT_DISPLAY = -1e300
+
+
+class ParamInfo(TypedDict):
+    value: float
+    min: float
+    max: float
+    vary: bool
+    description: str | None
+
+
+class FitParamInfo(TypedDict, total=False):
+    value: float
+    stderr: float | str
+
+
+class FitResult(TypedDict, total=False):
+    chisq: float
+    parameters: dict[str, FitParamInfo]
+
+
+class ParamUpdate(TypedDict):
+    value: float
+    min: float
+    max: float
+    vary: bool
+
+
+def init_session_state() -> None:
+    """Initialize Streamlit session state with defaults."""
+    defaults: dict[str, object] = {
+        'fitter': SANSFitter,
+        'data_loaded': False,
+        'model_selected': False,
+        'fit_completed': False,
+        'show_ai_chat': False,
+        'chat_api_key': None,
+        'slider_value': 0.0,
+        'prev_selected_param': None,
+    }
+
+    for key, default in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default() if callable(default) else default
+
+
+def apply_pending_preset(fitter: SANSFitter, params: dict[str, ParamInfo]) -> None:
+    """Apply pending preset actions before rendering parameter widgets."""
+    if 'pending_preset' not in st.session_state:
+        return
+
+    preset = st.session_state.pending_preset
+    del st.session_state.pending_preset
+
+    for param_name in params.keys():
+        if preset == 'scale_background':
+            vary = param_name in ('scale', 'background')
+        elif preset == 'fit_all':
+            vary = True
+        elif preset == 'fix_all':
+            vary = False
+        else:
+            vary = False
+        fitter.set_param(param_name, vary=vary)
+        st.session_state[f'vary_{param_name}'] = vary
+
+
+def apply_fit_results_to_params(fitter: SANSFitter, params: dict[str, ParamInfo]) -> None:
+    """Apply pending fit results to session state and fitter parameters."""
+    if 'pending_update_from_fit' not in st.session_state:
+        return
+
+    del st.session_state.pending_update_from_fit
+
+    if 'fit_result' in st.session_state and 'parameters' in st.session_state.fit_result:
+        fit_result = cast(FitResult, st.session_state.fit_result)
+        fit_params = fit_result.get('parameters', {})
+        for param_name, fit_param_info in fit_params.items():
+            if param_name in params:
+                fitted_value = fit_param_info.get('value')
+                if fitted_value is None:
+                    continue
+                st.session_state[f'value_{param_name}'] = clamp_for_display(float(fitted_value))
+                fitter.set_param(param_name, value=fitted_value)
+        return
+
+    for param_name, param_info in params.items():
+        st.session_state[f'value_{param_name}'] = clamp_for_display(float(param_info['value']))
+
+
+def build_param_updates_from_params(params: dict[str, ParamInfo]) -> dict[str, ParamUpdate]:
+    """Build parameter updates from current fitter params."""
+    return {
+        name: {
+            'value': info['value'],
+            'min': info['min'],
+            'max': info['max'],
+            'vary': info['vary'],
+        }
+        for name, info in params.items()
+    }
+
+
+def apply_param_updates(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]) -> None:
+    """Apply parameter updates to the fitter."""
+    for param_name, updates in param_updates.items():
+        fitter.set_param(
+            param_name,
+            value=updates['value'],
+            min=updates['min'],
+            max=updates['max'],
+            vary=updates['vary'],
+        )
+
+
+def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdate]:
+    """Render the parameter table and return updates to apply."""
+    param_cols = st.columns([2, 1, 1, 1, 1])
+    param_cols[0].markdown(PARAMETER_COLUMNS_LABELS[0])
+    param_cols[1].markdown(PARAMETER_COLUMNS_LABELS[1])
+    param_cols[2].markdown(PARAMETER_COLUMNS_LABELS[2])
+    param_cols[3].markdown(PARAMETER_COLUMNS_LABELS[3])
+    param_cols[4].markdown(PARAMETER_COLUMNS_LABELS[4])
+
+    param_updates: dict[str, ParamUpdate] = {}
+
+    for param_name, param_info in params.items():
+        cols = st.columns([2, 1, 1, 1, 1])
+
+        with cols[0]:
+            st.text(param_name)
+            description = param_info.get('description')
+            if description:
+                st.caption(description[:50])
+
+        value_key = f'value_{param_name}'
+        min_key = f'min_{param_name}'
+        max_key = f'max_{param_name}'
+        vary_key = f'vary_{param_name}'
+
+        if value_key not in st.session_state:
+            st.session_state[value_key] = clamp_for_display(float(param_info['value']))
+        if min_key not in st.session_state:
+            st.session_state[min_key] = clamp_for_display(float(param_info['min']))
+        if max_key not in st.session_state:
+            st.session_state[max_key] = clamp_for_display(float(param_info['max']))
+        if vary_key not in st.session_state:
+            st.session_state[vary_key] = param_info['vary']
+
+        with cols[1]:
+            value = st.number_input(
+                PARAMETER_VALUE_LABEL,
+                format='%g',
+                key=value_key,
+                label_visibility='collapsed',
+            )
+
+        with cols[2]:
+            min_val = st.number_input(
+                PARAMETER_MIN_LABEL,
+                format='%g',
+                key=min_key,
+                label_visibility='collapsed',
+            )
+
+        with cols[3]:
+            max_val = st.number_input(
+                PARAMETER_MAX_LABEL,
+                format='%g',
+                key=max_key,
+                label_visibility='collapsed',
+            )
+
+        with cols[4]:
+            vary = st.checkbox(
+                PARAMETER_FIT_LABEL,
+                key=vary_key,
+                label_visibility='collapsed',
+            )
+
+        param_updates[param_name] = {
+            'value': value,
+            'min': min_val,
+            'max': max_val,
+            'vary': vary,
+        }
+
+    return param_updates
+
+# UI constants
+APP_PAGE_TITLE = 'SANS Data Analysis'
+APP_PAGE_ICON = '🔬'
+APP_LAYOUT = 'wide'
+APP_SIDEBAR_STATE = 'expanded'
+APP_TITLE = '🔬 SANS Data Analysis Web Application'
+APP_SUBTITLE = (
+    'Analyze Small Angle Neutron Scattering (SANS) data with model fitting and '
+    'AI-assisted model selection.'
+)
+
+SIDEBAR_CONTROLS_HEADER = 'Controls'
+SIDEBAR_DATA_UPLOAD_HEADER = 'Data Upload'
+SIDEBAR_MODEL_SELECTION_HEADER = 'Model Selection'
+SIDEBAR_FITTING_HEADER = 'Fitting'
+
+UPLOAD_LABEL = 'Upload SANS data file (CSV or .dat)'
+UPLOAD_HELP = 'File should contain columns: Q, I(Q), dI(Q)'
+EXAMPLE_DATA_BUTTON = 'Load Example Data'
+EXAMPLE_DATA_FILE = 'simulated_sans_data.csv'
+
+SELECTION_METHOD_LABEL = 'Selection Method'
+SELECTION_METHOD_OPTIONS = ['Manual', 'AI-Assisted']
+SELECTION_METHOD_HELP = 'Choose how to select the fitting model'
+MODEL_SELECT_LABEL = 'Select Model'
+MODEL_SELECT_HELP = 'Choose a model from the sasmodels library'
+AI_ASSISTED_HEADER = '**AI-Assisted Model Suggestion**'
+AI_KEY_LABEL = 'OpenAI API Key (optional)'
+AI_KEY_HELP = (
+    'Enter your OpenAI API key for AI-powered suggestions. '
+    'Leave empty for heuristic-based suggestions.'
+)
+AI_SUGGESTIONS_BUTTON = 'Get AI Suggestions'
+AI_SUGGESTIONS_HEADER = '**Suggested Models:**'
+AI_SUGGESTIONS_SELECT_LABEL = 'Choose from suggestions'
+LOAD_MODEL_BUTTON = 'Load Model'
+
+DATA_PREVIEW_HEADER = '📊 Data Preview'
+DATA_STATS_HEADER = '**Data Statistics**'
+SHOW_DATA_TABLE_LABEL = 'Show data table'
+DATA_TABLE_HEIGHT = 300
+METRIC_DATA_POINTS = 'Data Points'
+METRIC_Q_RANGE = 'Q Range'
+METRIC_MAX_INTENSITY = 'Max Intensity'
+DATA_FORMAT_HELP = """
+### Expected Data Format
+
+Your data file should be a CSV or .dat file with three columns:
+- **Q**: Scattering vector (Å⁻¹)
+- **I(Q)**: Intensity (cm⁻¹)
+- **dI(Q)**: Error/uncertainty in intensity
+
+Example:
+```
+Q,I,dI
+0.001,1.035,0.020
+0.006,0.990,0.020
+0.011,1.038,0.020
+...
+```
+"""
+
+PARAMETERS_HEADER_PREFIX = '⚙️ Model Parameters: '
+PARAMETERS_HELP_TEXT = (
+    'Configure the model parameters below. Set initial values, bounds, and whether each '
+    'parameter\nshould be fitted (vary) or held constant.'
+)
+PARAMETER_COLUMNS_LABELS = ('**Parameter**', '**Value**', '**Min**', '**Max**', '**Fit?**')
+PARAMETER_UPDATE_BUTTON = 'Update Parameters'
+PARAMETER_VALUE_LABEL = 'Value'
+PARAMETER_MIN_LABEL = 'Min'
+PARAMETER_MAX_LABEL = 'Max'
+PARAMETER_FIT_LABEL = 'Fit'
+PRESET_HEADER = '**Quick Presets:**'
+PRESET_FIT_SCALE_BACKGROUND = 'Fit Scale & Background'
+PRESET_FIT_ALL = 'Fit All Parameters'
+PRESET_FIX_ALL = 'Fix All Parameters'
+
+FIT_ENGINE_LABEL = 'Optimization Engine'
+FIT_ENGINE_OPTIONS = ['bumps', 'lmfit']
+FIT_ENGINE_HELP = 'Choose the fitting engine'
+FIT_METHOD_LABEL = 'Method'
+FIT_METHOD_BUMPS = ['amoeba', 'lm', 'newton', 'de']
+FIT_METHOD_LMFIT = ['leastsq', 'least_squares', 'differential_evolution']
+FIT_METHOD_HELP_BUMPS = 'Optimization method for BUMPS'
+FIT_METHOD_HELP_LMFIT = 'Optimization method for LMFit'
+FIT_RUN_BUTTON = '🚀 Run Fit'
+
+FIT_RESULTS_HEADER = '📈 Fit Results'
+CHI_SQUARED_LABEL = '**Chi² (χ²):** '
+FITTED_PARAMETERS_HEADER = '**Fitted Parameters**'
+ADJUST_PARAMETER_HEADER = '**Adjust Parameter**'
+SELECT_PARAMETER_LABEL = 'Select parameter to adjust'
+UPDATE_FROM_FIT_BUTTON = 'Update Parameters with Fit Results'
+EXPORT_RESULTS_HEADER = '**Export Results**'
+SAVE_RESULTS_BUTTON = 'Save Results to CSV'
+DOWNLOAD_RESULTS_LABEL = 'Download CSV'
+RESULTS_CSV_NAME = 'fit_results.csv'
+
+AI_CHAT_SIDEBAR_HEADER = '🤖 AI Assistant'
+AI_CHAT_DESCRIPTION = (
+    'Ask questions about SANS data analysis, model selection, or parameter interpretation.'
+)
+AI_CHAT_INPUT_LABEL = 'Your message:'
+AI_CHAT_INPUT_PLACEHOLDER = 'Type your question here... (Press Enter for new line)'
+AI_CHAT_SEND_BUTTON = '📤 Send'
+AI_CHAT_CLEAR_BUTTON = '🗑️ Clear'
+AI_CHAT_HISTORY_HEADER = '**Conversation:**'
+AI_CHAT_EMPTY_CAPTION = 'No messages yet. Ask a question to get started!'
+AI_CHAT_THINKING = 'Thinking...'
+
+SPINNER_ANALYZING_DATA = 'Analyzing data...'
+WARNING_NO_SUGGESTIONS = 'No suggestions found'
+WARNING_LOAD_DATA_FIRST = 'Please load data first'
+ERROR_EXAMPLE_NOT_FOUND = 'Example data file not found!'
+
+INFO_NO_DATA = '👆 Please upload a SANS data file or load example data from the sidebar.'
+WARNING_NO_API_KEY = (
+    "⚠️ No API key provided. Please enter your OpenAI API key in the sidebar under "
+    "'AI-Assisted' model selection."
+)
+WARNING_NO_VARY = (
+    '⚠️ No parameters are set to vary. Please enable at least one parameter to fit.'
+)
+SUCCESS_DATA_UPLOADED = '✓ Data uploaded successfully!'
+SUCCESS_EXAMPLE_LOADED = '✓ Example data loaded successfully!'
+SUCCESS_MODEL_LOADED_PREFIX = '✓ Model "'
+SUCCESS_MODEL_LOADED_SUFFIX = '" loaded!'
+SUCCESS_FIT_COMPLETED = '✓ Fit completed successfully!'
+SUCCESS_PARAMS_UPDATED = '✓ Parameters updated!'
+SUCCESS_AI_SUGGESTIONS_PREFIX = '✓ Found '
+SUCCESS_AI_SUGGESTIONS_SUFFIX = ' suggestions'
+
+CHAT_INPUT_HEIGHT = 100
+CHAT_HISTORY_HEIGHT = 300
+RIGHT_SIDEBAR_TOP = 60
+RIGHT_SIDEBAR_WIDTH = 350
+RIGHT_SIDEBAR_PADDING_RIGHT = 370
+SLIDER_SCALE_MIN = 0.8
+SLIDER_SCALE_MAX = 1.2
+SLIDER_DEFAULT_MIN = -0.1
+SLIDER_DEFAULT_MAX = 0.1
 
 
 def send_chat_message(user_message: str, api_key: Optional[str], fitter) -> str:
@@ -41,13 +372,9 @@ def send_chat_message(user_message: str, api_key: Optional[str], fitter) -> str:
         The AI response text
     """
     if not api_key:
-        return "⚠️ No API key provided. Please enter your OpenAI API key in the sidebar under 'AI-Assisted' model selection."
+        return WARNING_NO_API_KEY
 
     try:
-        from openai import OpenAI
-
-        client = OpenAI(api_key=api_key)
-
         # Build context about current state
         context_parts = [
             'You are a SANS (Small Angle Neutron Scattering) data analysis expert assistant.'
@@ -65,8 +392,9 @@ def send_chat_message(user_message: str, api_key: Optional[str], fitter) -> str:
 
             # Add all parameter details
             if fitter.params:
+                params = cast(dict[str, ParamInfo], fitter.params)
                 context_parts.append('\nModel parameters:')
-                for name, info in fitter.params.items():
+                for name, info in params.items():
                     vary_status = 'fitted' if info['vary'] else 'fixed'
                     context_parts.append(
                         f'  - {name}: value={info["value"]:.4g}, min={info["min"]:.4g}, max={info["max"]:.4g} ({vary_status})'
@@ -74,10 +402,11 @@ def send_chat_message(user_message: str, api_key: Optional[str], fitter) -> str:
 
         # Add fit results if available
         if 'fit_result' in st.session_state and st.session_state.fit_completed:
-            fit_result = st.session_state.fit_result
+            fit_result = cast(FitResult, st.session_state.fit_result)
             context_parts.append('\nFit results:')
-            if 'chisq' in fit_result:
-                context_parts.append(f'  Chi² (goodness of fit): {fit_result["chisq"]:.4f}')
+            chisq = fit_result.get('chisq')
+            if chisq is not None:
+                context_parts.append(f'  Chi² (goodness of fit): {chisq:.4f}')
 
             # Add fitted parameter values with uncertainties
             if 'parameters' in fit_result:
@@ -85,13 +414,16 @@ def send_chat_message(user_message: str, api_key: Optional[str], fitter) -> str:
                 for name, param_info in fit_result['parameters'].items():
                     if name in fitter.params and fitter.params[name]['vary']:
                         stderr = param_info.get('stderr', 'N/A')
+                        value = param_info.get('value')
+                        if value is None:
+                            continue
                         if isinstance(stderr, (int, float)):
                             context_parts.append(
-                                f'    - {name}: {param_info["value"]:.4g} ± {stderr:.4g}'
+                                f'    - {name}: {value:.4g} ± {stderr:.4g}'
                             )
                         else:
                             context_parts.append(
-                                f'    - {name}: {param_info["value"]:.4g} ± {stderr}'
+                                f'    - {name}: {value:.4g} ± {stderr}'
                             )
 
         system_message = '\n'.join(context_parts)
@@ -99,7 +431,8 @@ def send_chat_message(user_message: str, api_key: Optional[str], fitter) -> str:
             '\n\nHelp the user with their SANS data analysis questions. Be concise and helpful.'
         )
 
-        response = client.chat.completions.create(
+        response = create_chat_completion(
+            api_key=api_key,
             model='gpt-4o',
             max_tokens=1000,
             messages=[
@@ -117,41 +450,41 @@ def send_chat_message(user_message: str, api_key: Optional[str], fitter) -> str:
 def inject_right_sidebar_css():
     """Inject CSS for the right sidebar."""
     st.markdown(
-        """
+        f"""
         <style>
         /* Right sidebar container */
-        .right-sidebar {
+        .right-sidebar {{
             position: fixed;
-            top: 60px;
+            top: {RIGHT_SIDEBAR_TOP}px;
             right: 0;
-            width: 350px;
-            height: calc(100vh - 60px);
+            width: {RIGHT_SIDEBAR_WIDTH}px;
+            height: calc(100vh - {RIGHT_SIDEBAR_TOP}px);
             background-color: #f8f9fa;
             border-left: 1px solid #ddd;
             padding: 1rem;
             overflow-y: auto;
             z-index: 999;
             transition: transform 0.3s ease-in-out;
-        }
+        }}
 
         /* Dark mode support */
-        @media (prefers-color-scheme: dark) {
-            .right-sidebar {
+        @media (prefers-color-scheme: dark) {{
+            .right-sidebar {{
                 background-color: #262730;
                 border-left: 1px solid #4a4a5a;
-            }
-        }
+            }}
+        }}
 
         /* Streamlit dark mode class */
-        [data-testid="stAppViewContainer"][data-theme="dark"] .right-sidebar {
+        [data-testid="stAppViewContainer"][data-theme="dark"] .right-sidebar {{
             background-color: #262730;
             border-left: 1px solid #4a4a5a;
-        }
+        }}
 
         /* When right sidebar is open, adjust main content */
-        .main-with-right-sidebar .main .block-container {
-            padding-right: 370px !important;
-        }
+        .main-with-right-sidebar .main .block-container {{
+            padding-right: {RIGHT_SIDEBAR_PADDING_RIGHT}px !important;
+        }}
         </style>
     """,
         unsafe_allow_html=True,
@@ -169,10 +502,8 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter):
     """
     with st.sidebar:
         st.markdown('---')
-        with st.expander('🤖 AI Assistant', expanded=st.session_state.show_ai_chat):
-            st.markdown(
-                'Ask questions about SANS data analysis, model selection, or parameter interpretation.'
-            )
+        with st.expander(AI_CHAT_SIDEBAR_HEADER, expanded=st.session_state.show_ai_chat):
+            st.markdown(AI_CHAT_DESCRIPTION)
 
             # Initialize chat history in session state
             if 'chat_history' not in st.session_state:
@@ -180,9 +511,9 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter):
 
             # Prompt input area (fixed height text area)
             user_prompt = st.text_area(
-                'Your message:',
-                height=100,
-                placeholder='Type your question here... (Press Enter for new line)',
+                AI_CHAT_INPUT_LABEL,
+                height=CHAT_INPUT_HEIGHT,
+                placeholder=AI_CHAT_INPUT_PLACEHOLDER,
                 key='chat_input',
                 label_visibility='collapsed',
             )
@@ -190,9 +521,11 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter):
             # Send button
             col_send, col_clear = st.columns([1, 1])
             with col_send:
-                send_clicked = st.button('📤 Send', type='primary', use_container_width=True)
+                send_clicked = st.button(
+                    AI_CHAT_SEND_BUTTON, type='primary', use_container_width=True
+                )
             with col_clear:
-                clear_clicked = st.button('🗑️ Clear', use_container_width=True)
+                clear_clicked = st.button(AI_CHAT_CLEAR_BUTTON, use_container_width=True)
 
             # Handle clear
             if clear_clicked:
@@ -201,7 +534,7 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter):
 
             # Handle send
             if send_clicked and user_prompt.strip():
-                with st.spinner('Thinking...'):
+                with st.spinner(AI_CHAT_THINKING):
                     response = send_chat_message(user_prompt.strip(), api_key, fitter)
                     st.session_state.chat_history.append(
                         {'role': 'user', 'content': user_prompt.strip()}
@@ -211,11 +544,11 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter):
 
             # Display chat history (non-editable but selectable)
             st.markdown('---')
-            st.markdown('**Conversation:**')
+            st.markdown(AI_CHAT_HISTORY_HEADER)
 
             if st.session_state.chat_history:
                 # Create a scrollable container for chat history
-                chat_container = st.container(height=300)
+                chat_container = st.container(height=CHAT_HISTORY_HEIGHT)
                 with chat_container:
                     for _i, message in enumerate(st.session_state.chat_history):
                         if message['role'] == 'user':
@@ -225,7 +558,123 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter):
                             st.markdown('**🤖 Assistant:**')
                             st.success(message['content'])
             else:
-                st.caption('No messages yet. Ask a question to get started!')
+                st.caption(AI_CHAT_EMPTY_CAPTION)
+
+
+def render_data_upload_sidebar() -> None:
+    """Render the data upload controls in the sidebar."""
+    st.sidebar.header(SIDEBAR_DATA_UPLOAD_HEADER)
+
+    uploaded_file = st.sidebar.file_uploader(
+        UPLOAD_LABEL,
+        type=['csv', 'dat'],
+        help=UPLOAD_HELP,
+    )
+
+    if st.sidebar.button(EXAMPLE_DATA_BUTTON):
+        example_file = EXAMPLE_DATA_FILE
+        if os.path.exists(example_file):
+            try:
+                st.session_state.fitter.load_data(example_file)
+                st.session_state.data_loaded = True
+                st.sidebar.success(SUCCESS_EXAMPLE_LOADED)
+            except Exception as e:
+                st.sidebar.error(f'Error loading example data: {str(e)}')
+        else:
+            st.sidebar.error(ERROR_EXAMPLE_NOT_FOUND)
+
+    if uploaded_file is not None:
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
+                tmp_file.write(uploaded_file.getvalue())
+                tmp_file_path = tmp_file.name
+
+            st.session_state.fitter.load_data(tmp_file_path)
+            st.session_state.data_loaded = True
+            st.sidebar.success(SUCCESS_DATA_UPLOADED)
+
+            os.unlink(tmp_file_path)
+
+        except Exception as e:
+            st.sidebar.error(f'Error loading data: {str(e)}')
+            st.session_state.data_loaded = False
+
+
+def render_model_selection_sidebar() -> None:
+    """Render the model selection controls in the sidebar."""
+    st.sidebar.header(SIDEBAR_MODEL_SELECTION_HEADER)
+
+    selection_method = st.sidebar.radio(
+        SELECTION_METHOD_LABEL, SELECTION_METHOD_OPTIONS, help=SELECTION_METHOD_HELP
+    )
+
+    selected_model = None
+
+    if selection_method == 'Manual':
+        all_models = get_all_models()
+        selected_model = st.sidebar.selectbox(
+            MODEL_SELECT_LABEL,
+            options=all_models,
+            index=all_models.index('sphere') if 'sphere' in all_models else 0,
+            help=MODEL_SELECT_HELP,
+        )
+    else:
+        st.sidebar.markdown(AI_ASSISTED_HEADER)
+
+        api_key = st.sidebar.text_input(
+            AI_KEY_LABEL,
+            type='password',
+            help=AI_KEY_HELP,
+        )
+
+        if api_key:
+            st.session_state.chat_api_key = api_key
+
+        if st.sidebar.button(AI_SUGGESTIONS_BUTTON):
+            if st.session_state.data_loaded:
+                with st.spinner(SPINNER_ANALYZING_DATA):
+                    data = st.session_state.fitter.data
+                    suggestions = suggest_models_ai(data.x, data.y, api_key if api_key else None)
+
+                    if suggestions:
+                        st.sidebar.success(
+                            f'{SUCCESS_AI_SUGGESTIONS_PREFIX}{len(suggestions)}{SUCCESS_AI_SUGGESTIONS_SUFFIX}'
+                        )
+                        st.session_state.ai_suggestions = suggestions
+                    else:
+                        st.sidebar.warning(WARNING_NO_SUGGESTIONS)
+            else:
+                st.sidebar.warning(WARNING_LOAD_DATA_FIRST)
+
+        if 'ai_suggestions' in st.session_state and st.session_state.ai_suggestions:
+            st.sidebar.markdown(AI_SUGGESTIONS_HEADER)
+            selected_model = st.sidebar.selectbox(
+                AI_SUGGESTIONS_SELECT_LABEL, options=st.session_state.ai_suggestions
+            )
+
+    if selected_model:
+        if st.sidebar.button(LOAD_MODEL_BUTTON):
+            try:
+                keys_to_remove = [
+                    k
+                    for k in st.session_state.keys()
+                    if k.startswith('value_')
+                    or k.startswith('min_')
+                    or k.startswith('max_')
+                    or k.startswith('vary_')
+                ]
+                for key in keys_to_remove:
+                    del st.session_state[key]
+
+                st.session_state.fitter.set_model(selected_model)
+                st.session_state.model_selected = True
+                st.session_state.current_model = selected_model
+                st.session_state.fit_completed = False
+                st.sidebar.success(
+                    f'{SUCCESS_MODEL_LOADED_PREFIX}{selected_model}{SUCCESS_MODEL_LOADED_SUFFIX}'
+                )
+            except Exception as e:
+                st.sidebar.error(f'Error loading model: {str(e)}')
 
 
 def clamp_for_display(value: float) -> float:
@@ -263,10 +712,6 @@ def suggest_models_ai(
         return suggest_models_simple(q_data, i_data)
 
     try:
-        from openai import OpenAI
-
-        client = OpenAI(api_key=api_key)
-
         # Get all available models
         all_models = get_all_models()
 
@@ -291,7 +736,8 @@ Available models include all models in the sasmodels library.
 Based on the data characteristics (slope, Q range, intensity decay), suggest 3 models
 that would fit the provided data. Return ONLY the model names, one per line, no explanations."""
 
-        response = client.chat.completions.create(
+        response = create_chat_completion(
+            api_key=api_key,
             model='gpt-4o',
             max_tokens=500,
             messages=[{'role': 'user', 'content': prompt}],
@@ -317,189 +763,35 @@ that would fit the provided data. Return ONLY the model names, one per line, no 
 def main():
     """Main Streamlit application."""
     st.set_page_config(
-        page_title='SANS Data Analysis',
-        page_icon='🔬',
-        layout='wide',
-        initial_sidebar_state='expanded',
+        page_title=APP_PAGE_TITLE,
+        page_icon=APP_PAGE_ICON,
+        layout=APP_LAYOUT,
+        initial_sidebar_state=APP_SIDEBAR_STATE,
     )
 
-    st.title('🔬 SANS Data Analysis Web Application')
-    st.markdown(
-        """
-    Analyze Small Angle Neutron Scattering (SANS) data with model fitting and AI-assisted model selection.
-    """
-    )
+    st.title(APP_TITLE)
+    st.markdown(APP_SUBTITLE)
 
     # Initialize session state
-    if 'fitter' not in st.session_state:
-        st.session_state.fitter = SANSFitter()
-    if 'data_loaded' not in st.session_state:
-        st.session_state.data_loaded = False
-    if 'model_selected' not in st.session_state:
-        st.session_state.model_selected = False
-    if 'fit_completed' not in st.session_state:
-        st.session_state.fit_completed = False
-    if 'show_ai_chat' not in st.session_state:
-        st.session_state.show_ai_chat = False  # Default to collapsed
-    if 'chat_api_key' not in st.session_state:
-        st.session_state.chat_api_key = None
-    if 'slider_value' not in st.session_state:
-        st.session_state.slider_value = 0.0
-    if 'prev_selected_param' not in st.session_state:
-        st.session_state.prev_selected_param = None
+    init_session_state()
 
     # Sidebar for controls
-    st.sidebar.header('Controls')
+    st.sidebar.header(SIDEBAR_CONTROLS_HEADER)
 
-    # Data Upload section
-    st.sidebar.header('Data Upload')
-
-    # File uploader
-    uploaded_file = st.sidebar.file_uploader(
-        'Upload SANS data file (CSV or .dat)',
-        type=['csv', 'dat'],
-        help='File should contain columns: Q, I(Q), dI(Q)',
-    )
-
-    # Example data button
-    if st.sidebar.button('Load Example Data'):
-        example_file = 'simulated_sans_data.csv'
-        if os.path.exists(example_file):
-            try:
-                st.session_state.fitter.load_data(example_file)
-                st.session_state.data_loaded = True
-                st.sidebar.success('✓ Example data loaded successfully!')
-            except Exception as e:
-                st.sidebar.error(f'Error loading example data: {str(e)}')
-        else:
-            st.sidebar.error('Example data file not found!')
-
-    # Process uploaded file
-    if uploaded_file is not None:
-        try:
-            # Save uploaded file temporarily
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
-                tmp_file.write(uploaded_file.getvalue())
-                tmp_file_path = tmp_file.name
-
-            # Load data
-            st.session_state.fitter.load_data(tmp_file_path)
-            st.session_state.data_loaded = True
-            st.sidebar.success('✓ Data uploaded successfully!')
-
-            # Clean up temp file
-            os.unlink(tmp_file_path)
-
-        except Exception as e:
-            st.sidebar.error(f'Error loading data: {str(e)}')
-            st.session_state.data_loaded = False
-
-    # Model Selection (in sidebar)
-    st.sidebar.header('Model Selection')
-
-    selection_method = st.sidebar.radio(
-        'Selection Method', ['Manual', 'AI-Assisted'], help='Choose how to select the fitting model'
-    )
-
-    selected_model = None
-
-    if selection_method == 'Manual':
-        all_models = get_all_models()
-        selected_model = st.sidebar.selectbox(
-            'Select Model',
-            options=all_models,
-            index=all_models.index('sphere') if 'sphere' in all_models else 0,
-            help='Choose a model from the sasmodels library',
-        )
-
-    else:  # AI-Assisted
-        st.sidebar.markdown('**AI-Assisted Model Suggestion**')
-
-        # API key input (optional)
-        api_key = st.sidebar.text_input(
-            'OpenAI API Key (optional)',
-            type='password',
-            help='Enter your OpenAI API key for AI-powered suggestions. Leave empty for heuristic-based suggestions.',
-        )
-
-        # Store API key for chat pane
-        if api_key:
-            st.session_state.chat_api_key = api_key
-
-        if st.sidebar.button('Get AI Suggestions'):
-            if st.session_state.data_loaded:
-                with st.spinner('Analyzing data...'):
-                    data = st.session_state.fitter.data
-                    suggestions = suggest_models_ai(data.x, data.y, api_key if api_key else None)
-
-                    if suggestions:
-                        st.sidebar.success(f'✓ Found {len(suggestions)} suggestions')
-                        st.session_state.ai_suggestions = suggestions
-                    else:
-                        st.sidebar.warning('No suggestions found')
-            else:
-                st.sidebar.warning('Please load data first')
-
-        # Show suggestions if available
-        if 'ai_suggestions' in st.session_state and st.session_state.ai_suggestions:
-            st.sidebar.markdown('**Suggested Models:**')
-            selected_model = st.sidebar.selectbox(
-                'Choose from suggestions', options=st.session_state.ai_suggestions
-            )
-
-    # Load selected model
-    if selected_model:
-        if st.sidebar.button('Load Model'):
-            try:
-                # Clear old parameter session state before loading new model
-                keys_to_remove = [
-                    k
-                    for k in st.session_state.keys()
-                    if k.startswith('value_')
-                    or k.startswith('min_')
-                    or k.startswith('max_')
-                    or k.startswith('vary_')
-                ]
-                for key in keys_to_remove:
-                    del st.session_state[key]
-
-                st.session_state.fitter.set_model(selected_model)
-                st.session_state.model_selected = True
-                st.session_state.current_model = selected_model
-                st.session_state.fit_completed = False  # Reset fit status
-                st.sidebar.success(f'✓ Model "{selected_model}" loaded!')
-            except Exception as e:
-                st.sidebar.error(f'Error loading model: {str(e)}')
+    render_data_upload_sidebar()
+    render_model_selection_sidebar()
 
     # Main content area - handle case when data is not loaded
     if not st.session_state.data_loaded:
-        st.info('👆 Please upload a SANS data file or load example data from the sidebar.')
-        st.markdown(
-            """
-        ### Expected Data Format
-
-        Your data file should be a CSV or .dat file with three columns:
-        - **Q**: Scattering vector (Å⁻¹)
-        - **I(Q)**: Intensity (cm⁻¹)
-        - **dI(Q)**: Error/uncertainty in intensity
-
-        Example:
-        ```
-        Q,I,dI
-        0.001,1.035,0.020
-        0.006,0.990,0.020
-        0.011,1.038,0.020
-        ...
-        ```
-        """
-        )
+        st.info(INFO_NO_DATA)
+        st.markdown(DATA_FORMAT_HELP)
         # Render AI Chat in left sidebar (at the bottom)
         render_ai_chat_sidebar(st.session_state.chat_api_key, st.session_state.fitter)
         return
 
     # Data is loaded - main content area
     # Show data preview
-    st.subheader('📊 Data Preview')
+    st.subheader(DATA_PREVIEW_HEADER)
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -508,215 +800,98 @@ def main():
         st.plotly_chart(fig, width='stretch')
 
     with col2:
-        st.markdown('**Data Statistics**')
+        st.markdown(DATA_STATS_HEADER)
         data = st.session_state.fitter.data
-        st.metric('Data Points', len(data.x))
-        st.metric('Q Range', f'{data.x.min():.4f} - {data.x.max():.4f} Å⁻¹')
-        st.metric('Max Intensity', f'{data.y.max():.4e} cm⁻¹')
+        st.metric(METRIC_DATA_POINTS, len(data.x))
+        st.metric(METRIC_Q_RANGE, f'{data.x.min():.4f} - {data.x.max():.4f} Å⁻¹')
+        st.metric(METRIC_MAX_INTENSITY, f'{data.y.max():.4e} cm⁻¹')
 
         # Show data table
-        if st.checkbox('Show data table'):
+        if st.checkbox(SHOW_DATA_TABLE_LABEL):
             df = pd.DataFrame({'Q': data.x, 'I(Q)': data.y, 'dI(Q)': data.dy})
-            st.dataframe(df.head(20), height=300)
+            st.dataframe(df.head(20), height=DATA_TABLE_HEIGHT)
 
     # Parameter Configuration
     if st.session_state.model_selected:
-        st.subheader(f'⚙️ Model Parameters: {st.session_state.current_model}')
+        st.subheader(f'{PARAMETERS_HEADER_PREFIX}{st.session_state.current_model}')
 
         fitter = st.session_state.fitter
-        params = fitter.params
+        params = cast(dict[str, ParamInfo], fitter.params)
 
-        # Apply pending preset action before widgets are rendered
-        if 'pending_preset' in st.session_state:
-            preset = st.session_state.pending_preset
-            del st.session_state.pending_preset
+        # Apply pending updates before widgets are rendered
+        apply_pending_preset(fitter, params)
+        apply_fit_results_to_params(fitter, params)
 
-            for param_name in params.keys():
-                if preset == 'scale_background':
-                    vary = param_name in ('scale', 'background')
-                elif preset == 'fit_all':
-                    vary = True
-                elif preset == 'fix_all':
-                    vary = False
-                else:
-                    vary = False
-                fitter.set_param(param_name, vary=vary)
-                st.session_state[f'vary_{param_name}'] = vary
+        st.markdown(PARAMETERS_HELP_TEXT)
 
-        # Apply pending fit results update before widgets are rendered
-        if 'pending_update_from_fit' in st.session_state:
-            del st.session_state.pending_update_from_fit
-            # Get fitted values from fit_result if available
-            if 'fit_result' in st.session_state and 'parameters' in st.session_state.fit_result:
-                for param_name, fit_param_info in st.session_state.fit_result['parameters'].items():
-                    if param_name in params:
-                        st.session_state[f'value_{param_name}'] = clamp_for_display(
-                            float(fit_param_info['value'])
-                        )
-                        # Also update the fitter
-                        fitter.set_param(param_name, value=fit_param_info['value'])
-            else:
-                # Fallback to fitter params
-                for param_name, param_info in params.items():
-                    st.session_state[f'value_{param_name}'] = clamp_for_display(
-                        float(param_info['value'])
-                    )
+        with st.form('parameter_form'):
+            # Create parameter configuration UI
+            param_updates = render_parameter_table(params)
+            submitted = st.form_submit_button(PARAMETER_UPDATE_BUTTON)
 
-        st.markdown(
-            """
-        Configure the model parameters below. Set initial values, bounds, and whether each parameter
-        should be fitted (vary) or held constant.
-        """
-        )
+        if submitted:
+            apply_param_updates(fitter, param_updates)
+            st.session_state.param_updates = param_updates
+            st.success(SUCCESS_PARAMS_UPDATED)
 
-        # Create parameter configuration UI
-        param_cols = st.columns([2, 1, 1, 1, 1])
-        param_cols[0].markdown('**Parameter**')
-        param_cols[1].markdown('**Value**')
-        param_cols[2].markdown('**Min**')
-        param_cols[3].markdown('**Max**')
-        param_cols[4].markdown('**Fit?**')
+        if 'param_updates' not in st.session_state:
+            st.session_state.param_updates = build_param_updates_from_params(params)
 
-        # Store parameter updates
-        param_updates = {}
-
-        for param_name, param_info in params.items():
-            cols = st.columns([2, 1, 1, 1, 1])
-
-            with cols[0]:
-                st.text(param_name)
-                if param_info.get('description'):
-                    st.caption(param_info['description'][:50])
-
-            # Initialize session state from fitter only if not already set
-            # Once set, session state is the source of truth
-            value_key = f'value_{param_name}'
-            min_key = f'min_{param_name}'
-            max_key = f'max_{param_name}'
-            vary_key = f'vary_{param_name}'
-
-            if value_key not in st.session_state:
-                st.session_state[value_key] = clamp_for_display(float(param_info['value']))
-            if min_key not in st.session_state:
-                st.session_state[min_key] = clamp_for_display(float(param_info['min']))
-            if max_key not in st.session_state:
-                st.session_state[max_key] = clamp_for_display(float(param_info['max']))
-            if vary_key not in st.session_state:
-                st.session_state[vary_key] = param_info['vary']
-
-            with cols[1]:
-                value = st.number_input(
-                    'Value',
-                    format='%g',
-                    key=value_key,
-                    label_visibility='collapsed',
-                )
-
-            with cols[2]:
-                min_val = st.number_input(
-                    'Min',
-                    format='%g',
-                    key=min_key,
-                    label_visibility='collapsed',
-                )
-
-            with cols[3]:
-                max_val = st.number_input(
-                    'Max',
-                    format='%g',
-                    key=max_key,
-                    label_visibility='collapsed',
-                )
-
-            with cols[4]:
-                vary = st.checkbox(
-                    'Fit',
-                    key=vary_key,
-                    label_visibility='collapsed',
-                )
-
-            # Always sync session state values to fitter
-            fitter.set_param(param_name, value=value, min=min_val, max=max_val, vary=vary)
-
-            param_updates[param_name] = {
-                'value': value,
-                'min': min_val,
-                'max': max_val,
-                'vary': vary,
-            }
-
-        # Apply parameter updates button (now mainly for confirmation feedback)
-        if st.button('Update Parameters'):
-            st.success('✓ Parameters updated!')
+        param_updates = cast(dict[str, ParamUpdate], st.session_state.param_updates)
 
         # Quick parameter presets
-        st.markdown('**Quick Presets:**')
+        st.markdown(PRESET_HEADER)
         preset_cols = st.columns(4)
 
         with preset_cols[0]:
-            if st.button('Fit Scale & Background'):
+            if st.button(PRESET_FIT_SCALE_BACKGROUND):
                 st.session_state.pending_preset = 'scale_background'
                 st.rerun()
 
         with preset_cols[1]:
-            if st.button('Fit All Parameters'):
+            if st.button(PRESET_FIT_ALL):
                 st.session_state.pending_preset = 'fit_all'
                 st.rerun()
 
         with preset_cols[2]:
-            if st.button('Fix All Parameters'):
+            if st.button(PRESET_FIX_ALL):
                 st.session_state.pending_preset = 'fix_all'
                 st.rerun()
 
         # Fitting Section (in sidebar)
-        st.sidebar.header('Fitting')
+        st.sidebar.header(SIDEBAR_FITTING_HEADER)
 
-        engine = st.sidebar.selectbox(
-            'Optimization Engine', ['bumps', 'lmfit'], help='Choose the fitting engine'
-        )
+        engine = st.sidebar.selectbox(FIT_ENGINE_LABEL, FIT_ENGINE_OPTIONS, help=FIT_ENGINE_HELP)
 
         if engine == 'bumps':
             method = st.sidebar.selectbox(
-                'Method',
-                ['amoeba', 'lm', 'newton', 'de'],
-                help='Optimization method for BUMPS',
+                FIT_METHOD_LABEL, FIT_METHOD_BUMPS, help=FIT_METHOD_HELP_BUMPS
             )
         else:
             method = st.sidebar.selectbox(
-                'Method',
-                ['leastsq', 'least_squares', 'differential_evolution'],
-                help='Optimization method for LMFit',
+                FIT_METHOD_LABEL, FIT_METHOD_LMFIT, help=FIT_METHOD_HELP_LMFIT
             )
 
-        if st.sidebar.button('🚀 Run Fit', type='primary'):
+        if st.sidebar.button(FIT_RUN_BUTTON, type='primary'):
             # Apply current parameter settings before fitting
-            for param_name, updates in param_updates.items():
-                fitter.set_param(
-                    param_name,
-                    value=updates['value'],
-                    min=updates['min'],
-                    max=updates['max'],
-                    vary=updates['vary'],
-                )
+            apply_param_updates(fitter, param_updates)
 
             with st.spinner(f'Fitting with {engine}/{method}...'):
                 try:
                     any_vary = any(p['vary'] for p in fitter.params.values())
                     if not any_vary:
-                        st.warning(
-                            '⚠️ No parameters are set to vary. Please enable at least one parameter to fit.'
-                        )
+                        st.warning(WARNING_NO_VARY)
                     else:
                         result = fitter.fit(engine=engine, method=method)
                         st.session_state.fit_completed = True
-                        st.session_state.fit_result = result
-                        st.sidebar.success('✓ Fit completed successfully!')
+                        st.session_state.fit_result = cast(FitResult, result)
+                        st.sidebar.success(SUCCESS_FIT_COMPLETED)
                 except Exception as e:
                     st.sidebar.error(f'Fitting error: {str(e)}')
 
         # Display fit results
         if st.session_state.fit_completed:
-            st.subheader('📈 Fit Results')
+            st.subheader(FIT_RESULTS_HEADER)
 
             col1, col2 = st.columns([2, 1])
 
@@ -735,21 +910,33 @@ def main():
 
             with col2:
                 if 'fit_result' in st.session_state and 'chisq' in st.session_state.fit_result:
-                    chi_squared = st.session_state.fit_result['chisq']
-                    st.markdown(f'**Chi² (χ²):** {chi_squared:.4f}')
-                    st.markdown('---')
+                    chi_squared = cast(FitResult, st.session_state.fit_result).get('chisq')
+                    if chi_squared is not None:
+                        st.markdown(f'{CHI_SQUARED_LABEL}{chi_squared:.4f}')
+                        st.markdown('---')
 
-                st.markdown('**Fitted Parameters**')
+                st.markdown(FITTED_PARAMETERS_HEADER)
 
                 fitted_params = []
                 if 'fit_result' in st.session_state and 'parameters' in st.session_state.fit_result:
-                    for name, param_info in st.session_state.fit_result['parameters'].items():
+                    fit_result = cast(FitResult, st.session_state.fit_result)
+                    for name, param_info in fit_result.get('parameters', {}).items():
                         if name in fitter.params and fitter.params[name]['vary']:
+                            value = param_info.get('value')
+                            stderr = param_info.get('stderr')
+                            if value is None:
+                                continue
+                            if isinstance(stderr, (int, float)):
+                                error_text = f'{stderr:.4g}'
+                            elif stderr is None:
+                                error_text = 'N/A'
+                            else:
+                                error_text = f'{stderr}'
                             fitted_params.append(
                                 {
                                     'Parameter': name,
-                                    'Value': f'{param_info["value"]:.4g}',
-                                    'Error': f'{param_info["stderr"]:.4g}',
+                                    'Value': f'{value:.4g}',
+                                    'Error': error_text,
                                 }
                             )
                 else:
@@ -763,11 +950,11 @@ def main():
                     df_fitted = pd.DataFrame(fitted_params)
                     st.dataframe(df_fitted, hide_index=True, width='stretch')
 
-                    st.markdown('**Adjust Parameter**')
+                    st.markdown(ADJUST_PARAMETER_HEADER)
                     fitted_param_names = [p['Parameter'] for p in fitted_params]
 
                     selected_param = st.selectbox(
-                        'Select parameter to adjust',
+                        SELECT_PARAMETER_LABEL,
                         options=fitted_param_names,
                         key='selected_slider_param',
                         label_visibility='collapsed',
@@ -784,11 +971,11 @@ def main():
                             st.session_state.prev_selected_param = selected_param
 
                         if current_value != 0:
-                            slider_min = current_value * 0.8
-                            slider_max = current_value * 1.2
+                            slider_min = current_value * SLIDER_SCALE_MIN
+                            slider_max = current_value * SLIDER_SCALE_MAX
                         else:
-                            slider_min = -0.1
-                            slider_max = 0.1
+                            slider_min = SLIDER_DEFAULT_MIN
+                            slider_max = SLIDER_DEFAULT_MAX
 
                         def update_profile():
                             new_value = st.session_state.slider_value
@@ -809,14 +996,14 @@ def main():
 
                         st.caption(f'Range: {slider_min:.4g} to {slider_max:.4g}')
 
-                    if st.button('Update Parameters with Fit Results'):
+                    if st.button(UPDATE_FROM_FIT_BUTTON):
                         st.session_state.pending_update_from_fit = True
                         st.rerun()
                 else:
                     st.info('No parameters were fitted')
 
-                st.markdown('**Export Results**')
-                if st.button('Save Results to CSV'):
+                st.markdown(EXPORT_RESULTS_HEADER)
+                if st.button(SAVE_RESULTS_BUTTON):
                     try:
                         results_data = []
                         for name, info in fitter.params.items():
@@ -834,9 +1021,9 @@ def main():
                         csv = df_results.to_csv(index=False)
 
                         st.download_button(
-                            label='Download CSV',
+                            label=DOWNLOAD_RESULTS_LABEL,
                             data=csv,
-                            file_name='fit_results.csv',
+                            file_name=RESULTS_CSV_NAME,
                             mime='text/csv',
                         )
                     except Exception as e:
