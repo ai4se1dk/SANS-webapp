@@ -49,12 +49,25 @@ python tests/test_app.py
 
 ```
 ├── src/
-│   ├── app.py                  # Main Streamlit application
+│   ├── app.py                  # Main Streamlit application (~115 lines)
 │   ├── demo_app.py             # Command-line demo
-│   └── sans_analysis_utils.py  # Shared utility functions
+│   ├── openai_client.py        # OpenAI API wrapper
+│   ├── sans_analysis_utils.py  # Shared utility functions
+│   ├── sans_types.py           # TypedDict definitions
+│   ├── ui_constants.py         # UI string constants (~145 lines)
+│   ├── components/             # UI rendering components
+│   │   ├── __init__.py
+│   │   ├── data_preview.py     # Data visualization section
+│   │   ├── fit_results.py      # Fit results display & export
+│   │   ├── parameters.py       # Parameter table & presets
+│   │   └── sidebar.py          # Sidebar controls (upload, model, chat)
+│   └── services/               # Business logic services
+│       ├── __init__.py
+│       ├── ai_chat.py          # AI chat & model suggestions
+│       └── session_state.py    # Session state management
 ├── pyproject.toml              # Package configuration
 ├── tests/
-│   └── test_app.py             # Test suite
+│   └── test_app.py             # Test suite (14 tests)
 ├── simulated_sans_data.csv     # Example dataset (200 points)
 ├── example_sans_data.dat       # Alternative example (70 points)
 ├── Dockerfile                  # For Docker deployment

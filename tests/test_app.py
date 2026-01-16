@@ -452,8 +452,8 @@ def test_parameters_build_updates():
     """Test the build_param_updates_from_params function."""
     print('\nTesting components.parameters.build_param_updates_from_params()...')
 
-    from components.parameters import build_param_updates_from_params
-    from sans_types import ParamInfo
+    from components.parameters import build_param_updates_from_params # noqa: F402
+    from sans_types import ParamInfo # noqa: F402
 
     # Create test params
     test_params: dict[str, ParamInfo] = {

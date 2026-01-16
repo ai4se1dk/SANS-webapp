@@ -24,8 +24,6 @@ from components.sidebar import (
     render_data_upload_sidebar,
     render_model_selection_sidebar,
 )
-
-# Re-export utility functions for backwards compatibility with tests
 from sans_types import FitResult, ParamUpdate
 from services.session_state import init_session_state
 from ui_constants import (
