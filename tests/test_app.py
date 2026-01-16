@@ -12,11 +12,14 @@ This test suite covers:
 """
 
 import sys
+from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, '.')
-sys.path.insert(0, 'src')
+# Add src directory to path for imports
+_src_path = Path(__file__).parent.parent / 'src'
+sys.path.insert(0, str(_src_path))
+sys.path.insert(0, str(_src_path.parent))
 
 # Import utilities first (no Streamlit dependency)
 from sans_fitter import SANSFitter
