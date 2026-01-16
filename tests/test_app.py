@@ -4,16 +4,22 @@ Test script to validate the SANS analysis utilities and Streamlit app functional
 
 This test suite covers:
 1. Utility functions (sans_analysis_utils.py) - no Streamlit dependency
-2. App module imports and functions (app.py) - requires Streamlit
-3. SANSFitter integration
+2. Type definitions (sans_types.py)
+3. UI constants (ui_constants.py)
+4. Services (services/) - session_state, ai_chat
+5. App module imports and functions (app.py) - requires Streamlit
+6. SANSFitter integration
 """
 
 import sys
+from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, '.')
-sys.path.insert(0, 'src')
+# Add src directory to path for imports
+_src_path = Path(__file__).parent.parent / 'src'
+sys.path.insert(0, str(_src_path))
+sys.path.insert(0, str(_src_path.parent))
 
 # Import utilities first (no Streamlit dependency)
 from sans_fitter import SANSFitter
@@ -112,6 +118,157 @@ def test_utils_plot_data_and_fit():
 
 
 # =============================================================================
+# Type Definitions Tests (sans_types.py)
+# =============================================================================
+
+
+def test_types_module():
+    """Test that type definitions are properly defined."""
+    print('\nTesting sans_types module...')
+
+    from sans_types import FitParamInfo, FitResult, ParamInfo, ParamUpdate
+
+    # Test ParamInfo structure
+    param_info: ParamInfo = {
+        'value': 1.0,
+        'min': 0.0,
+        'max': 10.0,
+        'vary': True,
+        'description': 'Test parameter',
+    }
+    assert param_info['value'] == 1.0, 'ParamInfo value incorrect!'
+    assert param_info['vary'] is True, 'ParamInfo vary incorrect!'
+    print('✓ ParamInfo TypedDict works correctly')
+
+    # Test FitParamInfo structure
+    fit_param_info: FitParamInfo = {
+        'value': 2.5,
+        'stderr': 0.1,
+    }
+    assert fit_param_info['value'] == 2.5, 'FitParamInfo value incorrect!'
+    print('✓ FitParamInfo TypedDict works correctly')
+
+    # Test FitResult structure
+    fit_result: FitResult = {
+        'chisq': 1.5,
+        'parameters': {'scale': fit_param_info},
+    }
+    assert fit_result['chisq'] == 1.5, 'FitResult chisq incorrect!'
+    print('✓ FitResult TypedDict works correctly')
+
+    # Test ParamUpdate structure
+    param_update: ParamUpdate = {
+        'value': 5.0,
+        'min': 0.0,
+        'max': 100.0,
+        'vary': False,
+    }
+    assert param_update['value'] == 5.0, 'ParamUpdate value incorrect!'
+    print('✓ ParamUpdate TypedDict works correctly')
+
+    return True
+
+
+# =============================================================================
+# UI Constants Tests (ui_constants.py)
+# =============================================================================
+
+
+def test_ui_constants():
+    """Test that UI constants are properly defined."""
+    print('\nTesting ui_constants module...')
+
+    import ui_constants
+
+    # Test app configuration constants
+    assert hasattr(ui_constants, 'APP_PAGE_TITLE'), 'APP_PAGE_TITLE not found!'
+    assert hasattr(ui_constants, 'APP_TITLE'), 'APP_TITLE not found!'
+    assert ui_constants.APP_PAGE_TITLE == 'SANS Data Analysis', 'APP_PAGE_TITLE incorrect!'
+    print('✓ App configuration constants present')
+
+    # Test sidebar constants
+    assert hasattr(ui_constants, 'SIDEBAR_CONTROLS_HEADER'), 'SIDEBAR_CONTROLS_HEADER not found!'
+    assert hasattr(ui_constants, 'SIDEBAR_DATA_UPLOAD_HEADER'), (
+        'SIDEBAR_DATA_UPLOAD_HEADER not found!'
+    )
+    print('✓ Sidebar constants present')
+
+    # Test parameter constants
+    assert hasattr(ui_constants, 'PARAMETER_COLUMNS_LABELS'), 'PARAMETER_COLUMNS_LABELS not found!'
+    assert len(ui_constants.PARAMETER_COLUMNS_LABELS) == 5, 'Should have 5 column labels!'
+    print('✓ Parameter constants present')
+
+    # Test fit constants
+    assert hasattr(ui_constants, 'FIT_ENGINE_OPTIONS'), 'FIT_ENGINE_OPTIONS not found!'
+    assert 'bumps' in ui_constants.FIT_ENGINE_OPTIONS, 'bumps not in FIT_ENGINE_OPTIONS!'
+    assert 'lmfit' in ui_constants.FIT_ENGINE_OPTIONS, 'lmfit not in FIT_ENGINE_OPTIONS!'
+    print('✓ Fit engine constants present')
+
+    # Test display limits
+    assert hasattr(ui_constants, 'MAX_FLOAT_DISPLAY'), 'MAX_FLOAT_DISPLAY not found!'
+    assert hasattr(ui_constants, 'MIN_FLOAT_DISPLAY'), 'MIN_FLOAT_DISPLAY not found!'
+    assert ui_constants.MAX_FLOAT_DISPLAY == 1e300, 'MAX_FLOAT_DISPLAY incorrect!'
+    print('✓ Display limit constants present')
+
+    return True
+
+
+# =============================================================================
+# Services Tests (services/)
+# =============================================================================
+
+
+def test_session_state_clamp_for_display():
+    """Test the clamp_for_display function from session_state service."""
+    print('\nTesting services.session_state.clamp_for_display()...')
+
+    from services.session_state import clamp_for_display
+
+    # Test normal values
+    assert clamp_for_display(1.0) == 1.0, 'Normal value should be unchanged!'
+    assert clamp_for_display(-5.0) == -5.0, 'Negative value should be unchanged!'
+    assert clamp_for_display(0.0) == 0.0, 'Zero should be unchanged!'
+    print('✓ Normal values pass through unchanged')
+
+    # Test infinity values
+    clamped_inf = clamp_for_display(float('inf'))
+    assert clamped_inf < float('inf'), 'Positive infinity should be clamped!'
+    assert clamped_inf == 1e300, 'Positive infinity should clamp to MAX_FLOAT_DISPLAY!'
+    print('✓ Positive infinity clamped correctly')
+
+    clamped_neg_inf = clamp_for_display(float('-inf'))
+    assert clamped_neg_inf > float('-inf'), 'Negative infinity should be clamped!'
+    assert clamped_neg_inf == -1e300, 'Negative infinity should clamp to MIN_FLOAT_DISPLAY!'
+    print('✓ Negative infinity clamped correctly')
+
+    return True
+
+
+def test_ai_chat_service():
+    """Test the ai_chat service module structure."""
+    print('\nTesting services.ai_chat module...')
+
+    from services import ai_chat
+
+    # Check that functions exist
+    assert hasattr(ai_chat, 'send_chat_message'), 'send_chat_message not found!'
+    assert hasattr(ai_chat, 'suggest_models_ai'), 'suggest_models_ai not found!'
+    print('✓ AI chat functions available')
+
+    # Test suggest_models_ai without API key (should fall back to simple)
+    q = np.logspace(-3, -1, 50)
+    i = 100 * q ** (-4) + 0.1
+
+    # This should return simple suggestions when no API key is provided
+    suggestions = ai_chat.suggest_models_ai(q, i, api_key=None)
+    assert isinstance(suggestions, list), 'suggest_models_ai should return a list!'
+    assert len(suggestions) > 0, 'Should have at least one suggestion!'
+    print(f'✓ Fallback suggestions work: {suggestions}')
+
+    return True
+
+
+# =============================================================================
 # SANSFitter Integration Tests
 # =============================================================================
 
@@ -160,20 +317,28 @@ def test_app_imports():
     try:
         import app
 
-        # Check that app imports the utility functions
+        # Check that app re-exports the utility functions (backwards compatibility)
         assert hasattr(app, 'get_all_models'), 'get_all_models not available in app!'
         assert hasattr(app, 'analyze_data_for_ai_suggestion'), (
             'analyze_data_for_ai_suggestion not available in app!'
         )
         assert hasattr(app, 'suggest_models_simple'), 'suggest_models_simple not available in app!'
         assert hasattr(app, 'plot_data_and_fit'), 'plot_data_and_fit not available in app!'
-        print('✓ Utility functions imported into app')
+        print('✓ Utility functions re-exported from app (backwards compatible)')
 
         # Check app-specific functions
         assert hasattr(app, 'suggest_models_ai'), 'suggest_models_ai not found in app!'
         assert hasattr(app, 'main'), 'main function not found in app!'
         assert hasattr(app, 'clamp_for_display'), 'clamp_for_display not found in app!'
         print('✓ App-specific functions available')
+
+        # Check refactored module imports
+        assert hasattr(app, 'render_data_preview'), 'render_data_preview not imported!'
+        assert hasattr(app, 'render_fit_results'), 'render_fit_results not imported!'
+        assert hasattr(app, 'render_parameter_configuration'), (
+            'render_parameter_configuration not imported!'
+        )
+        print('✓ Refactored component functions imported')
 
         return True
     except ImportError as e:
@@ -207,14 +372,125 @@ def test_app_clamp_for_display():
 
 
 # =============================================================================
+# Components Tests (components/)
+# =============================================================================
+
+
+def test_components_imports():
+    """Test that component modules can be imported."""
+    print('\nTesting components module imports...')
+
+    try:
+        from components import (
+            apply_fit_results_to_params,
+            apply_param_updates,
+            apply_pending_preset,
+            build_param_updates_from_params,
+            render_ai_chat_sidebar,
+            render_data_preview,
+            render_data_upload_sidebar,
+            render_fit_results,
+            render_model_selection_sidebar,
+            render_parameter_configuration,
+            render_parameter_table,
+        )
+
+        print('✓ All component functions importable from components package')
+
+        # Test individual module imports
+        from components import data_preview, fit_results, parameters, sidebar
+
+        assert hasattr(data_preview, 'render_data_preview'), (
+            'render_data_preview not in data_preview!'
+        )
+        assert hasattr(fit_results, 'render_fit_results'), 'render_fit_results not in fit_results!'
+        assert hasattr(parameters, 'render_parameter_table'), (
+            'render_parameter_table not in parameters!'
+        )
+        assert hasattr(sidebar, 'render_data_upload_sidebar'), (
+            'render_data_upload_sidebar not in sidebar!'
+        )
+        print('✓ Individual component modules have expected functions')
+
+        return True
+    except ImportError as e:
+        print(f'✗ Components import failed: {e}')
+        return False
+
+
+def test_services_imports():
+    """Test that service modules can be imported."""
+    print('\nTesting services module imports...')
+
+    try:
+        from services import (
+            clamp_for_display,
+            init_session_state,
+            send_chat_message,
+            suggest_models_ai,
+        )
+
+        print('✓ All service functions importable from services package')
+
+        # Test individual module imports
+        from services import ai_chat, session_state
+
+        assert hasattr(session_state, 'init_session_state'), (
+            'init_session_state not in session_state!'
+        )
+        assert hasattr(session_state, 'clamp_for_display'), (
+            'clamp_for_display not in session_state!'
+        )
+        assert hasattr(ai_chat, 'send_chat_message'), 'send_chat_message not in ai_chat!'
+        assert hasattr(ai_chat, 'suggest_models_ai'), 'suggest_models_ai not in ai_chat!'
+        print('✓ Individual service modules have expected functions')
+
+        return True
+    except ImportError as e:
+        print(f'✗ Services import failed: {e}')
+        return False
+
+
+def test_parameters_build_updates():
+    """Test the build_param_updates_from_params function."""
+    print('\nTesting components.parameters.build_param_updates_from_params()...')
+
+    from components.parameters import build_param_updates_from_params  # noqa: F402
+    from sans_types import ParamInfo  # noqa: F402
+
+    # Create test params
+    test_params: dict[str, ParamInfo] = {
+        'scale': {'value': 1.0, 'min': 0.0, 'max': 10.0, 'vary': True, 'description': 'Scale'},
+        'radius': {'value': 50.0, 'min': 1.0, 'max': 1000.0, 'vary': True, 'description': 'Radius'},
+    }
+
+    updates = build_param_updates_from_params(test_params)
+
+    assert 'scale' in updates, 'scale not in updates!'
+    assert 'radius' in updates, 'radius not in updates!'
+    assert updates['scale']['value'] == 1.0, 'scale value incorrect!'
+    assert updates['scale']['vary'] is True, 'scale vary incorrect!'
+    assert updates['radius']['min'] == 1.0, 'radius min incorrect!'
+    print('✓ build_param_updates_from_params works correctly')
+
+    return True
+
+
+# =============================================================================
 # Main Test Runner
 # =============================================================================
 
 if __name__ == '__main__':
     print('=' * 70)
-    print('SANS Analysis - Test Suite')
+    print('SANS Analysis - Test Suite (Refactored)')
     print('=' * 70)
-    print('\nThis test covers both utility functions and the Streamlit app module.')
+    print('\nThis test covers the refactored module structure:')
+    print('  - sans_analysis_utils.py (utility functions)')
+    print('  - sans_types.py (type definitions)')
+    print('  - ui_constants.py (UI string constants)')
+    print('  - services/ (session_state, ai_chat)')
+    print('  - components/ (sidebar, parameters, data_preview, fit_results)')
+    print('  - app.py (main orchestration)')
 
     results = {}
 
@@ -230,6 +506,65 @@ if __name__ == '__main__':
         results['utils_plot'] = test_utils_plot_data_and_fit()
     except Exception as e:
         print(f'\n✗ Utility tests failed with exception: {e}')
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+    # Run type definitions tests
+    print('\n' + '-' * 70)
+    print('TYPE DEFINITIONS TESTS (sans_types.py)')
+    print('-' * 70)
+
+    try:
+        results['types_module'] = test_types_module()
+    except Exception as e:
+        print(f'\n✗ Types tests failed with exception: {e}')
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+    # Run UI constants tests
+    print('\n' + '-' * 70)
+    print('UI CONSTANTS TESTS (ui_constants.py)')
+    print('-' * 70)
+
+    try:
+        results['ui_constants'] = test_ui_constants()
+    except Exception as e:
+        print(f'\n✗ UI constants tests failed with exception: {e}')
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+    # Run services tests
+    print('\n' + '-' * 70)
+    print('SERVICES TESTS (services/)')
+    print('-' * 70)
+
+    try:
+        results['session_state_clamp'] = test_session_state_clamp_for_display()
+        results['ai_chat_service'] = test_ai_chat_service()
+        results['services_imports'] = test_services_imports()
+    except Exception as e:
+        print(f'\n✗ Services tests failed with exception: {e}')
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+    # Run components tests
+    print('\n' + '-' * 70)
+    print('COMPONENTS TESTS (components/)')
+    print('-' * 70)
+
+    try:
+        results['components_imports'] = test_components_imports()
+        results['parameters_build_updates'] = test_parameters_build_updates()
+    except Exception as e:
+        print(f'\n✗ Components tests failed with exception: {e}')
         import traceback
 
         traceback.print_exc()
