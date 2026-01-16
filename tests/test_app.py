@@ -22,9 +22,9 @@ sys.path.insert(0, str(_src_path))
 sys.path.insert(0, str(_src_path.parent))
 
 # Import utilities first (no Streamlit dependency)
-from sans_fitter import SANSFitter
+from sans_fitter import SANSFitter  # noqa: E402
 
-import sans_analysis_utils as utils
+import sans_analysis_utils as utils  # noqa: E402
 
 # =============================================================================
 # Utility Function Tests (sans_analysis_utils.py)
