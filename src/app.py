@@ -24,8 +24,20 @@ from components.sidebar import (
     render_data_upload_sidebar,
     render_model_selection_sidebar,
 )
+from sans_analysis_utils import (  # noqa: F401 - re-exported for backwards compatibility
+    analyze_data_for_ai_suggestion,
+    get_all_models,
+    plot_data_and_fit,
+    suggest_models_simple,
+)
 from sans_types import FitResult, ParamUpdate
-from services.session_state import init_session_state
+from services.ai_chat import (
+    suggest_models_ai,  # noqa: F401 - re-exported for backwards compatibility
+)
+from services.session_state import (
+    clamp_for_display,  # noqa: F401 - re-exported for backwards compatibility
+    init_session_state,
+)
 from ui_constants import (
     APP_LAYOUT,
     APP_PAGE_ICON,
