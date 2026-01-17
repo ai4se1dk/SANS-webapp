@@ -9,14 +9,16 @@ Contains rendering functions for the sidebar sections:
 
 import os
 import tempfile
+from importlib.resources import files
+from pathlib import Path
 from typing import Optional
 
 import streamlit as st
 from sans_fitter import SANSFitter
 
-from sans_analysis_utils import get_all_models
-from services.ai_chat import send_chat_message, suggest_models_ai
-from ui_constants import (
+from sans_webapp.sans_analysis_utils import get_all_models
+from sans_webapp.services.ai_chat import send_chat_message, suggest_models_ai
+from sans_webapp.ui_constants import (
     AI_ASSISTED_HEADER,
     AI_CHAT_CLEAR_BUTTON,
     AI_CHAT_DESCRIPTION,
@@ -58,6 +60,31 @@ from ui_constants import (
 )
 
 
+def _get_example_data_path() -> Path | None:
+    """Get the path to the example data file bundled with the package."""
+    # First, try to find it relative to the package
+    try:
+        package_files = files('sans_webapp')
+        example_path = package_files / 'data' / EXAMPLE_DATA_FILE
+        if hasattr(example_path, 'is_file') and example_path.is_file():
+            return Path(str(example_path))
+    except (TypeError, FileNotFoundError):
+        pass
+
+    # Fallback: check current working directory
+    cwd_path = Path.cwd() / EXAMPLE_DATA_FILE
+    if cwd_path.exists():
+        return cwd_path
+
+    # Fallback: check parent directories (for development)
+    for parent in [Path.cwd()] + list(Path.cwd().parents)[:3]:
+        candidate = parent / EXAMPLE_DATA_FILE
+        if candidate.exists():
+            return candidate
+
+    return None
+
+
 def render_data_upload_sidebar() -> None:
     """Render the data upload controls in the sidebar."""
     st.sidebar.header(SIDEBAR_DATA_UPLOAD_HEADER)
@@ -69,10 +96,10 @@ def render_data_upload_sidebar() -> None:
     )
 
     if st.sidebar.button(EXAMPLE_DATA_BUTTON):
-        example_file = EXAMPLE_DATA_FILE
-        if os.path.exists(example_file):
+        example_path = _get_example_data_path()
+        if example_path is not None:
             try:
-                st.session_state.fitter.load_data(example_file)
+                st.session_state.fitter.load_data(str(example_path))
                 st.session_state.data_loaded = True
                 st.sidebar.success(SUCCESS_EXAMPLE_LOADED)
             except Exception as e:

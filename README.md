@@ -22,11 +22,19 @@ A Streamlit-based web application is now available for interactive SANS data ana
 # Install the application
 pip install -e .
 
-# Run the Streamlit app
-streamlit run src/app.py
+# Run the Streamlit app (choose one)
+sans-webapp              # CLI command
+python -m sans_webapp    # Module execution
 ```
 
 The app will open in your browser at `http://localhost:8501`.
+
+### Install from PyPI
+
+```bash
+pip install sans-webapp
+sans-webapp
+```
 
 ### Using the Web Application
 
@@ -46,15 +54,13 @@ The app will open in your browser at `http://localhost:8501`.
 1. Push this repository to GitHub
 2. Go to [share.streamlit.io](https://share.streamlit.io)
 3. Connect your GitHub account and deploy from the repository
-4. Set `src/app.py` as the main file
+4. Set `src/sans_webapp/app.py` as the main file
 
 #### Heroku
 
 ```bash
-# Create Procfile
-echo "web: streamlit run src/app.py --server.port=$PORT --server.address=0.0.0.0" > Procfile
-
-# Deploy
+# The Procfile is already configured
+# Deploy directly
 heroku create your-app-name
 git push heroku main
 ```

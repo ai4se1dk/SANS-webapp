@@ -8,15 +8,19 @@ git clone https://github.com/ai4se1dk/SANS-webapp.git
 cd SANS-webapp
 ```
 
-### 2. Install Dependencies
+### 2. Install the Package
 ```bash
-# Install the SANS-webapp package with web app dependencies
+# Install the SANS-webapp package
 pip install -e .
 ```
 
 ### 3. Run the Application
 ```bash
-streamlit run src/app.py
+# Option 1: Use the CLI command (recommended)
+sans-webapp
+
+# Option 2: Run as Python module
+python -m sans_webapp
 ```
 
 The app will automatically open in your browser at `http://localhost:8501`.
@@ -26,7 +30,7 @@ The app will automatically open in your browser at `http://localhost:8501`.
 To see a demonstration of the app's capabilities without opening a browser:
 
 ```bash
-python src/demo_app.py
+python -m sans_webapp.demo_app
 ```
 
 This will show:
@@ -42,34 +46,37 @@ This will show:
 Run the test suite to verify functionality:
 
 ```bash
-python tests/test_app.py
+pytest tests/ -v
 ```
 
 ## File Structure
 
 ```
 ├── src/
-│   ├── app.py                  # Main Streamlit application (~115 lines)
-│   ├── demo_app.py             # Command-line demo
-│   ├── openai_client.py        # OpenAI API wrapper
-│   ├── sans_analysis_utils.py  # Shared utility functions
-│   ├── sans_types.py           # TypedDict definitions
-│   ├── ui_constants.py         # UI string constants (~145 lines)
-│   ├── components/             # UI rendering components
-│   │   ├── __init__.py
-│   │   ├── data_preview.py     # Data visualization section
-│   │   ├── fit_results.py      # Fit results display & export
-│   │   ├── parameters.py       # Parameter table & presets
-│   │   └── sidebar.py          # Sidebar controls (upload, model, chat)
-│   └── services/               # Business logic services
-│       ├── __init__.py
-│       ├── ai_chat.py          # AI chat & model suggestions
-│       └── session_state.py    # Session state management
-├── pyproject.toml              # Package configuration
+│   └── sans_webapp/            # Main Python package
+│       ├── __init__.py         # Package init with version
+│       ├── __main__.py         # Entry point for `python -m sans_webapp`
+│       ├── app.py              # Main Streamlit application
+│       ├── demo_app.py         # Command-line demo
+│       ├── openai_client.py    # OpenAI API wrapper
+│       ├── sans_analysis_utils.py  # Shared utility functions
+│       ├── sans_types.py       # TypedDict definitions
+│       ├── ui_constants.py     # UI string constants
+│       ├── data/               # Bundled example data
+│       │   └── simulated_sans_data.csv
+│       ├── components/         # UI rendering components
+│       │   ├── __init__.py
+│       │   ├── data_preview.py # Data visualization section
+│       │   ├── fit_results.py  # Fit results display & export
+│       │   ├── parameters.py   # Parameter table & presets
+│       │   └── sidebar.py      # Sidebar controls
+│       └── services/           # Business logic services
+│           ├── __init__.py
+│           ├── ai_chat.py      # AI chat & model suggestions
+│           └── session_state.py # Session state management
+├── pyproject.toml              # Package configuration with CLI entry point
 ├── tests/
-│   └── test_app.py             # Test suite (14 tests)
-├── simulated_sans_data.csv     # Example dataset (200 points)
-├── example_sans_data.dat       # Alternative example (70 points)
+│   └── test_app.py             # Test suite (34 tests)
 ├── Dockerfile                  # For Docker deployment
 ├── Procfile                    # For Heroku deployment
 ├── setup.sh                    # Heroku setup script
@@ -134,7 +141,14 @@ python tests/test_app.py
 ### Streamlit Cloud (Free)
 1. Push to GitHub
 2. Visit [share.streamlit.io](https://share.streamlit.io)
-3. Deploy with one click
+3. Set main file to `src/sans_webapp/app.py`
+4. Deploy with one click
+
+### PyPI Installation
+```bash
+pip install sans-webapp
+sans-webapp
+```
 
 ### Docker
 ```bash

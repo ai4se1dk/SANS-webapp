@@ -57,11 +57,12 @@ A Streamlit-based web application for Small Angle Neutron Scattering (SANS) data
 git clone https://github.com/ai4se1dk/SANS-webapp.git
 cd SANS-webapp
 
-# Install all dependencies
+# Install the package
 pip install -e .
 
-# Run the web application
-streamlit run src/app.py
+# Run the web application (choose one method)
+sans-webapp              # CLI command (recommended)
+python -m sans_webapp    # Module execution
 ```
 
 ### Option 2: Development Installation
@@ -75,7 +76,7 @@ cd SANS-webapp
 pip install -e ".[dev]"
 
 # Run the web application
-streamlit run src/app.py
+sans-webapp
 ```
 
 ### Option 3: Using Pixi
@@ -85,11 +86,21 @@ streamlit run src/app.py
 git clone https://github.com/ai4se1dk/SANS-webapp.git
 cd SANS-webapp
 
-# Install dependencies (streamlit is already included)
+# Install dependencies
 pixi install
 
 # Run the web application
-pixi run streamlit run src/app.py
+pixi run app
+```
+
+### Option 4: Install from PyPI
+
+```bash
+# Install directly from PyPI
+pip install sans-webapp
+
+# Run the application
+sans-webapp
 ```
 
 ## Quick Start Guide
@@ -97,7 +108,12 @@ pixi run streamlit run src/app.py
 ### 1. Launch the Application
 
 ```bash
-streamlit run src/app.py
+sans-webapp
+```
+
+Or alternatively:
+```bash
+python -m sans_webapp
 ```
 
 The application will automatically open in your default web browser at `http://localhost:8501`.
@@ -106,7 +122,7 @@ The application will automatically open in your default web browser at `http://l
 
 **Option A: Use Example Data**
 - Click "Load Example Data" button in the sidebar
-- This loads `simulated_sans_data.csv` with sample SANS data
+- This loads bundled sample SANS data from the package
 
 **Option B: Upload Your Own Data**
 - Click "Browse files" in the sidebar
@@ -245,29 +261,16 @@ For analyzing multiple datasets:
 3. Sign in with GitHub
 4. Click "New app"
 5. Select repository: `ai4se1dk/SANS-webapp`
-6. Main file: `src/app.py`
+6. Main file: `src/sans_webapp/app.py`
 7. Click "Deploy"
 
 Your app will be available at `https://your-app-name.streamlit.app`
 
 ### Heroku Deployment
 
-1. Create `Procfile`:
-```bash
-echo "web: streamlit run src/app.py --server.port=\$PORT --server.address=0.0.0.0" > Procfile
-```
+The `Procfile` and `setup.sh` are already configured for Heroku deployment.
 
-2. Create `setup.sh`:
-```bash
-mkdir -p ~/.streamlit/
-echo "[server]
-headless = true
-port = \$PORT
-enableCORS = false
-" > ~/.streamlit/config.toml
-```
-
-3. Deploy:
+Deploy:
 ```bash
 heroku create your-app-name
 git push heroku main
@@ -303,7 +306,7 @@ For AI-powered model suggestions:
 **Method 2: Environment Variable**
 ```bash
 export OPENAI_API_KEY=your-key-here
-streamlit run src/app.py
+sans-webapp
 ```
 
 **Method 3: .env File**
@@ -390,14 +393,31 @@ ruff format .
 ```
 SANS-webapp/
 ├── src/
-│   ├── app.py                  # Main Streamlit application
-│   ├── demo_app.py             # Command-line demo
-│   └── sans_analysis_utils.py  # Shared utility functions (no Streamlit dependency)
+│   └── sans_webapp/            # Main Python package
+│       ├── __init__.py         # Package init with version
+│       ├── __main__.py         # Entry point for CLI & module execution
+│       ├── app.py              # Main Streamlit application
+│       ├── demo_app.py         # Command-line demo
+│       ├── openai_client.py    # OpenAI API wrapper
+│       ├── sans_analysis_utils.py  # Shared utility functions
+│       ├── sans_types.py       # TypedDict definitions
+│       ├── ui_constants.py     # UI string constants
+│       ├── data/               # Bundled example data
+│       │   └── simulated_sans_data.csv
+│       ├── components/         # UI rendering components
+│       │   ├── __init__.py
+│       │   ├── data_preview.py
+│       │   ├── fit_results.py
+│       │   ├── parameters.py
+│       │   └── sidebar.py
+│       └── services/           # Business logic services
+│           ├── __init__.py
+│           ├── ai_chat.py
+│           └── session_state.py
 ├── tests/
-│   └── test_app.py             # Unit tests for app and utilities
-├── pyproject.toml              # Package configuration and dependencies
-├── example_sans_data.dat       # Sample dataset
-├── simulated_sans_data.csv     # Example data
+│   └── test_app.py             # Unit tests (34 tests)
+├── pyproject.toml              # Package configuration with CLI entry point
+├── simulated_sans_data.csv     # Example data (also bundled in package)
 ├── Dockerfile                  # Docker deployment
 ├── Procfile                    # Heroku deployment
 ├── README.md                   # Main documentation

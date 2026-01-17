@@ -16,29 +16,29 @@ from typing import cast
 
 import streamlit as st
 
-from components.data_preview import render_data_preview
-from components.fit_results import render_fit_results
-from components.parameters import apply_param_updates, render_parameter_configuration
-from components.sidebar import (
+from sans_webapp.components.data_preview import render_data_preview
+from sans_webapp.components.fit_results import render_fit_results
+from sans_webapp.components.parameters import apply_param_updates, render_parameter_configuration
+from sans_webapp.components.sidebar import (
     render_ai_chat_sidebar,
     render_data_upload_sidebar,
     render_model_selection_sidebar,
 )
-from sans_analysis_utils import (  # noqa: F401 - re-exported for backwards compatibility
+from sans_webapp.sans_analysis_utils import (  # noqa: F401 - re-exported for backwards compatibility
     analyze_data_for_ai_suggestion,
     get_all_models,
     plot_data_and_fit,
     suggest_models_simple,
 )
-from sans_types import FitResult, ParamUpdate
-from services.ai_chat import (
+from sans_webapp.sans_types import FitResult, ParamUpdate
+from sans_webapp.services.ai_chat import (
     suggest_models_ai,  # noqa: F401 - re-exported for backwards compatibility
 )
-from services.session_state import (
+from sans_webapp.services.session_state import (
     clamp_for_display,  # noqa: F401 - re-exported for backwards compatibility
     init_session_state,
 )
-from ui_constants import (
+from sans_webapp.ui_constants import (
     APP_LAYOUT,
     APP_PAGE_ICON,
     APP_PAGE_TITLE,

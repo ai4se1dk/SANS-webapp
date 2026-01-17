@@ -26,8 +26,14 @@ dependencies = [
     "sans-fitter>=0.0.2",
 ]
 
+[project.scripts]
+sans-webapp = "sans_webapp.__main__:main"
+
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sans_webapp = ["data/*.csv"]
 
 [project.optional-dependencies]
 dev = [
@@ -65,6 +71,8 @@ lint = "ruff check src/ tests/ --fix"
 lint-check = "ruff check src/ tests/"
 format = "ruff format src/ tests/"
 format-check = "ruff format --check src/ tests/"
+run = "sans-webapp"
+run-dev = "streamlit run src/sans_webapp/app.py"
 
 [tool.ruff]
 line-length = 100

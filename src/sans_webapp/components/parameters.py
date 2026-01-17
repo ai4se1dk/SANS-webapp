@@ -13,9 +13,9 @@ from typing import cast
 import streamlit as st
 from sans_fitter import SANSFitter
 
-from sans_types import FitResult, ParamInfo, ParamUpdate
-from services.session_state import clamp_for_display
-from ui_constants import (
+from sans_webapp.sans_types import FitResult, ParamInfo, ParamUpdate
+from sans_webapp.services.session_state import clamp_for_display
+from sans_webapp.ui_constants import (
     PARAMETER_COLUMNS_LABELS,
     PARAMETER_FIT_LABEL,
     PARAMETER_MAX_LABEL,
