@@ -3,11 +3,11 @@
 Test script to validate the SANS analysis utilities and Streamlit app functionality.
 
 This test suite covers:
-1. Utility functions (sans_analysis_utils.py) - no Streamlit dependency
-2. Type definitions (sans_types.py)
-3. UI constants (ui_constants.py)
-4. Services (services/) - session_state, ai_chat
-5. App module imports and functions (app.py) - requires Streamlit
+1. Utility functions (sans_webapp.sans_analysis_utils) - no Streamlit dependency
+2. Type definitions (sans_webapp.sans_types)
+3. UI constants (sans_webapp.ui_constants)
+4. Services (sans_webapp.services/) - session_state, ai_chat
+5. App module imports and functions (sans_webapp.app) - requires Streamlit
 6. SANSFitter integration
 """
 
@@ -16,15 +16,10 @@ from pathlib import Path
 
 import numpy as np
 
-# Add src directory to path for imports
-_src_path = Path(__file__).parent.parent / 'src'
-sys.path.insert(0, str(_src_path))
-sys.path.insert(0, str(_src_path.parent))
-
 # Import utilities first (no Streamlit dependency)
-from sans_fitter import SANSFitter  # noqa: E402
+from sans_fitter import SANSFitter
 
-import sans_analysis_utils as utils  # noqa: E402
+from sans_webapp import sans_analysis_utils as utils
 
 # =============================================================================
 # Utility Function Tests (sans_analysis_utils.py)
@@ -124,9 +119,9 @@ def test_utils_plot_data_and_fit():
 
 def test_types_module():
     """Test that type definitions are properly defined."""
-    print('\nTesting sans_types module...')
+    print('\nTesting sans_webapp.sans_types module...')
 
-    from sans_types import FitParamInfo, FitResult, ParamInfo, ParamUpdate
+    from sans_webapp.sans_types import FitParamInfo, FitResult, ParamInfo, ParamUpdate
 
     # Test ParamInfo structure
     param_info: ParamInfo = {
@@ -176,9 +171,9 @@ def test_types_module():
 
 def test_ui_constants():
     """Test that UI constants are properly defined."""
-    print('\nTesting ui_constants module...')
+    print('\nTesting sans_webapp.ui_constants module...')
 
-    import ui_constants
+    from sans_webapp import ui_constants
 
     # Test app configuration constants
     assert hasattr(ui_constants, 'APP_PAGE_TITLE'), 'APP_PAGE_TITLE not found!'
@@ -220,9 +215,9 @@ def test_ui_constants():
 
 def test_session_state_clamp_for_display():
     """Test the clamp_for_display function from session_state service."""
-    print('\nTesting services.session_state.clamp_for_display()...')
+    print('\nTesting sans_webapp.services.session_state.clamp_for_display()...')
 
-    from services.session_state import clamp_for_display
+    from sans_webapp.services.session_state import clamp_for_display
 
     # Test normal values
     assert clamp_for_display(1.0) == 1.0, 'Normal value should be unchanged!'
@@ -246,13 +241,13 @@ def test_session_state_clamp_for_display():
 
 def test_session_state_helper_functions():
     """Test session state helper functions with mocked Streamlit session state."""
-    print('\nTesting services.session_state helper functions...')
+    print('\nTesting sans_webapp.services.session_state helper functions...')
 
     from unittest.mock import MagicMock, patch
 
     from sans_fitter import SANSFitter
 
-    from services import session_state
+    from sans_webapp.services import session_state
 
     # Create a real SANSFitter instance for the mock
     test_fitter = SANSFitter()
@@ -315,11 +310,11 @@ def test_session_state_helper_functions():
 
 def test_session_state_clear_parameter_state():
     """Test clear_parameter_state function."""
-    print('\nTesting services.session_state.clear_parameter_state()...')
+    print('\nTesting sans_webapp.services.session_state.clear_parameter_state()...')
 
     from unittest.mock import MagicMock, patch
 
-    from services import session_state
+    from sans_webapp.services import session_state
 
     # Create a mock session state with parameter keys
     mock_session_state = {
@@ -363,11 +358,11 @@ def test_session_state_clear_parameter_state():
 
 def test_session_state_init():
     """Test init_session_state function."""
-    print('\nTesting services.session_state.init_session_state()...')
+    print('\nTesting sans_webapp.services.session_state.init_session_state()...')
 
     from unittest.mock import MagicMock, patch
 
-    from services import session_state
+    from sans_webapp.services import session_state
 
     # Create empty session state
     mock_session_state = {}
@@ -394,9 +389,9 @@ def test_session_state_init():
 
 def test_ai_chat_service():
     """Test the ai_chat service module structure."""
-    print('\nTesting services.ai_chat module...')
+    print('\nTesting sans_webapp.services.ai_chat module...')
 
-    from services import ai_chat
+    from sans_webapp.services import ai_chat
 
     # Check that functions exist
     assert hasattr(ai_chat, 'send_chat_message'), 'send_chat_message not found!'
@@ -418,9 +413,9 @@ def test_ai_chat_service():
 
 def test_ai_chat_send_message_no_api_key():
     """Test send_chat_message without API key."""
-    print('\nTesting services.ai_chat.send_chat_message() without API key...')
+    print('\nTesting sans_webapp.services.ai_chat.send_chat_message() without API key...')
 
-    from services.ai_chat import send_chat_message
+    from sans_webapp.services.ai_chat import send_chat_message
 
     fitter = SANSFitter()
 
@@ -434,11 +429,11 @@ def test_ai_chat_send_message_no_api_key():
 
 def test_ai_chat_send_message_with_mock():
     """Test send_chat_message with mocked OpenAI API."""
-    print('\nTesting services.ai_chat.send_chat_message() with mock...')
+    print('\nTesting sans_webapp.services.ai_chat.send_chat_message() with mock...')
 
     from unittest.mock import MagicMock, patch
 
-    from services import ai_chat
+    from sans_webapp.services import ai_chat
 
     fitter = SANSFitter()
     fitter.load_data('simulated_sans_data.csv')
@@ -461,7 +456,9 @@ def test_ai_chat_send_message_with_mock():
         mock_st.session_state.__getitem__ = lambda self, key: mock_session_state.get(key)
         mock_st.session_state.__contains__ = lambda self, key: key in mock_session_state
 
-        with patch('services.ai_chat.create_chat_completion', return_value=mock_response):
+        with patch(
+            'sans_webapp.services.ai_chat.create_chat_completion', return_value=mock_response
+        ):
             response = ai_chat.send_chat_message('What is SANS?', api_key='test-key', fitter=fitter)
 
             assert response == 'This is a test response about SANS analysis.', (
@@ -474,11 +471,11 @@ def test_ai_chat_send_message_with_mock():
 
 def test_ai_chat_send_message_error_handling():
     """Test send_chat_message error handling."""
-    print('\nTesting services.ai_chat.send_chat_message() error handling...')
+    print('\nTesting sans_webapp.services.ai_chat.send_chat_message() error handling...')
 
     from unittest.mock import MagicMock, patch
 
-    from services import ai_chat
+    from sans_webapp.services import ai_chat
 
     fitter = SANSFitter()
 
@@ -490,7 +487,10 @@ def test_ai_chat_send_message_error_handling():
         mock_st.session_state.__getitem__ = lambda self, key: mock_session_state.get(key)
         mock_st.session_state.__contains__ = lambda self, key: key in mock_session_state
 
-        with patch('services.ai_chat.create_chat_completion', side_effect=Exception('API Error')):
+        with patch(
+            'sans_webapp.services.ai_chat.create_chat_completion',
+            side_effect=Exception('API Error'),
+        ):
             response = ai_chat.send_chat_message('What is SANS?', api_key='test-key', fitter=fitter)
 
             assert 'Error' in response, 'Response should contain error message!'
@@ -544,10 +544,10 @@ def test_fitter_integration():
 
 def test_app_imports():
     """Test that app module can be imported and has expected functions."""
-    print('\nTesting app module imports...')
+    print('\nTesting sans_webapp.app module imports...')
 
     try:
-        import app
+        from sans_webapp import app
 
         # Check that app re-exports the utility functions (backwards compatibility)
         assert hasattr(app, 'get_all_models'), 'get_all_models not available in app!'
@@ -580,10 +580,10 @@ def test_app_imports():
 
 def test_app_clamp_for_display():
     """Test the clamp_for_display function in app module."""
-    print('\nTesting app.clamp_for_display()...')
+    print('\nTesting sans_webapp.app.clamp_for_display()...')
 
     try:
-        import app
+        from sans_webapp import app
 
         # Test normal values
         assert app.clamp_for_display(1.0) == 1.0, 'Normal value should be unchanged!'
@@ -610,10 +610,10 @@ def test_app_clamp_for_display():
 
 def test_components_imports():
     """Test that component modules can be imported."""
-    print('\nTesting components module imports...')
+    print('\nTesting sans_webapp.components module imports...')
 
     try:
-        from components import (
+        from sans_webapp.components import (
             apply_fit_results_to_params,
             apply_param_updates,
             apply_pending_preset,
@@ -630,7 +630,7 @@ def test_components_imports():
         print('✓ All component functions importable from components package')
 
         # Test individual module imports
-        from components import data_preview, fit_results, parameters, sidebar
+        from sans_webapp.components import data_preview, fit_results, parameters, sidebar
 
         assert hasattr(data_preview, 'render_data_preview'), (
             'render_data_preview not in data_preview!'
@@ -652,10 +652,10 @@ def test_components_imports():
 
 def test_services_imports():
     """Test that service modules can be imported."""
-    print('\nTesting services module imports...')
+    print('\nTesting sans_webapp.services module imports...')
 
     try:
-        from services import (
+        from sans_webapp.services import (
             clamp_for_display,
             init_session_state,
             send_chat_message,
@@ -665,7 +665,7 @@ def test_services_imports():
         print('✓ All service functions importable from services package')
 
         # Test individual module imports
-        from services import ai_chat, session_state
+        from sans_webapp.services import ai_chat, session_state
 
         assert hasattr(session_state, 'init_session_state'), (
             'init_session_state not in session_state!'
@@ -685,10 +685,10 @@ def test_services_imports():
 
 def test_parameters_build_updates():
     """Test the build_param_updates_from_params function."""
-    print('\nTesting components.parameters.build_param_updates_from_params()...')
+    print('\nTesting sans_webapp.components.parameters.build_param_updates_from_params()...')
 
-    from components.parameters import build_param_updates_from_params  # noqa: F402
-    from sans_types import ParamInfo  # noqa: F402
+    from sans_webapp.components.parameters import build_param_updates_from_params  # noqa: F402
+    from sans_webapp.sans_types import ParamInfo  # noqa: F402
 
     # Create test params
     test_params: dict[str, ParamInfo] = {
@@ -710,10 +710,10 @@ def test_parameters_build_updates():
 
 def test_parameters_apply_param_updates():
     """Test the apply_param_updates function."""
-    print('\nTesting components.parameters.apply_param_updates()...')
+    print('\nTesting sans_webapp.components.parameters.apply_param_updates()...')
 
-    from components.parameters import apply_param_updates
-    from sans_types import ParamUpdate
+    from sans_webapp.components.parameters import apply_param_updates
+    from sans_webapp.sans_types import ParamUpdate
 
     fitter = SANSFitter()
     fitter.set_model('sphere')
@@ -742,12 +742,12 @@ def test_parameters_apply_param_updates():
 
 def test_parameters_apply_pending_preset():
     """Test the apply_pending_preset function."""
-    print('\nTesting components.parameters.apply_pending_preset()...')
+    print('\nTesting sans_webapp.components.parameters.apply_pending_preset()...')
 
     from unittest.mock import MagicMock, patch
 
-    from components import parameters
-    from sans_types import ParamInfo
+    from sans_webapp.components import parameters
+    from sans_webapp.sans_types import ParamInfo
 
     fitter = SANSFitter()
     fitter.set_model('sphere')
@@ -833,12 +833,12 @@ def test_parameters_apply_pending_preset():
 
 def test_parameters_apply_fit_results():
     """Test the apply_fit_results_to_params function."""
-    print('\nTesting components.parameters.apply_fit_results_to_params()...')
+    print('\nTesting sans_webapp.components.parameters.apply_fit_results_to_params()...')
 
     from unittest.mock import patch
 
-    from components import parameters
-    from sans_types import ParamInfo
+    from sans_webapp.components import parameters
+    from sans_webapp.sans_types import ParamInfo
 
     fitter = SANSFitter()
     fitter.set_model('sphere')
@@ -900,12 +900,12 @@ def test_parameters_apply_fit_results():
 
 def test_parameters_apply_fit_results_no_pending():
     """Test apply_fit_results_to_params does nothing without pending flag."""
-    print('\nTesting components.parameters.apply_fit_results_to_params() without pending...')
+    print('\nTesting sans_webapp.components.parameters.apply_fit_results_to_params() without pending...')
 
     from unittest.mock import patch
 
-    from components import parameters
-    from sans_types import ParamInfo
+    from sans_webapp.components import parameters
+    from sans_webapp.sans_types import ParamInfo
 
     fitter = SANSFitter()
     fitter.set_model('sphere')
@@ -948,9 +948,9 @@ def test_parameters_apply_fit_results_no_pending():
 
 def test_openai_client_import():
     """Test that openai_client module can be imported."""
-    print('\nTesting openai_client module import...')
+    print('\nTesting sans_webapp.openai_client module import...')
 
-    from openai_client import create_chat_completion
+    from sans_webapp.openai_client import create_chat_completion
 
     assert callable(create_chat_completion), 'create_chat_completion should be callable!'
     print('✓ openai_client.create_chat_completion is available')
@@ -960,7 +960,7 @@ def test_openai_client_import():
 
 def test_openai_client_create_chat_completion():
     """Test create_chat_completion with mocked OpenAI client."""
-    print('\nTesting openai_client.create_chat_completion() with mock...')
+    print('\nTesting sans_webapp.openai_client.create_chat_completion() with mock...')
 
     from unittest.mock import MagicMock, patch
 
@@ -975,7 +975,7 @@ def test_openai_client_create_chat_completion():
 
     # Patch 'openai.OpenAI' since it's imported inside the function
     with patch('openai.OpenAI', return_value=mock_client_instance) as mock_openai:
-        import openai_client
+        from sans_webapp import openai_client
 
         response = openai_client.create_chat_completion(
             api_key='test-api-key',
@@ -1002,7 +1002,7 @@ def test_openai_client_create_chat_completion():
 
 def test_openai_client_messages_conversion():
     """Test that messages iterable is converted to list."""
-    print('\nTesting openai_client.create_chat_completion() messages conversion...')
+    print('\nTesting sans_webapp.openai_client.create_chat_completion() messages conversion...')
 
     from unittest.mock import MagicMock, patch
 
@@ -1015,7 +1015,7 @@ def test_openai_client_messages_conversion():
         yield {'role': 'user', 'content': 'Hello'}
 
     with patch('openai.OpenAI', return_value=mock_client_instance):
-        import openai_client
+        from sans_webapp import openai_client
 
         openai_client.create_chat_completion(
             api_key='test-key',
@@ -1041,9 +1041,9 @@ def test_openai_client_messages_conversion():
 
 def test_fit_results_imports():
     """Test that fit_results module can be imported."""
-    print('\nTesting components.fit_results module imports...')
+    print('\nTesting sans_webapp.components.fit_results module imports...')
 
-    from components.fit_results import (
+    from sans_webapp.components.fit_results import (
         _render_export_section,
         _render_fit_statistics,
         _render_fitted_parameters_table,
@@ -1119,7 +1119,7 @@ def test_fit_results_slider_range_calculation():
     """Test slider range calculation logic from _render_parameter_slider."""
     print('\nTesting fit_results slider range calculation...')
 
-    from ui_constants import (
+    from sans_webapp.ui_constants import (
         SLIDER_DEFAULT_MAX,
         SLIDER_DEFAULT_MIN,
         SLIDER_SCALE_MAX,
@@ -1194,9 +1194,9 @@ def test_fit_results_export_data_structure():
 
 def test_data_preview_imports():
     """Test that data_preview module can be imported."""
-    print('\nTesting components.data_preview module imports...')
+    print('\nTesting sans_webapp.components.data_preview module imports...')
 
-    from components.data_preview import render_data_preview
+    from sans_webapp.components.data_preview import render_data_preview
 
     assert callable(render_data_preview), 'render_data_preview should be callable!'
     print('✓ data_preview functions are importable')
@@ -1211,9 +1211,9 @@ def test_data_preview_imports():
 
 def test_sidebar_imports():
     """Test that sidebar module can be imported."""
-    print('\nTesting components.sidebar module imports...')
+    print('\nTesting sans_webapp.components.sidebar module imports...')
 
-    from components.sidebar import (
+    from sans_webapp.components.sidebar import (
         render_ai_chat_sidebar,
         render_data_upload_sidebar,
         render_model_selection_sidebar,
@@ -1230,26 +1230,44 @@ def test_sidebar_imports():
 
 
 # =============================================================================
+# Entry Point Tests (sans_webapp.__main__)
+# =============================================================================
+
+
+def test_main_module_import():
+    """Test that __main__ module can be imported."""
+    print('\nTesting sans_webapp.__main__ module import...')
+
+    from sans_webapp.__main__ import main
+
+    assert callable(main), 'main should be callable!'
+    print('✓ __main__.main is available')
+
+    return True
+
+
+# =============================================================================
 # Main Test Runner
 # =============================================================================
 
 if __name__ == '__main__':
     print('=' * 70)
-    print('SANS Analysis - Test Suite (Refactored)')
+    print('SANS Analysis - Test Suite (Refactored Package Structure)')
     print('=' * 70)
     print('\nThis test covers the refactored module structure:')
-    print('  - sans_analysis_utils.py (utility functions)')
-    print('  - sans_types.py (type definitions)')
-    print('  - ui_constants.py (UI string constants)')
-    print('  - services/ (session_state, ai_chat)')
-    print('  - components/ (sidebar, parameters, data_preview, fit_results)')
-    print('  - app.py (main orchestration)')
+    print('  - sans_webapp.sans_analysis_utils (utility functions)')
+    print('  - sans_webapp.sans_types (type definitions)')
+    print('  - sans_webapp.ui_constants (UI string constants)')
+    print('  - sans_webapp.services/ (session_state, ai_chat)')
+    print('  - sans_webapp.components/ (sidebar, parameters, data_preview, fit_results)')
+    print('  - sans_webapp.app (main orchestration)')
+    print('  - sans_webapp.__main__ (entry point)')
 
     results = {}
 
     # Run utility tests (no Streamlit dependency)
     print('\n' + '-' * 70)
-    print('UTILITY FUNCTION TESTS (sans_analysis_utils.py)')
+    print('UTILITY FUNCTION TESTS (sans_webapp.sans_analysis_utils)')
     print('-' * 70)
 
     try:
@@ -1266,7 +1284,7 @@ if __name__ == '__main__':
 
     # Run type definitions tests
     print('\n' + '-' * 70)
-    print('TYPE DEFINITIONS TESTS (sans_types.py)')
+    print('TYPE DEFINITIONS TESTS (sans_webapp.sans_types)')
     print('-' * 70)
 
     try:
@@ -1280,7 +1298,7 @@ if __name__ == '__main__':
 
     # Run UI constants tests
     print('\n' + '-' * 70)
-    print('UI CONSTANTS TESTS (ui_constants.py)')
+    print('UI CONSTANTS TESTS (sans_webapp.ui_constants)')
     print('-' * 70)
 
     try:
@@ -1294,7 +1312,7 @@ if __name__ == '__main__':
 
     # Run services tests
     print('\n' + '-' * 70)
-    print('SERVICES TESTS (services/)')
+    print('SERVICES TESTS (sans_webapp.services/)')
     print('-' * 70)
 
     try:
@@ -1316,7 +1334,7 @@ if __name__ == '__main__':
 
     # Run components tests
     print('\n' + '-' * 70)
-    print('COMPONENTS TESTS (components/)')
+    print('COMPONENTS TESTS (sans_webapp.components/)')
     print('-' * 70)
 
     try:
@@ -1341,7 +1359,7 @@ if __name__ == '__main__':
 
     # Run openai_client tests
     print('\n' + '-' * 70)
-    print('OPENAI CLIENT TESTS (openai_client.py)')
+    print('OPENAI CLIENT TESTS (sans_webapp.openai_client)')
     print('-' * 70)
 
     try:
@@ -1371,7 +1389,7 @@ if __name__ == '__main__':
 
     # Run app module tests (requires Streamlit)
     print('\n' + '-' * 70)
-    print('APP MODULE TESTS (app.py)')
+    print('APP MODULE TESTS (sans_webapp.app)')
     print('-' * 70)
 
     try:
@@ -1379,6 +1397,20 @@ if __name__ == '__main__':
         results['app_clamp'] = test_app_clamp_for_display()
     except Exception as e:
         print(f'\n✗ App module tests failed with exception: {e}')
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+    # Run entry point tests
+    print('\n' + '-' * 70)
+    print('ENTRY POINT TESTS (sans_webapp.__main__)')
+    print('-' * 70)
+
+    try:
+        results['main_module'] = test_main_module_import()
+    except Exception as e:
+        print(f'\n✗ Entry point tests failed with exception: {e}')
         import traceback
 
         traceback.print_exc()
@@ -1403,7 +1435,8 @@ if __name__ == '__main__':
         print('✓ All tests passed!')
         print('=' * 70)
         print('\nTo run the full Streamlit app, use:')
-        print('  streamlit run src/app.py')
+        print('  pip install -e .')
+        print('  sans-webapp')
         print('=' * 70)
     else:
         print('\n✗ Some tests failed!')

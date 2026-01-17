@@ -12,9 +12,9 @@ import streamlit as st
 from sans_fitter import SANSFitter
 from sasmodels.direct_model import DirectModel
 
-from sans_analysis_utils import plot_data_and_fit
-from sans_types import FitResult, ParamUpdate
-from ui_constants import (
+from sans_webapp.sans_analysis_utils import plot_data_and_fit
+from sans_webapp.sans_types import FitResult, ParamUpdate
+from sans_webapp.ui_constants import (
     ADJUST_PARAMETER_HEADER,
     CHI_SQUARED_LABEL,
     DOWNLOAD_RESULTS_LABEL,

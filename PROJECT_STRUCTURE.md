@@ -1,12 +1,37 @@
 # Complete Project Structure - SANS Data Analysis Web Application
 
-This document describes all files added for the Streamlit web application.
+This document describes the pip-installable package structure for the Streamlit web application.
 
-## New Files Created
+## Package Structure
 
-### Core Application Files
+The application is structured as a proper Python package (`sans_webapp`) that can be installed via pip and run with a simple CLI command.
 
-#### `src/app.py` (Main Application)
+### Installation & Usage
+
+```bash
+# Install from source
+pip install -e .
+
+# Or install from PyPI
+pip install sans-webapp
+
+# Run the application
+sans-webapp              # CLI command
+python -m sans_webapp    # Module execution
+```
+
+### Core Package Files
+
+#### `src/sans_webapp/__init__.py` (Package Init)
+- **Purpose**: Package initialization with version
+- **Exports**: `__version__ = '0.0.1'`
+
+#### `src/sans_webapp/__main__.py` (Entry Point)
+- **Purpose**: Entry point for CLI and module execution
+- **Function**: `main()` - launches Streamlit app
+- **Usage**: `python -m sans_webapp` or `sans-webapp` CLI command
+
+#### `src/sans_webapp/app.py` (Main Application)
 - **Purpose**: Main Streamlit web application
 - **Lines**: ~550 lines
 - **Key Features**:
@@ -17,10 +42,10 @@ This document describes all files added for the Streamlit web application.
   - Real-time fitting with BUMPS and LMFit engines
   - Interactive Plotly visualization
   - CSV export of results
-- **Dependencies**: streamlit, plotly, pandas, numpy, openai, sasmodels, sans_fitter, sans_analysis_utils
-- **Run**: `streamlit run src/app.py`
+- **Dependencies**: streamlit, plotly, pandas, numpy, openai, sasmodels, sans_fitter
+- **Run**: `sans-webapp` or `python -m sans_webapp`
 
-#### `src/sans_analysis_utils.py` (Shared Utilities)
+#### `src/sans_webapp/sans_analysis_utils.py` (Shared Utilities)
 - **Purpose**: Shared utility functions for SANS data analysis
 - **Lines**: ~140 lines
 - **Key Functions**:
@@ -29,20 +54,62 @@ This document describes all files added for the Streamlit web application.
   - `suggest_models_simple()` - Heuristic-based model suggestion
   - `plot_data_and_fit()` - Create interactive Plotly visualizations
 - **Dependencies**: numpy, plotly, sasmodels (no Streamlit dependency)
-- **Usage**: Imported by both `app.py` and `demo_app.py`
+- **Usage**: Imported by app.py and other modules
+
+#### `src/sans_webapp/sans_types.py` (Type Definitions)
+- **Purpose**: TypedDict definitions for type safety
+- **Types**: `ParamInfo`, `FitResult`, `ParamUpdate`
+
+#### `src/sans_webapp/ui_constants.py` (UI Constants)
+- **Purpose**: All UI string constants centralized
+- **Lines**: ~145 lines
+
+#### `src/sans_webapp/openai_client.py` (OpenAI Integration)
+- **Purpose**: OpenAI API wrapper for AI chat functionality
+
+### Component Modules (`src/sans_webapp/components/`)
+
+#### `data_preview.py`
+- **Purpose**: Data visualization and preview section
+- **Function**: `render_data_preview()`
+
+#### `fit_results.py`
+- **Purpose**: Fit results display, sliders, and export
+- **Functions**: `render_fit_results()`, `_render_parameter_slider()`, etc.
+
+#### `parameters.py`
+- **Purpose**: Parameter table and preset management
+- **Functions**: `render_parameters()`, `apply_param_updates()`, etc.
+
+#### `sidebar.py`
+- **Purpose**: Sidebar UI controls
+- **Functions**: `render_data_upload_sidebar()`, `render_model_selection_sidebar()`, `render_ai_chat_sidebar()`
+
+### Service Modules (`src/sans_webapp/services/`)
+
+#### `session_state.py`
+- **Purpose**: Streamlit session state management
+- **Functions**: `initialize_session_state()`, `clear_parameter_state()`, etc.
+
+#### `ai_chat.py`
+- **Purpose**: AI chat and model suggestion service
+- **Functions**: `send_message()`, `get_ai_suggestions()`
+
+### Data Files
+
+#### `src/sans_webapp/data/simulated_sans_data.csv`
+- **Purpose**: Bundled example dataset (200 points)
+- **Included in package**: Yes, via `package-data` in pyproject.toml
 
 ### Testing & Demo Files
 
 #### `tests/test_app.py`
-- **Purpose**: Automated test suite for web app and utilities functionality
-- **Tests**:
-  - Utility functions (model listing, data analysis, suggestions, plotting)
-  - SANSFitter integration
-  - App module imports
-- **Run**: `python tests/test_app.py`
+- **Purpose**: Automated test suite for package functionality
+- **Tests**: 34 tests covering all modules
+- **Run**: `pytest tests/ -v`
 - **Output**: Pass/fail status for all core features
 
-#### `src/demo_app.py`
+#### `src/sans_webapp/demo_app.py`
 - **Purpose**: Command-line demonstration of complete workflow
 - **Shows**:
   - Model selection (79 available)
@@ -51,8 +118,16 @@ This document describes all files added for the Streamlit web application.
   - Parameter configuration
   - Fitting process (with real optimization)
   - Results export
-- **Run**: `python src/demo_app.py`
+- **Run**: `python -m sans_webapp.demo_app`
 - **Duration**: ~10-30 seconds
+
+### Configuration Files
+
+#### `pyproject.toml`
+- **Purpose**: Package configuration with CLI entry point
+- **Entry Point**: `sans-webapp = "sans_webapp.__main__:main"`
+- **Package Discovery**: `where = ["src"]`
+- **Package Data**: Includes `data/*.csv` files
 
 ### Documentation Files
 
@@ -60,46 +135,35 @@ This document describes all files added for the Streamlit web application.
 - **Purpose**: Comprehensive web application documentation
 - **Sections**:
   - Features overview
-  - Installation instructions (3 methods)
-  - Quick start guide with screenshots
-  - Model selection guide (categorized)
-  - Advanced usage
-  - Deployment options (Streamlit Cloud, Heroku, Docker)
-  - API key management
+  - Installation instructions (4 methods including PyPI)
+  - Quick start guide
+  - Model selection guide
+  - Deployment options
   - Troubleshooting
-- **Length**: ~350 lines
 
 #### `QUICKSTART.md`
 - **Purpose**: Quick reference guide
-- **Sections**:
-  - 3-step installation
-  - 5-step usage workflow
-  - Common models table
-  - Deployment commands
-  - Troubleshooting tips
-- **Length**: ~150 lines
+- **Highlights**: CLI command `sans-webapp`, `python -m sans_webapp`
 
-#### `README.md` (Updated)
-- **Changes**: Added new section "Web Application"
-- **Addition**: ~70 lines covering:
-  - Web app features
-  - Quick start commands
-  - Deployment options
-  - API integration
+#### `PROJECT_STRUCTURE.md`
+- **Purpose**: This file - documents package structure
+
+#### `README.md`
+- **Purpose**: Main project documentation with quick start
 
 ### Deployment Files
 
 #### `Dockerfile`
 - **Purpose**: Containerized deployment
 - **Base Image**: python:3.10-slim
-- **Includes**: System dependencies (gcc, gfortran), all Python packages
+- **Command**: Uses `sans-webapp` CLI
 - **Exposes**: Port 8501
 - **Build**: `docker build -t sans-app .`
 - **Run**: `docker run -p 8501:8501 sans-app`
 
 #### `Procfile`
 - **Purpose**: Heroku deployment configuration
-- **Command**: Runs Streamlit with dynamic port binding
+- **Command**: `web: streamlit run src/sans_webapp/app.py --server.port=$PORT`
 - **Deploy**: `git push heroku main`
 
 #### `setup.sh`
@@ -107,23 +171,22 @@ This document describes all files added for the Streamlit web application.
 - **Creates**: `~/.streamlit/config.toml` and `credentials.toml`
 - **Config**: Headless mode, CORS settings, dynamic port
 
-### Data Files
-
-#### `example_sans_data.dat`
-- **Purpose**: Example dataset for testing
-- **Format**: Three columns (Q, I, dI)
-- **Points**: 70 data points
-- **Q Range**: 0.001 to 0.347 Å⁻¹
-- **Use**: Alternative to simulated_sans_data.csv
+### External Data Files
 
 #### `simulated_sans_data.csv`
-- **Purpose**: Primary example dataset
+- **Purpose**: Example dataset (also bundled inside package)
 - **Points**: 200 data points
 - **Q Range**: 0.001 to 1.0 Å⁻¹
+- **Note**: The package includes this file in `src/sans_webapp/data/`
 
 ## Key Features Implemented
 
-### 1. Data Upload ✓
+### 1. Pip-Installable Package ✓
+- Install via `pip install sans-webapp`
+- Run via `sans-webapp` CLI command
+- Or `python -m sans_webapp`
+
+### 2. Data Upload ✓
 - Drag-and-drop file upload
 - Support for CSV and .dat formats
 - Example data loading
@@ -185,10 +248,18 @@ This document describes all files added for the Streamlit web application.
 
 ## Usage Statistics
 
-### Installation
+### Installation & Running
 ```bash
-pip install -e .              # Install package with all dependencies
-streamlit run src/app.py      # Launch application
+# From source
+pip install -e .          # Install package in editable mode
+sans-webapp                # Launch application
+
+# From PyPI
+pip install sans-webapp    # Install from PyPI
+sans-webapp                # Launch application
+
+# Alternative
+python -m sans_webapp      # Run as module
 ```
 
 ## API Integration
@@ -201,11 +272,12 @@ streamlit run src/app.py      # Launch application
 
 ## Next Steps for Users
 
-1. **Try the app**: `streamlit run src/app.py`
-2. **Run demo**: `python src/demo_app.py`
-3. **Read docs**: Check WEBAPP_README.md
-4. **Deploy**: Choose Streamlit Cloud, Heroku, or Docker
-5. **Contribute**: Submit issues or PRs on GitHub
+1. **Install**: `pip install sans-webapp` or `pip install -e .`
+2. **Run the app**: `sans-webapp`
+3. **Run demo**: `python -m sans_webapp.demo_app`
+4. **Read docs**: Check WEBAPP_README.md
+5. **Deploy**: Choose Streamlit Cloud, Heroku, or Docker
+6. **Contribute**: Submit issues or PRs on GitHub
 
 ## License
 

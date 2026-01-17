@@ -10180,7 +10180,7 @@ packages:
 - pypi: ./
   name: sans-webapp
   version: 0.0.1
-  sha256: 9b08d7316be2a1cf9b810c6374cc9185e4420f0dd2f6fef3c5765c2a09bad828
+  sha256: b12f042be0d6c9c42ae8b5bfe1ff0757103b1a4a561300bd7d3f4ccaa2a6f59d
   requires_dist:
   - numpy>=1.20
   - matplotlib>=3.5
