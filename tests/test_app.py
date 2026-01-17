@@ -900,7 +900,9 @@ def test_parameters_apply_fit_results():
 
 def test_parameters_apply_fit_results_no_pending():
     """Test apply_fit_results_to_params does nothing without pending flag."""
-    print('\nTesting sans_webapp.components.parameters.apply_fit_results_to_params() without pending...')
+    print(
+        '\nTesting sans_webapp.components.parameters.apply_fit_results_to_params() without pending...'
+    )
 
     from unittest.mock import patch
 
