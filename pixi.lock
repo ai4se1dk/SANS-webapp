@@ -10179,8 +10179,8 @@ packages:
   requires_python: '>=3.10'
 - pypi: ./
   name: sans-webapp
-  version: 0.0.1
-  sha256: b12f042be0d6c9c42ae8b5bfe1ff0757103b1a4a561300bd7d3f4ccaa2a6f59d
+  version: 0.0.2
+  sha256: 1e79fb92fb2b452cdc0b50ec91832e9f244430e3d32e1488ed228f2d95a40c15
   requires_dist:
   - numpy>=1.20
   - matplotlib>=3.5
