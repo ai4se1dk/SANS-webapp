@@ -9,9 +9,8 @@ import sys
 sys.path.insert(0, '.')
 
 import numpy as np
-from sans_fitter import SANSFitter
-
 import sans_analysis_utils as utils
+from sans_fitter import SANSFitter
 
 print('=' * 80)
 print(' SANS DATA ANALYSIS WEB APPLICATION - DEMO ')
