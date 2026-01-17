@@ -10,14 +10,14 @@ import numpy as np
 import streamlit as st
 from sans_fitter import SANSFitter
 
-from openai_client import create_chat_completion
-from sans_analysis_utils import (
+from sans_webapp.openai_client import create_chat_completion
+from sans_webapp.sans_analysis_utils import (
     analyze_data_for_ai_suggestion,
     get_all_models,
     suggest_models_simple,
 )
-from sans_types import FitResult, ParamInfo
-from ui_constants import WARNING_NO_API_KEY
+from sans_webapp.sans_types import FitResult, ParamInfo
+from sans_webapp.ui_constants import WARNING_NO_API_KEY
 
 
 def send_chat_message(user_message: str, api_key: Optional[str], fitter: SANSFitter) -> str:

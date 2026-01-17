@@ -8,8 +8,8 @@ import pandas as pd
 import streamlit as st
 from sans_fitter import SANSFitter
 
-from sans_analysis_utils import plot_data_and_fit
-from ui_constants import (
+from sans_webapp.sans_analysis_utils import plot_data_and_fit
+from sans_webapp.ui_constants import (
     DATA_PREVIEW_HEADER,
     DATA_STATS_HEADER,
     DATA_TABLE_HEIGHT,

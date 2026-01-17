@@ -4,9 +4,9 @@ Components package for SANS webapp.
 Contains reusable UI components for the application.
 """
 
-from components.data_preview import render_data_preview
-from components.fit_results import render_fit_results
-from components.parameters import (
+from sans_webapp.components.data_preview import render_data_preview
+from sans_webapp.components.fit_results import render_fit_results
+from sans_webapp.components.parameters import (
     apply_fit_results_to_params,
     apply_param_updates,
     apply_pending_preset,
@@ -14,7 +14,7 @@ from components.parameters import (
     render_parameter_configuration,
     render_parameter_table,
 )
-from components.sidebar import (
+from sans_webapp.components.sidebar import (
     render_ai_chat_sidebar,
     render_data_upload_sidebar,
     render_model_selection_sidebar,

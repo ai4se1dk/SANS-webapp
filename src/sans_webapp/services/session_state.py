@@ -8,7 +8,7 @@ import numpy as np
 import streamlit as st
 from sans_fitter import SANSFitter
 
-from ui_constants import MAX_FLOAT_DISPLAY, MIN_FLOAT_DISPLAY
+from sans_webapp.ui_constants import MAX_FLOAT_DISPLAY, MIN_FLOAT_DISPLAY
 
 
 def init_session_state() -> None:
