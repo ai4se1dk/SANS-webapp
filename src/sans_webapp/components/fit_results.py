@@ -203,7 +203,9 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
                 st.session_state[f'value_{selected_param}'] = new_value
 
         # Determine default value based on whether parameter changed
-        default_value = current_value if param_changed else st.session_state.get('slider_value', current_value)
+        default_value = (
+            current_value if param_changed else st.session_state.get('slider_value', current_value)
+        )
 
         st.slider(
             f'{selected_param}',
