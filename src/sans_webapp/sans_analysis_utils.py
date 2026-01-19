@@ -205,7 +205,8 @@ def plot_data_fit_and_residuals(
 
     # Create subplots: main plot (larger) + residuals (smaller)
     fig = make_subplots(
-        rows=2, cols=1,
+        rows=2,
+        cols=1,
         shared_xaxes=True,
         vertical_spacing=0.08,
         row_heights=[0.7, 0.3],
@@ -221,7 +222,8 @@ def plot_data_fit_and_residuals(
             name='Data',
             marker={'size': 6, 'color': 'blue', 'symbol': 'circle'},
         ),
-        row=1, col=1
+        row=1,
+        col=1,
     )
 
     # Main plot: Fitted curve
@@ -233,7 +235,8 @@ def plot_data_fit_and_residuals(
             name='Fitted Model',
             line={'color': 'red', 'width': 2},
         ),
-        row=1, col=1
+        row=1,
+        col=1,
     )
 
     # Residuals plot: scatter points
@@ -246,7 +249,8 @@ def plot_data_fit_and_residuals(
             marker={'size': 5, 'color': 'green', 'symbol': 'circle'},
             showlegend=True,
         ),
-        row=2, col=1
+        row=2,
+        col=1,
     )
 
     # Residuals plot: zero reference line
@@ -259,7 +263,8 @@ def plot_data_fit_and_residuals(
             line={'color': 'gray', 'width': 1, 'dash': 'dash'},
             showlegend=False,
         ),
-        row=2, col=1
+        row=2,
+        col=1,
     )
 
     # Update layout
