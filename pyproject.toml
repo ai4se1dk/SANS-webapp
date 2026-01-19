@@ -24,6 +24,7 @@ dependencies = [
     "pandas>=2.0.0",
     "openai>=1.0.0",
     "sans-fitter>=0.0.2",
+    "ruff>=0.8.0",
 ]
 
 [project.scripts]
