@@ -180,11 +180,13 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
     if selected_param:
         current_value = fitter.params[selected_param]['value']
 
-        if (
+        # Check if parameter selection changed
+        param_changed = (
             'prev_selected_param' not in st.session_state
             or st.session_state.prev_selected_param != selected_param
-        ):
-            st.session_state.slider_value = current_value
+        )
+
+        if param_changed:
             st.session_state.prev_selected_param = selected_param
 
         if current_value != 0:
@@ -200,11 +202,14 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
             if f'value_{selected_param}' in st.session_state:
                 st.session_state[f'value_{selected_param}'] = new_value
 
+        # Determine default value based on whether parameter changed
+        default_value = current_value if param_changed else st.session_state.get('slider_value', current_value)
+
         st.slider(
             f'{selected_param}',
             min_value=float(slider_min),
             max_value=float(slider_max),
-            value=float(st.session_state.slider_value),
+            value=float(default_value),
             format='%.4g',
             key='slider_value',
             on_change=update_profile,
