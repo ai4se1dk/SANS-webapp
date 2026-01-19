@@ -231,9 +231,7 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
             # Send button
             col_send, col_clear = st.columns([1, 1])
             with col_send:
-                send_clicked = st.button(
-                    AI_CHAT_SEND_BUTTON, type='primary', width='stretch'
-                )
+                send_clicked = st.button(AI_CHAT_SEND_BUTTON, type='primary', width='stretch')
             with col_clear:
                 clear_clicked = st.button(AI_CHAT_CLEAR_BUTTON, width='stretch')
 
