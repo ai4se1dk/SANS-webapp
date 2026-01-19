@@ -65,7 +65,7 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
             else:
                 fig = plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         except Exception as e:
             st.error(f'Error plotting results: {str(e)}')
