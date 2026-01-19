@@ -1,6 +1,7 @@
 # SANS Model Fitter
 
 [![Tests](https://github.com/ai4se1dk/SANS-webapp/actions/workflows/tests.yml/badge.svg)](https://github.com/ai4se1dk/SANS-webapp/actions/workflows/tests.yml)
+[![PyPI badge](https://img.shields.io/pypi/v/sans-webapp.svg)](https://pypi.python.org/pypi/sans-webapp)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/e12661e2850746388568eff743de22a2)](https://app.codacy.com/gh/ai4se1dk/SANS-webapp/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
 ## SANS-webapp
