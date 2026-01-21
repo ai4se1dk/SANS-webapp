@@ -115,6 +115,13 @@ SAVE_RESULTS_BUTTON = 'Save Results to CSV'
 DOWNLOAD_RESULTS_LABEL = 'Download CSV'
 RESULTS_CSV_NAME = 'fit_results.csv'
 
+# Residual Plot Section
+RESIDUAL_PLOT_TITLE = 'Normalized Residuals'
+RESIDUAL_YAXIS_LABEL = '(I_exp - I_fit) / dI'
+RESIDUAL_TRACE_NAME = 'Residuals'
+RESIDUAL_ZERO_LINE_NAME = 'Zero'
+SHOW_RESIDUALS_LABEL = 'Show residuals plot'
+
 # AI Chat Section
 AI_CHAT_SIDEBAR_HEADER = '🤖 AI Assistant'
 AI_CHAT_DESCRIPTION = (

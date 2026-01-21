@@ -7,12 +7,17 @@ parameter adjustments, and export functionality.
 
 from typing import cast
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 from sans_fitter import SANSFitter
 from sasmodels.direct_model import DirectModel
 
-from sans_webapp.sans_analysis_utils import plot_data_and_fit
+from sans_webapp.sans_analysis_utils import (
+    calculate_residuals,
+    plot_data_and_fit,
+    plot_data_fit_and_residuals,
+)
 from sans_webapp.sans_types import FitResult, ParamUpdate
 from sans_webapp.ui_constants import (
     ADJUST_PARAMETER_HEADER,
@@ -24,6 +29,7 @@ from sans_webapp.ui_constants import (
     RESULTS_CSV_NAME,
     SAVE_RESULTS_BUTTON,
     SELECT_PARAMETER_LABEL,
+    SHOW_RESIDUALS_LABEL,
     SLIDER_DEFAULT_MAX,
     SLIDER_DEFAULT_MIN,
     SLIDER_SCALE_MAX,
@@ -51,7 +57,14 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
             fit_i = calculator(**param_values)
             q_plot = fitter.data.x
 
-            fig = plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
+            # Checkbox to toggle residuals display
+            show_residuals = st.checkbox(SHOW_RESIDUALS_LABEL, value=True)
+
+            if show_residuals:
+                fig = plot_data_fit_and_residuals(fitter, fit_q=q_plot, fit_i=fit_i)
+            else:
+                fig = plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
+
             st.plotly_chart(fig, width='stretch')
 
         except Exception as e:
@@ -65,12 +78,33 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
 
 
 def _render_fit_statistics(fitter: SANSFitter) -> None:
-    """Render chi-squared statistics."""
+    """Render chi-squared and residual statistics."""
     if 'fit_result' in st.session_state and 'chisq' in st.session_state.fit_result:
         chi_squared = cast(FitResult, st.session_state.fit_result).get('chisq')
         if chi_squared is not None:
             st.markdown(f'{CHI_SQUARED_LABEL}{chi_squared:.4f}')
+
+            # Calculate and display residual statistics
+            try:
+                param_values = {name: info['value'] for name, info in fitter.params.items()}
+                calculator = DirectModel(fitter.data, fitter.kernel)
+                fit_i = calculator(**param_values)
+                residuals = calculate_residuals(fitter.data.y, fit_i, fitter.data.dy)
+                _render_residual_statistics(residuals)
+            except Exception:
+                pass  # Silently skip residual stats if calculation fails
+
             st.markdown('---')
+
+
+def _render_residual_statistics(residuals: np.ndarray) -> None:
+    """Render residual statistics."""
+    st.markdown('**Residual Statistics**')
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric('Mean', f'{np.mean(residuals):.3f}')
+    with col2:
+        st.metric('Std Dev', f'{np.std(residuals):.3f}')
 
 
 def _render_fitted_parameters_table(fitter: SANSFitter) -> list[dict]:
@@ -146,11 +180,13 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
     if selected_param:
         current_value = fitter.params[selected_param]['value']
 
-        if (
+        # Check if parameter selection changed
+        param_changed = (
             'prev_selected_param' not in st.session_state
             or st.session_state.prev_selected_param != selected_param
-        ):
-            st.session_state.slider_value = current_value
+        )
+
+        if param_changed:
             st.session_state.prev_selected_param = selected_param
 
         if current_value != 0:
@@ -166,11 +202,16 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
             if f'value_{selected_param}' in st.session_state:
                 st.session_state[f'value_{selected_param}'] = new_value
 
+        # Determine default value based on whether parameter changed
+        default_value = (
+            current_value if param_changed else st.session_state.get('slider_value', current_value)
+        )
+
         st.slider(
             f'{selected_param}',
             min_value=float(slider_min),
             max_value=float(slider_max),
-            value=float(st.session_state.slider_value),
+            value=float(default_value),
             format='%.4g',
             key='slider_value',
             on_change=update_profile,

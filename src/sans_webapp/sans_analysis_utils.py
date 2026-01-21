@@ -9,6 +9,7 @@ from typing import Optional
 
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sans_fitter import SANSFitter
 from sasmodels import core
 
@@ -158,5 +159,129 @@ def plot_data_and_fit(
         height=600,
         showlegend=True,
     )
+
+    return fig
+
+
+def calculate_residuals(
+    experimental_i: np.ndarray,
+    fitted_i: np.ndarray,
+    uncertainties: np.ndarray,
+) -> np.ndarray:
+    """
+    Calculate normalized (weighted) residuals.
+
+    Args:
+        experimental_i: Experimental intensity values
+        fitted_i: Fitted model intensity values
+        uncertainties: Measurement uncertainties (dI)
+
+    Returns:
+        Normalized residuals: (I_exp - I_fit) / dI
+    """
+    # Avoid division by zero
+    safe_uncertainties = np.where(uncertainties > 0, uncertainties, 1e-10)
+    return (experimental_i - fitted_i) / safe_uncertainties
+
+
+def plot_data_fit_and_residuals(
+    fitter: SANSFitter,
+    fit_q: np.ndarray,
+    fit_i: np.ndarray,
+) -> go.Figure:
+    """
+    Create a combined figure with data/fit plot and residuals subplot.
+
+    Args:
+        fitter: SANSFitter instance with loaded data
+        fit_q: Q values for fitted curve
+        fit_i: Intensity values for fitted curve
+
+    Returns:
+        Plotly figure with two subplots (main plot + residuals)
+    """
+    # Calculate residuals
+    residuals = calculate_residuals(fitter.data.y, fit_i, fitter.data.dy)
+
+    # Create subplots: main plot (larger) + residuals (smaller)
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,
+        row_heights=[0.7, 0.3],
+    )
+
+    # Main plot: Data with error bars
+    fig.add_trace(
+        go.Scatter(
+            x=fitter.data.x,
+            y=fitter.data.y,
+            error_y={'type': 'data', 'array': fitter.data.dy, 'visible': True},
+            mode='markers',
+            name='Data',
+            marker={'size': 6, 'color': 'blue', 'symbol': 'circle'},
+        ),
+        row=1,
+        col=1,
+    )
+
+    # Main plot: Fitted curve
+    fig.add_trace(
+        go.Scatter(
+            x=fit_q,
+            y=fit_i,
+            mode='lines',
+            name='Fitted Model',
+            line={'color': 'red', 'width': 2},
+        ),
+        row=1,
+        col=1,
+    )
+
+    # Residuals plot: scatter points
+    fig.add_trace(
+        go.Scatter(
+            x=fitter.data.x,
+            y=residuals,
+            mode='markers',
+            name='Residuals',
+            marker={'size': 5, 'color': 'green', 'symbol': 'circle'},
+            showlegend=True,
+        ),
+        row=2,
+        col=1,
+    )
+
+    # Residuals plot: zero reference line
+    fig.add_trace(
+        go.Scatter(
+            x=[fitter.data.x.min(), fitter.data.x.max()],
+            y=[0, 0],
+            mode='lines',
+            name='Zero',
+            line={'color': 'gray', 'width': 1, 'dash': 'dash'},
+            showlegend=False,
+        ),
+        row=2,
+        col=1,
+    )
+
+    # Update layout
+    fig.update_layout(
+        title='SANS Data Analysis',
+        hovermode='closest',
+        template='plotly_white',
+        height=750,  # Taller to accommodate both plots
+        showlegend=True,
+    )
+
+    # Main plot axes (log-log)
+    fig.update_xaxes(type='log', row=1, col=1)
+    fig.update_yaxes(title_text='Intensity (cm⁻¹)', type='log', row=1, col=1)
+
+    # Residuals axes (log-linear)
+    fig.update_xaxes(title_text='Q (Å⁻¹)', type='log', row=2, col=1)
+    fig.update_yaxes(title_text='(I_exp - I_fit) / dI', row=2, col=1)
 
     return fig

@@ -112,6 +112,73 @@ def test_utils_plot_data_and_fit():
         return False
 
 
+def test_utils_calculate_residuals():
+    """Test residuals calculation from utils module."""
+    print('\nTesting utils.calculate_residuals()...')
+
+    # Test with normal data
+    experimental = np.array([100.0, 80.0, 60.0, 40.0, 20.0])
+    fitted = np.array([95.0, 85.0, 65.0, 35.0, 25.0])
+    uncertainties = np.array([5.0, 4.0, 3.0, 2.0, 1.0])
+
+    residuals = utils.calculate_residuals(experimental, fitted, uncertainties)
+
+    # Expected: (100-95)/5 = 1, (80-85)/4 = -1.25, etc.
+    expected = np.array([1.0, -1.25, -5.0 / 3.0, 2.5, -5.0])
+    np.testing.assert_array_almost_equal(residuals, expected, decimal=6)
+    print('✓ Normal residuals calculated correctly')
+
+    # Test with zero uncertainties (should not crash)
+    uncertainties_with_zero = np.array([5.0, 0.0, 3.0, 0.0, 1.0])
+    residuals_safe = utils.calculate_residuals(experimental, fitted, uncertainties_with_zero)
+    assert not np.any(np.isinf(residuals_safe)), 'Residuals should not contain inf!'
+    assert not np.any(np.isnan(residuals_safe)), 'Residuals should not contain nan!'
+    print('✓ Zero uncertainties handled safely')
+
+    # Test shape preservation
+    assert residuals.shape == experimental.shape, 'Residuals should have same shape as input!'
+    print('✓ Output shape matches input shape')
+
+    return True
+
+
+def test_utils_plot_data_fit_and_residuals():
+    """Test combined plot with residuals from utils module."""
+    print('\nTesting utils.plot_data_fit_and_residuals()...')
+    fitter = SANSFitter()
+
+    try:
+        fitter.load_data('simulated_sans_data.csv')
+
+        # Test plot with fit and residuals (using dummy fit data)
+        fit_q = fitter.data.x
+        fit_i = fitter.data.y * 0.95  # Dummy fit close to data
+
+        fig = utils.plot_data_fit_and_residuals(fitter, fit_q=fit_q, fit_i=fit_i)
+
+        assert fig is not None, 'No figure generated!'
+        assert hasattr(fig, 'data'), 'Figure has no data attribute!'
+        # Should have: data points, fitted curve, residuals, and zero line
+        assert len(fig.data) >= 4, (
+            'Figure should have at least 4 traces (data, fit, residuals, zero)!'
+        )
+        print(f'✓ Combined plot created with {len(fig.data)} traces')
+
+        # Check that figure has subplots
+        assert hasattr(fig, 'layout'), 'Figure should have layout!'
+        # Layout should indicate multiple subplots
+        assert 'yaxis2' in fig.layout, 'Figure should have second y-axis for residuals!'
+        print('✓ Figure has subplots for main plot and residuals')
+
+        return True
+    except Exception as e:
+        print(f'✗ Combined plot creation failed: {e}')
+        import traceback
+
+        traceback.print_exc()
+        return False
+
+
 # =============================================================================
 # Type Definitions Tests (sans_types.py)
 # =============================================================================
@@ -1189,6 +1256,95 @@ def test_fit_results_export_data_structure():
     return True
 
 
+def test_fit_results_residual_statistics_calculation():
+    """Test residual statistics calculation logic from _render_residual_statistics."""
+    print('\nTesting fit_results residual statistics calculation...')
+
+    # Test with various residual patterns
+    # Case 1: Perfect fit (all zeros)
+    residuals_perfect = np.zeros(100)
+    mean_perfect = np.mean(residuals_perfect)
+    std_perfect = np.std(residuals_perfect)
+    assert abs(mean_perfect) < 1e-10, 'Mean of zero residuals should be zero!'
+    assert abs(std_perfect) < 1e-10, 'Std of zero residuals should be zero!'
+    print('✓ Perfect fit (zero residuals) calculated correctly')
+
+    # Case 2: Unbiased random residuals
+    np.random.seed(42)
+    residuals_random = np.random.randn(100)
+    mean_random = np.mean(residuals_random)
+    std_random = np.std(residuals_random)
+    assert abs(mean_random) < 0.2, 'Mean of random residuals should be close to zero!'
+    assert 0.9 < std_random < 1.1, 'Std of random residuals should be close to 1!'
+    print(f'✓ Random residuals: mean={mean_random:.3f}, std={std_random:.3f}')
+
+    # Case 3: Biased residuals (systematic error)
+    residuals_biased = np.random.randn(100) + 2.0  # Shifted by +2
+    mean_biased = np.mean(residuals_biased)
+    std_biased = np.std(residuals_biased)
+    assert 1.8 < mean_biased < 2.2, 'Mean of biased residuals should be around 2!'
+    assert 0.9 < std_biased < 1.1, 'Std of biased residuals should still be around 1!'
+    print(f'✓ Biased residuals: mean={mean_biased:.3f}, std={std_biased:.3f}')
+
+    # Case 4: Verify format string matching (3 decimal places)
+    formatted_mean = f'{mean_random:.3f}'
+    formatted_std = f'{std_random:.3f}'
+    assert len(formatted_mean.split('.')[1]) == 3, 'Mean should format to 3 decimal places!'
+    assert len(formatted_std.split('.')[1]) == 3, 'Std should format to 3 decimal places!'
+    print('✓ Formatting to 3 decimal places works correctly')
+
+    return True
+
+
+def test_fit_results_with_residuals_integration():
+    """Test integration of residuals in fit results workflow."""
+    print('\nTesting fit_results with residuals integration...')
+
+    from sasmodels.direct_model import DirectModel
+
+    fitter = SANSFitter()
+
+    try:
+        fitter.load_data('simulated_sans_data.csv')
+        fitter.set_model('sphere')
+
+        # Get parameter values and calculate model intensity
+        param_values = {name: info['value'] for name, info in fitter.params.items()}
+        calculator = DirectModel(fitter.data, fitter.kernel)
+        fit_i = calculator(**param_values)
+
+        # Calculate residuals
+        residuals = utils.calculate_residuals(fitter.data.y, fit_i, fitter.data.dy)
+
+        # Check residual properties
+        assert len(residuals) == len(fitter.data.y), 'Residuals length should match data length!'
+        assert not np.any(np.isnan(residuals)), 'Residuals should not contain NaN!'
+        assert not np.any(np.isinf(residuals)), 'Residuals should not contain inf!'
+        print(f'✓ Residuals calculated: {len(residuals)} points')
+
+        # Verify residual statistics are reasonable
+        mean_res = np.mean(residuals)
+        std_res = np.std(residuals)
+        print(f'  Mean residual: {mean_res:.3f}')
+        print(f'  Std residual: {std_res:.3f}')
+
+        # For initial parameters, residuals may be large (not well-fitted yet)
+        # Just verify they are finite and calculations work
+        assert not np.isnan(mean_res), 'Mean residual should not be NaN!'
+        assert not np.isinf(mean_res), 'Mean residual should not be inf!'
+        assert std_res > 0, 'Std should be positive for non-perfect fit!'
+        assert not np.isnan(std_res), 'Std residual should not be NaN!'
+        print('✓ Residual statistics are calculable and finite')
+
+        return True
+    except Exception as e:
+        print(f'✗ Residuals integration test failed: {e}')
+        import traceback
+
+        traceback.print_exc()
+        return False
+
+
 # =============================================================================
 # Data Preview Component Tests (components/data_preview.py)
 # =============================================================================
@@ -1277,6 +1433,8 @@ if __name__ == '__main__':
         results['utils_analyze_data'] = test_utils_analyze_data()
         results['utils_suggest_models'] = test_utils_suggest_models_simple()
         results['utils_plot'] = test_utils_plot_data_and_fit()
+        results['utils_calculate_residuals'] = test_utils_calculate_residuals()
+        results['utils_plot_residuals'] = test_utils_plot_data_fit_and_residuals()
     except Exception as e:
         print(f'\n✗ Utility tests failed with exception: {e}')
         import traceback
@@ -1350,6 +1508,8 @@ if __name__ == '__main__':
         results['fit_results_params_list'] = test_fit_results_build_fitted_params_list()
         results['fit_results_slider_range'] = test_fit_results_slider_range_calculation()
         results['fit_results_export'] = test_fit_results_export_data_structure()
+        results['fit_results_residual_stats'] = test_fit_results_residual_statistics_calculation()
+        results['fit_results_residuals_integration'] = test_fit_results_with_residuals_integration()
         results['data_preview_imports'] = test_data_preview_imports()
         results['sidebar_imports'] = test_sidebar_imports()
     except Exception as e:
