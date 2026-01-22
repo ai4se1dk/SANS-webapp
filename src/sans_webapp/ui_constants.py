@@ -92,6 +92,44 @@ PRESET_FIT_SCALE_BACKGROUND = 'Fit Scale & Background'
 PRESET_FIT_ALL = 'Fit All Parameters'
 PRESET_FIX_ALL = 'Fix All Parameters'
 
+# Parameter Tabs
+PARAM_TAB_BASIC = '📊 Basic Parameters'
+PARAM_TAB_POLYDISPERSITY = '📈 Polydispersity'
+PARAM_TAB_ADVANCED = '⚙️ Advanced'
+
+# Polydispersity Section
+PD_NOT_SUPPORTED = 'ℹ️ This model does not support polydispersity.'
+PD_ENABLE_LABEL = 'Enable Polydispersity'
+PD_ENABLE_HELP = (
+    'When enabled, polydispersity parameters are included in the model calculation. '
+    'This accounts for size distribution in your sample.'
+)
+PD_AVAILABLE_PARAMS_LABEL = '**Polydisperse Parameters ({count} available)**'
+PD_NO_PARAMS_CONFIGURED = 'ℹ️ No polydisperse parameters are configured. Set PD Width > 0 to enable.'
+PD_TABLE_COLUMNS = ('**Parameter**', '**PD Width**', '**N Points**', '**Type**', '**Fit Width?**')
+PD_WIDTH_LABEL = 'Width'
+PD_N_LABEL = 'N'
+PD_TYPE_LABEL = 'Type'
+PD_VARY_LABEL = 'Fit'
+PD_DISTRIBUTION_TYPES = ['gaussian', 'lognormal', 'schulz', 'rectangle', 'boltzmann']
+PD_WIDTH_HELP = 'Relative polydispersity width (0.1 = 10%)'
+PD_N_HELP = 'Number of quadrature points for integration'
+PD_TYPE_HELP = 'Distribution type for polydispersity'
+PD_UPDATE_BUTTON = 'Update Polydispersity'
+PD_SUCCESS_UPDATED = '✓ Polydispersity settings updated!'
+PD_INFO_HEADER = '**About Polydispersity**'
+PD_INFO_TEXT = """
+Polydispersity accounts for the distribution of sizes in your sample.
+
+- **PD Width**: Relative width of the distribution (e.g., 0.1 = 10% polydispersity)
+- **N Points**: Number of integration points (higher = more accurate but slower)
+- **Distribution Type**: Shape of the size distribution
+  - *Gaussian*: Symmetric bell curve
+  - *Lognormal*: Asymmetric, positive values only
+  - *Schulz*: Similar to lognormal, common for polymers
+  - *Rectangle*: Uniform distribution
+"""
+
 # Fitting Section
 FIT_ENGINE_LABEL = 'Optimization Engine'
 FIT_ENGINE_OPTIONS = ['bumps', 'lmfit']

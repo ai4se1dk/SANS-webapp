@@ -54,6 +54,12 @@ def clear_parameter_state() -> None:
         or k.startswith('min_')
         or k.startswith('max_')
         or k.startswith('vary_')
+        or k.startswith('pd_width_')
+        or k.startswith('pd_n_')
+        or k.startswith('pd_type_')
+        or k.startswith('pd_vary_')
+        or k == 'pd_enabled'
+        or k == 'pd_updates'
     ]
     for key in keys_to_remove:
         del st.session_state[key]

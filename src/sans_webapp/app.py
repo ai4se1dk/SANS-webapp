@@ -18,7 +18,11 @@ import streamlit as st
 
 from sans_webapp.components.data_preview import render_data_preview
 from sans_webapp.components.fit_results import render_fit_results
-from sans_webapp.components.parameters import apply_param_updates, render_parameter_configuration
+from sans_webapp.components.parameters import (
+    apply_param_updates,
+    apply_pd_updates,
+    render_parameter_configuration,
+)
 from sans_webapp.components.sidebar import (
     render_ai_chat_sidebar,
     render_data_upload_sidebar,
@@ -83,6 +87,10 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
     if st.sidebar.button(FIT_RUN_BUTTON, type='primary'):
         # Apply current parameter settings before fitting
         apply_param_updates(fitter, param_updates)
+
+        # Apply polydispersity settings if they exist
+        if 'pd_updates' in st.session_state and fitter.supports_polydispersity():
+            apply_pd_updates(fitter, st.session_state.pd_updates)
 
         with st.spinner(f'Fitting with {engine}/{method}...'):
             try:
