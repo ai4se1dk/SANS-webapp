@@ -9,12 +9,12 @@ Contains functions for rendering and managing model parameters:
 - Polydispersity configuration (tabbed interface)
 """
 
-from typing import Any, cast
+from typing import cast
 
 import streamlit as st
 from sans_fitter import SANSFitter
 
-from sans_webapp.sans_types import FitResult, ParamInfo, ParamUpdate
+from sans_webapp.sans_types import FitResult, ParamInfo, ParamUpdate, PDUpdate
 from sans_webapp.services.session_state import clamp_for_display
 from sans_webapp.ui_constants import (
     PARAM_TAB_BASIC,
@@ -203,7 +203,7 @@ def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdat
     return param_updates
 
 
-def render_polydispersity_table(fitter: SANSFitter) -> dict[str, dict[str, Any]]:
+def render_polydispersity_table(fitter: SANSFitter) -> dict[str, PDUpdate]:
     """
     Render the polydispersity parameter table.
 
@@ -214,7 +214,7 @@ def render_polydispersity_table(fitter: SANSFitter) -> dict[str, dict[str, Any]]
         Dictionary of polydispersity updates keyed by parameter name
     """
     pd_params = fitter.get_polydisperse_parameters()
-    pd_updates: dict[str, dict[str, Any]] = {}
+    pd_updates: dict[str, PDUpdate] = {}
 
     # Table header
     pd_cols = st.columns([2, 1.5, 1, 1.5, 1])
@@ -292,9 +292,16 @@ def render_polydispersity_table(fitter: SANSFitter) -> dict[str, dict[str, Any]]
                 label_visibility='collapsed',
             )
 
+        # Warn if PD width is high (may cause numerical instability)
+        if pd_width > 0.5:
+            st.warning(
+                f'⚠️ PD Width for {param_name} is {pd_width:.2f}. '
+                'Values > 0.5 may cause numerical instability.'
+            )
+
         pd_updates[param_name] = {
             'pd_width': pd_width,
-            'pd_n': pd_n,
+            'pd_n': int(pd_n),  # Explicit int cast from number_input
             'pd_type': pd_type,
             'vary': pd_vary,
         }
@@ -302,13 +309,14 @@ def render_polydispersity_table(fitter: SANSFitter) -> dict[str, dict[str, Any]]
     return pd_updates
 
 
-def apply_pd_updates(fitter: SANSFitter, pd_updates: dict[str, dict[str, Any]]) -> None:
+def apply_pd_updates(fitter: SANSFitter, pd_updates: dict[str, PDUpdate]) -> None:
     """
     Apply polydispersity updates to the fitter.
 
     Args:
         fitter: The SANSFitter instance
-        pd_updates: Dictionary of PD updates keyed by parameter name
+        pd_updates: Dictionary of PD updates keyed by parameter name.
+                    Note: 'pd_width' in PDUpdate maps to fitter's 'pd' parameter.
     """
     for param_name, updates in pd_updates.items():
         fitter.set_pd_param(
@@ -333,6 +341,14 @@ def render_polydispersity_tab(fitter: SANSFitter) -> None:
         return
 
     pd_params = fitter.get_polydisperse_parameters()
+
+    # Validate stored pd_updates match current model's PD parameters
+    # This handles model changes that have different polydisperse parameters
+    if 'pd_updates' in st.session_state:
+        current_pd_params = set(pd_params)
+        stored_params = set(st.session_state.pd_updates.keys())
+        if stored_params != current_pd_params:
+            del st.session_state['pd_updates']
 
     # Master enable toggle
     pd_enabled_key = 'pd_enabled'
@@ -367,10 +383,17 @@ def render_polydispersity_tab(fitter: SANSFitter) -> None:
         apply_pd_updates(fitter, pd_updates)
         st.session_state.pd_updates = pd_updates
         st.success(PD_SUCCESS_UPDATED)
-
-    # Store updates in session state
-    if 'pd_updates' not in st.session_state:
-        st.session_state.pd_updates = pd_updates
+    elif 'pd_updates' not in st.session_state:
+        # Initialize from current fitter state, not stale form values
+        st.session_state.pd_updates = {
+            param: {
+                'pd_width': fitter.get_pd_param(param)['pd'],
+                'pd_n': fitter.get_pd_param(param)['pd_n'],
+                'pd_type': fitter.get_pd_param(param)['pd_type'],
+                'vary': fitter.get_pd_param(param).get('vary', False),
+            }
+            for param in pd_params
+        }
 
     # Show info section
     with st.expander(PD_INFO_HEADER):

@@ -39,3 +39,16 @@ class ParamUpdate(TypedDict):
     min: float
     max: float
     vary: bool
+
+
+class PDUpdate(TypedDict):
+    """Polydispersity update to apply to the fitter.
+
+    Note: Uses 'pd_width' as key name for clarity in the webapp UI,
+    which maps to the fitter's 'pd' parameter internally.
+    """
+
+    pd_width: float  # Maps to fitter's 'pd' parameter
+    pd_n: int
+    pd_type: str
+    vary: bool

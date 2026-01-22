@@ -9,7 +9,6 @@ Tests cover:
 - Full workflow: model selection → enable PD → configure PD → fit
 """
 
-import sys
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -21,6 +20,7 @@ from sans_webapp.components.parameters import (
     render_polydispersity_tab,
     render_polydispersity_table,
 )
+from sans_webapp.sans_types import PDUpdate
 from sans_webapp.services.session_state import clear_parameter_state
 from sans_webapp.ui_constants import (
     PARAM_TAB_BASIC,
@@ -139,7 +139,7 @@ class TestApplyPDUpdates:
         fitter = SANSFitter()
         fitter.set_model('sphere')
 
-        pd_updates = {
+        pd_updates: dict[str, PDUpdate] = {
             'radius': {
                 'pd_width': 0.15,
                 'pd_n': 40,
@@ -161,7 +161,7 @@ class TestApplyPDUpdates:
         fitter = SANSFitter()
         fitter.set_model('cylinder')
 
-        pd_updates = {
+        pd_updates: dict[str, PDUpdate] = {
             'radius': {
                 'pd_width': 0.1,
                 'pd_n': 35,
@@ -229,7 +229,7 @@ class TestPolydispersityWorkflow:
             assert fitter.is_polydispersity_enabled()
 
             # 5. Configure PD parameters (simulating what apply_pd_updates does)
-            pd_updates = {
+            pd_updates: dict[str, PDUpdate] = {
                 'radius': {
                     'pd_width': 0.1,
                     'pd_n': 35,

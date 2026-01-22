@@ -88,9 +88,19 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
         # Apply current parameter settings before fitting
         apply_param_updates(fitter, param_updates)
 
-        # Apply polydispersity settings if they exist
-        if 'pd_updates' in st.session_state and fitter.supports_polydispersity():
-            apply_pd_updates(fitter, st.session_state.pd_updates)
+        # Apply polydispersity settings if model supports it
+        if fitter.supports_polydispersity():
+            # Sync enable state from session
+            pd_enabled = st.session_state.get('pd_enabled', False)
+            fitter.enable_polydispersity(pd_enabled)
+
+            # Apply PD parameters if enabled and valid for current model
+            if pd_enabled and 'pd_updates' in st.session_state:
+                current_pd_params = set(fitter.get_polydisperse_parameters())
+                stored_params = set(st.session_state.pd_updates.keys())
+                # Only apply if stored params match current model's PD params
+                if stored_params == current_pd_params:
+                    apply_pd_updates(fitter, st.session_state.pd_updates)
 
         with st.spinner(f'Fitting with {engine}/{method}...'):
             try:
