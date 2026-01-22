@@ -92,12 +92,31 @@ def apply_fit_results_to_params(fitter: SANSFitter, params: dict[str, ParamInfo]
         fit_result = cast(FitResult, st.session_state.fit_result)
         fit_params = fit_result.get('parameters', {})
         for param_name, fit_param_info in fit_params.items():
+            fitted_value = fit_param_info.get('value')
+            if fitted_value is None:
+                continue
+
             if param_name in params:
-                fitted_value = fit_param_info.get('value')
-                if fitted_value is None:
-                    continue
+                # Regular parameter
                 st.session_state[f'value_{param_name}'] = clamp_for_display(float(fitted_value))
                 fitter.set_param(param_name, value=fitted_value)
+            elif param_name.endswith('_pd'):
+                # Polydispersity parameter - update fitter and session state
+                base_param = param_name[:-3]  # Remove '_pd' suffix
+                if fitter.supports_polydispersity():
+                    pd_params = fitter.get_polydisperse_parameters()
+                    if base_param in pd_params:
+                        fitter.set_pd_param(base_param, pd_width=fitted_value)
+                        # Update session state for PD width
+                        st.session_state[f'pd_width_{base_param}'] = float(fitted_value)
+                        # Also update pd_updates if it exists
+                        if (
+                            'pd_updates' in st.session_state
+                            and base_param in st.session_state.pd_updates
+                        ):
+                            st.session_state.pd_updates[base_param]['pd_width'] = float(
+                                fitted_value
+                            )
         return
 
     for param_name, param_info in params.items():
