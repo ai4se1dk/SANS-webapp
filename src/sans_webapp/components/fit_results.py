@@ -115,7 +115,12 @@ def _render_fitted_parameters_table(fitter: SANSFitter) -> list[dict]:
     if 'fit_result' in st.session_state and 'parameters' in st.session_state.fit_result:
         fit_result = cast(FitResult, st.session_state.fit_result)
         for name, param_info in fit_result.get('parameters', {}).items():
-            if name in fitter.params and fitter.params[name]['vary']:
+            # Check if it's a regular parameter that was varied
+            is_regular_varied = name in fitter.params and fitter.params[name]['vary']
+            # Check if it's a PD parameter (ends with _pd)
+            is_pd_param = name.endswith('_pd')
+
+            if is_regular_varied or is_pd_param:
                 value = param_info.get('value')
                 stderr = param_info.get('stderr')
                 if value is None:
@@ -139,6 +144,18 @@ def _render_fitted_parameters_table(fitter: SANSFitter) -> list[dict]:
                 fitted_params.append(
                     {'Parameter': name, 'Value': f'{info["value"]:.4g}', 'Error': 'N/A'}
                 )
+        # Also show PD params that are set to vary
+        if fitter.supports_polydispersity() and fitter.is_polydispersity_enabled():
+            for pd_param in fitter.get_polydisperse_parameters():
+                pd_config = fitter.get_pd_param(pd_param)
+                if pd_config.get('vary', False):
+                    fitted_params.append(
+                        {
+                            'Parameter': f'{pd_param}_pd',
+                            'Value': f'{pd_config["pd"]:.4g}',
+                            'Error': 'N/A',
+                        }
+                    )
 
     if fitted_params:
         df_fitted = pd.DataFrame(fitted_params)
@@ -241,6 +258,29 @@ def _render_export_section(fitter: SANSFitter) -> None:
                         'Fitted': info['vary'],
                     }
                 )
+
+            # Add polydispersity parameters if enabled
+            if fitter.supports_polydispersity() and fitter.is_polydispersity_enabled():
+                for pd_param in fitter.get_polydisperse_parameters():
+                    pd_config = fitter.get_pd_param(pd_param)
+                    results_data.append(
+                        {
+                            'Parameter': f'{pd_param}_pd',
+                            'Value': pd_config['pd'],
+                            'Min': 0.0,
+                            'Max': 1.0,
+                            'Fitted': pd_config.get('vary', False),
+                        }
+                    )
+                    results_data.append(
+                        {
+                            'Parameter': f'{pd_param}_pd_type',
+                            'Value': pd_config['pd_type'],
+                            'Min': 'N/A',
+                            'Max': 'N/A',
+                            'Fitted': False,
+                        }
+                    )
 
             df_results = pd.DataFrame(results_data)
             csv = df_results.to_csv(index=False)

@@ -29,6 +29,14 @@ A Streamlit-based web application for Small Angle Neutron Scattering (SANS) data
 - Quick presets: "Fit Scale & Background", "Fit All", "Fix All"
 - Real-time parameter validation
 
+### 🔬 Polydispersity Support
+- Account for size distributions in real samples
+- Tabbed interface: "Basic Parameters" | "Polydispersity"
+- Master toggle to enable/disable polydispersity globally
+- Configure per-parameter: width, distribution type, number of points
+- Supported distributions: Gaussian, Lognormal, Schulz, Rectangle, Boltzmann
+- Fit polydispersity width as a free parameter
+
 ### 🚀 Fitting Engines
 **BUMPS** (Bayesian uncertainty modeling for parameter estimation)
 - Methods: amoeba (Nelder-Mead), lm (Levenberg-Marquardt), newton, de (Differential Evolution)
@@ -167,19 +175,114 @@ Q,I,dI
 - Keep other parameters fixed initially
 - Gradually enable more parameters if needed
 
-### 5. Run the Fit
+### 5. Configure Polydispersity (Optional)
+
+For samples with size distributions, use the Polydispersity tab:
+
+1. **Click the "Polydispersity" tab** next to "Basic Parameters"
+2. **Check "Enable Polydispersity"** to activate size distribution modeling
+3. **Configure polydisperse parameters** in the table:
+
+| Column | Description | Typical Values |
+|--------|-------------|----------------|
+| **Parameter** | Size parameter name (e.g., radius, length) | Read-only |
+| **PD Width** | Relative width of distribution (0 = monodisperse) | 0.05-0.20 (5-20%) |
+| **N Points** | Gaussian quadrature points (accuracy vs speed) | 35 (default) |
+| **Type** | Distribution shape | gaussian, lognormal, schulz |
+| **Vary** | Fit the PD width during optimization | ☑ to fit |
+
+4. **Click "Update PD Parameters"** to apply changes
+
+**Distribution Types Explained:**
+- **Gaussian**: Symmetric bell curve, good for narrow distributions
+- **Lognormal**: Skewed toward smaller sizes, prevents negative values (recommended for particle sizes)
+- **Schulz**: Common in polymer science, similar to lognormal
+- **Rectangle**: Uniform distribution within a range
+- **Boltzmann**: For thermally activated size distributions
+
+**Tips:**
+- Start with 10% polydispersity (PD Width = 0.1)
+- Keep PD Width fixed initially, then try fitting it
+- Higher N Points = more accurate but slower fitting
+- Models without size parameters won't show the Polydispersity tab
+
+### 6. Run the Fit
 
 1. Select optimization engine (BUMPS or LMFit)
 2. Choose optimization method (e.g., "amoeba" for BUMPS)
 3. Click "🚀 Run Fit"
 4. Wait for optimization to complete (progress shown)
 
-### 6. View and Export Results
+**Note:** Fitting with polydispersity enabled takes longer due to numerical integration over the size distribution.
+
+### 7. View and Export Results
 
 - Interactive plot shows data points and fitted curve
-- Fitted parameter values displayed in table
+- Fitted parameter values displayed in table (includes PD parameters when enabled)
 - Click "Save Results to CSV" to export
 - Download CSV file with all parameter information
+
+## Polydispersity Guide
+
+### What is Polydispersity?
+
+In real SANS experiments, particles are rarely perfectly uniform in size. **Polydispersity** accounts for this size distribution, providing more realistic fits to experimental data.
+
+For example, a sample of spherical nanoparticles with a mean radius of 50 Å and 10% polydispersity has particles ranging roughly from 35-65 Å following a distribution curve.
+
+### When to Use Polydispersity
+
+**Use polydispersity when:**
+- Your sample has a known size distribution
+- Monodisperse fits show systematic residual patterns
+- Fit quality improves significantly with PD enabled
+- Working with colloids, polymers, or synthesized nanoparticles
+
+**Skip polydispersity when:**
+- Your sample is highly monodisperse (e.g., proteins, viruses)
+- You're doing initial exploratory fits
+- Fitting is already computationally slow
+
+### Understanding PD Parameters
+
+```
+Parameter: radius
+├── radius        = 50.0 Å    (mean size)
+├── radius_pd     = 0.10      (10% relative width)
+├── radius_pd_n   = 35        (quadrature points)
+├── radius_pd_type = gaussian  (distribution shape)
+└── radius_pd_nsigma = 3.0    (integration range)
+```
+
+**PD Width Interpretation:**
+- `pd_width = 0.0`: Perfectly monodisperse (no size distribution)
+- `pd_width = 0.1`: 10% polydispersity (typical for well-synthesized particles)
+- `pd_width = 0.2`: 20% polydispersity (broader distribution)
+- `pd_width > 0.3`: Very broad distribution (may need different model)
+
+### Polydispersity Workflow Example
+
+```
+1. Load data and select model (e.g., sphere)
+2. Fit without polydispersity first → Get baseline chi²
+3. Enable polydispersity, set radius_pd = 0.1 (fixed)
+4. Fit again → Compare chi² improvement
+5. If improved, try fitting radius_pd as a free parameter
+6. Final fit: Check if radius_pd value is physically reasonable
+```
+
+### Multiple Polydisperse Parameters
+
+Some models have multiple size parameters that can be polydisperse:
+
+| Model | Polydisperse Parameters |
+|-------|-------------------------|
+| sphere | radius |
+| cylinder | radius, length |
+| ellipsoid | radius_polar, radius_equatorial |
+| core_shell_sphere | radius, thickness |
+
+**Recommendation:** Start with polydispersity on the most important size parameter only, then add others if needed.
 
 ## Model Selection Guide
 
@@ -336,12 +439,19 @@ echo "OPENAI_API_KEY=your-key-here" > .env
 - Try different optimization method
 - Reduce number of varying parameters
 
-**4. Slow Performance**
+**4. Polydispersity Issues**
+- PD Width > 0.5 may cause numerical instability
+- Reduce `pd_n` (e.g., to 20) if fitting is too slow
+- Some distribution types may not converge for all parameters
+- Try Gaussian first, then switch to lognormal if needed
+
+**5. Slow Performance**
 - Large datasets (>1000 points) may be slow
 - Use "amoeba" method for faster results
 - Consider downsampling data
+- With polydispersity: reduce `pd_n` or disable PD for initial fits
 
-**5. Plot Not Displaying**
+**6. Plot Not Displaying**
 - Check browser console for errors
 - Clear browser cache
 - Try different browser
