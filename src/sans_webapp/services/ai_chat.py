@@ -9,6 +9,7 @@ from typing import Optional, cast
 import numpy as np
 import streamlit as st
 from sans_fitter import SANSFitter
+from sasmodels.direct_model import DirectModel
 
 from sans_webapp.openai_client import create_chat_completion
 from sans_webapp.sans_analysis_utils import (
@@ -69,19 +70,33 @@ def send_chat_message(user_message: str, api_key: Optional[str], fitter: SANSFit
             if chisq is not None:
                 context_parts.append(f'  Chi² (goodness of fit): {chisq:.4f}')
 
+            # Add post-fit profile (model curve) if possible
+            if fitter.data is not None and fitter.kernel is not None and fitter.params:
+                try:
+                    param_values = {name: info['value'] for name, info in fitter.params.items()}
+                    calculator = DirectModel(fitter.data, fitter.kernel)
+                    fit_i = calculator(**param_values)
+                    q_vals = fitter.data.x
+                    sample_count = min(50, len(q_vals))
+                    sample_idx = np.linspace(0, len(q_vals) - 1, num=sample_count, dtype=int)
+                    context_parts.append('  Post-fit profile (Q, I_fit):')
+                    for idx in sample_idx:
+                        context_parts.append(f'    - {q_vals[idx]:.6f}, {fit_i[idx]:.6e}')
+                except Exception:
+                    pass
+
             # Add fitted parameter values with uncertainties
             if 'parameters' in fit_result:
                 context_parts.append('  Fitted parameter values:')
                 for name, param_info in fit_result['parameters'].items():
-                    if name in fitter.params and fitter.params[name]['vary']:
-                        stderr = param_info.get('stderr', 'N/A')
-                        value = param_info.get('value')
-                        if value is None:
-                            continue
-                        if isinstance(stderr, (int, float)):
-                            context_parts.append(f'    - {name}: {value:.4g} ± {stderr:.4g}')
-                        else:
-                            context_parts.append(f'    - {name}: {value:.4g} ± {stderr}')
+                    stderr = param_info.get('stderr', 'N/A')
+                    value = param_info.get('value')
+                    if value is None:
+                        continue
+                    if isinstance(stderr, (int, float)):
+                        context_parts.append(f'    - {name}: {value:.4g} ± {stderr:.4g}')
+                    else:
+                        context_parts.append(f'    - {name}: {value:.4g} ± {stderr}')
 
         system_message = '\n'.join(context_parts)
         system_message += (
