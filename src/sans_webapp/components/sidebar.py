@@ -86,119 +86,143 @@ def _get_example_data_path() -> Path | None:
 
 
 def render_data_upload_sidebar() -> None:
-    """Render the data upload controls in the sidebar."""
-    st.sidebar.header(SIDEBAR_DATA_UPLOAD_HEADER)
+    """Render the data upload controls in the sidebar as a collapsible section."""
+    with st.sidebar.expander(
+        SIDEBAR_DATA_UPLOAD_HEADER, expanded=st.session_state.expand_data_upload
+    ):
+        uploaded_file = st.file_uploader(
+            UPLOAD_LABEL,
+            type=['csv', 'dat'],
+            help=UPLOAD_HELP,
+        )
 
-    uploaded_file = st.sidebar.file_uploader(
-        UPLOAD_LABEL,
-        type=['csv', 'dat'],
-        help=UPLOAD_HELP,
-    )
+        if uploaded_file is None:
+            st.session_state.last_uploaded_file_id = None
 
-    if st.sidebar.button(EXAMPLE_DATA_BUTTON):
-        example_path = _get_example_data_path()
-        if example_path is not None:
+        if st.button(EXAMPLE_DATA_BUTTON):
+            example_path = _get_example_data_path()
+            if example_path is not None:
+                try:
+                    st.session_state.fitter.load_data(str(example_path))
+                    st.session_state.data_loaded = True
+                    # Collapse data upload, expand model selection
+                    st.session_state.expand_data_upload = False
+                    st.session_state.expand_model_selection = True
+                    st.success(SUCCESS_EXAMPLE_LOADED)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f'Error loading example data: {str(e)}')
+            else:
+                st.error(ERROR_EXAMPLE_NOT_FOUND)
+
+        if uploaded_file is not None:
             try:
-                st.session_state.fitter.load_data(str(example_path))
+                current_file_id = (uploaded_file.name, uploaded_file.size)
+                if st.session_state.last_uploaded_file_id == current_file_id:
+                    return
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
+                    tmp_file.write(uploaded_file.getvalue())
+                    tmp_file_path = tmp_file.name
+
+                st.session_state.fitter.load_data(tmp_file_path)
                 st.session_state.data_loaded = True
-                st.sidebar.success(SUCCESS_EXAMPLE_LOADED)
+                st.session_state.last_uploaded_file_id = current_file_id
+                # Collapse data upload, expand model selection
+                st.session_state.expand_data_upload = False
+                st.session_state.expand_model_selection = True
+                st.success(SUCCESS_DATA_UPLOADED)
+
+                os.unlink(tmp_file_path)
+                st.rerun()
+
             except Exception as e:
-                st.sidebar.error(f'Error loading example data: {str(e)}')
-        else:
-            st.sidebar.error(ERROR_EXAMPLE_NOT_FOUND)
-
-    if uploaded_file is not None:
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
-                tmp_file.write(uploaded_file.getvalue())
-                tmp_file_path = tmp_file.name
-
-            st.session_state.fitter.load_data(tmp_file_path)
-            st.session_state.data_loaded = True
-            st.sidebar.success(SUCCESS_DATA_UPLOADED)
-
-            os.unlink(tmp_file_path)
-
-        except Exception as e:
-            st.sidebar.error(f'Error loading data: {str(e)}')
-            st.session_state.data_loaded = False
+                st.error(f'Error loading data: {str(e)}')
+                st.session_state.data_loaded = False
+                st.session_state.last_uploaded_file_id = None
 
 
 def render_model_selection_sidebar() -> None:
-    """Render the model selection controls in the sidebar."""
-    st.sidebar.header(SIDEBAR_MODEL_SELECTION_HEADER)
-
-    selection_method = st.sidebar.radio(
-        SELECTION_METHOD_LABEL, SELECTION_METHOD_OPTIONS, help=SELECTION_METHOD_HELP
-    )
-
-    selected_model = None
-
-    if selection_method == 'Manual':
-        all_models = get_all_models()
-        selected_model = st.sidebar.selectbox(
-            MODEL_SELECT_LABEL,
-            options=all_models,
-            index=all_models.index('sphere') if 'sphere' in all_models else 0,
-            help=MODEL_SELECT_HELP,
-        )
-    else:
-        st.sidebar.markdown(AI_ASSISTED_HEADER)
-
-        api_key = st.sidebar.text_input(
-            AI_KEY_LABEL,
-            type='password',
-            help=AI_KEY_HELP,
+    """Render the model selection controls in the sidebar as a collapsible section."""
+    with st.sidebar.expander(
+        SIDEBAR_MODEL_SELECTION_HEADER, expanded=st.session_state.expand_model_selection
+    ):
+        selection_method = st.radio(
+            SELECTION_METHOD_LABEL, SELECTION_METHOD_OPTIONS, help=SELECTION_METHOD_HELP
         )
 
-        if api_key:
-            st.session_state.chat_api_key = api_key
+        selected_model = None
 
-        if st.sidebar.button(AI_SUGGESTIONS_BUTTON):
-            if st.session_state.data_loaded:
-                with st.spinner(SPINNER_ANALYZING_DATA):
-                    data = st.session_state.fitter.data
-                    suggestions = suggest_models_ai(data.x, data.y, api_key if api_key else None)
+        if selection_method == 'Manual':
+            all_models = get_all_models()
+            selected_model = st.selectbox(
+                MODEL_SELECT_LABEL,
+                options=all_models,
+                index=all_models.index('sphere') if 'sphere' in all_models else 0,
+                help=MODEL_SELECT_HELP,
+            )
+        else:
+            st.markdown(AI_ASSISTED_HEADER)
 
-                    if suggestions:
-                        st.sidebar.success(
-                            f'{SUCCESS_AI_SUGGESTIONS_PREFIX}{len(suggestions)}{SUCCESS_AI_SUGGESTIONS_SUFFIX}'
-                        )
-                        st.session_state.ai_suggestions = suggestions
-                    else:
-                        st.sidebar.warning(WARNING_NO_SUGGESTIONS)
-            else:
-                st.sidebar.warning(WARNING_LOAD_DATA_FIRST)
-
-        if 'ai_suggestions' in st.session_state and st.session_state.ai_suggestions:
-            st.sidebar.markdown(AI_SUGGESTIONS_HEADER)
-            selected_model = st.sidebar.selectbox(
-                AI_SUGGESTIONS_SELECT_LABEL, options=st.session_state.ai_suggestions
+            api_key = st.text_input(
+                AI_KEY_LABEL,
+                type='password',
+                help=AI_KEY_HELP,
             )
 
-    if selected_model:
-        if st.sidebar.button(LOAD_MODEL_BUTTON):
-            try:
-                keys_to_remove = [
-                    k
-                    for k in st.session_state.keys()
-                    if k.startswith('value_')
-                    or k.startswith('min_')
-                    or k.startswith('max_')
-                    or k.startswith('vary_')
-                ]
-                for key in keys_to_remove:
-                    del st.session_state[key]
+            if api_key:
+                st.session_state.chat_api_key = api_key
 
-                st.session_state.fitter.set_model(selected_model)
-                st.session_state.model_selected = True
-                st.session_state.current_model = selected_model
-                st.session_state.fit_completed = False
-                st.sidebar.success(
-                    f'{SUCCESS_MODEL_LOADED_PREFIX}{selected_model}{SUCCESS_MODEL_LOADED_SUFFIX}'
+            if st.button(AI_SUGGESTIONS_BUTTON):
+                if st.session_state.data_loaded:
+                    with st.spinner(SPINNER_ANALYZING_DATA):
+                        data = st.session_state.fitter.data
+                        suggestions = suggest_models_ai(
+                            data.x, data.y, api_key if api_key else None
+                        )
+
+                        if suggestions:
+                            st.success(
+                                f'{SUCCESS_AI_SUGGESTIONS_PREFIX}{len(suggestions)}{SUCCESS_AI_SUGGESTIONS_SUFFIX}'
+                            )
+                            st.session_state.ai_suggestions = suggestions
+                        else:
+                            st.warning(WARNING_NO_SUGGESTIONS)
+                else:
+                    st.warning(WARNING_LOAD_DATA_FIRST)
+
+            if 'ai_suggestions' in st.session_state and st.session_state.ai_suggestions:
+                st.markdown(AI_SUGGESTIONS_HEADER)
+                selected_model = st.selectbox(
+                    AI_SUGGESTIONS_SELECT_LABEL, options=st.session_state.ai_suggestions
                 )
-            except Exception as e:
-                st.sidebar.error(f'Error loading model: {str(e)}')
+
+        if selected_model:
+            if st.button(LOAD_MODEL_BUTTON):
+                try:
+                    keys_to_remove = [
+                        k
+                        for k in st.session_state.keys()
+                        if k.startswith('value_')
+                        or k.startswith('min_')
+                        or k.startswith('max_')
+                        or k.startswith('vary_')
+                    ]
+                    for key in keys_to_remove:
+                        del st.session_state[key]
+
+                    st.session_state.fitter.set_model(selected_model)
+                    st.session_state.model_selected = True
+                    st.session_state.current_model = selected_model
+                    st.session_state.fit_completed = False
+                    # Collapse model selection (do NOT expand fitting)
+                    st.session_state.expand_model_selection = False
+                    st.success(
+                        f'{SUCCESS_MODEL_LOADED_PREFIX}{selected_model}{SUCCESS_MODEL_LOADED_SUFFIX}'
+                    )
+                    st.rerun()
+                except Exception as e:
+                    st.error(f'Error loading model: {str(e)}')
 
 
 def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
