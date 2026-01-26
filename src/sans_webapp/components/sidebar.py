@@ -96,6 +96,9 @@ def render_data_upload_sidebar() -> None:
             help=UPLOAD_HELP,
         )
 
+        if uploaded_file is None:
+            st.session_state.last_uploaded_file_id = None
+
         if st.button(EXAMPLE_DATA_BUTTON):
             example_path = _get_example_data_path()
             if example_path is not None:
@@ -114,12 +117,17 @@ def render_data_upload_sidebar() -> None:
 
         if uploaded_file is not None:
             try:
+                current_file_id = (uploaded_file.name, uploaded_file.size)
+                if st.session_state.last_uploaded_file_id == current_file_id:
+                    return
+
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
                     tmp_file.write(uploaded_file.getvalue())
                     tmp_file_path = tmp_file.name
 
                 st.session_state.fitter.load_data(tmp_file_path)
                 st.session_state.data_loaded = True
+                st.session_state.last_uploaded_file_id = current_file_id
                 # Collapse data upload, expand model selection
                 st.session_state.expand_data_upload = False
                 st.session_state.expand_model_selection = True
@@ -131,6 +139,7 @@ def render_data_upload_sidebar() -> None:
             except Exception as e:
                 st.error(f'Error loading data: {str(e)}')
                 st.session_state.data_loaded = False
+                st.session_state.last_uploaded_file_id = None
 
 
 def render_model_selection_sidebar() -> None:

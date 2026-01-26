@@ -79,11 +79,17 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
 
         if engine == 'bumps':
             st.selectbox(
-                FIT_METHOD_LABEL, FIT_METHOD_BUMPS, help=FIT_METHOD_HELP_BUMPS, key='fit_method_bumps'
+                FIT_METHOD_LABEL,
+                FIT_METHOD_BUMPS,
+                help=FIT_METHOD_HELP_BUMPS,
+                key='fit_method_bumps',
             )
         else:
             st.selectbox(
-                FIT_METHOD_LABEL, FIT_METHOD_LMFIT, help=FIT_METHOD_HELP_LMFIT, key='fit_method_lmfit'
+                FIT_METHOD_LABEL,
+                FIT_METHOD_LMFIT,
+                help=FIT_METHOD_HELP_LMFIT,
+                key='fit_method_lmfit',
             )
 
     # Run Fit button always visible outside the expander

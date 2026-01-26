@@ -22,6 +22,7 @@ def init_session_state() -> None:
         'chat_api_key': None,
         'slider_value': 0.0,
         'prev_selected_param': None,
+        'last_uploaded_file_id': None,
         # Sidebar expander states - only data_upload starts expanded
         'expand_data_upload': True,
         'expand_model_selection': False,
