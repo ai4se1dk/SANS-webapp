@@ -78,18 +78,21 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
         )
 
         if engine == 'bumps':
-            method = st.selectbox(
-                FIT_METHOD_LABEL, FIT_METHOD_BUMPS, help=FIT_METHOD_HELP_BUMPS, key='fit_method'
+            st.selectbox(
+                FIT_METHOD_LABEL, FIT_METHOD_BUMPS, help=FIT_METHOD_HELP_BUMPS, key='fit_method_bumps'
             )
         else:
-            method = st.selectbox(
-                FIT_METHOD_LABEL, FIT_METHOD_LMFIT, help=FIT_METHOD_HELP_LMFIT, key='fit_method'
+            st.selectbox(
+                FIT_METHOD_LABEL, FIT_METHOD_LMFIT, help=FIT_METHOD_HELP_LMFIT, key='fit_method_lmfit'
             )
 
     # Run Fit button always visible outside the expander
     if st.sidebar.button(FIT_RUN_BUTTON, type='primary'):
         engine = st.session_state.get('fit_engine', 'bumps')
-        method = st.session_state.get('fit_method', 'amoeba')
+        if engine == 'bumps':
+            method = st.session_state.get('fit_method_bumps', 'amoeba')
+        else:
+            method = st.session_state.get('fit_method_lmfit', 'leastsq')
 
         # Apply current parameter settings before fitting
         apply_param_updates(fitter, param_updates)

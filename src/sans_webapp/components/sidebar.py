@@ -126,6 +126,7 @@ def render_data_upload_sidebar() -> None:
                 st.success(SUCCESS_DATA_UPLOADED)
 
                 os.unlink(tmp_file_path)
+                st.rerun()
 
             except Exception as e:
                 st.error(f'Error loading data: {str(e)}')
