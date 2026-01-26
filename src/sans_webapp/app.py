@@ -68,23 +68,29 @@ from sans_webapp.ui_constants import (
 
 
 def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
-    """Render the fitting controls in the sidebar."""
+    """Render the fitting controls in the sidebar with Run Fit button always visible."""
     fitter = st.session_state.fitter
 
-    st.sidebar.header(SIDEBAR_FITTING_HEADER)
-
-    engine = st.sidebar.selectbox(FIT_ENGINE_LABEL, FIT_ENGINE_OPTIONS, help=FIT_ENGINE_HELP)
-
-    if engine == 'bumps':
-        method = st.sidebar.selectbox(
-            FIT_METHOD_LABEL, FIT_METHOD_BUMPS, help=FIT_METHOD_HELP_BUMPS
-        )
-    else:
-        method = st.sidebar.selectbox(
-            FIT_METHOD_LABEL, FIT_METHOD_LMFIT, help=FIT_METHOD_HELP_LMFIT
+    # Engine/method selection in collapsible section
+    with st.sidebar.expander(SIDEBAR_FITTING_HEADER, expanded=st.session_state.expand_fitting):
+        engine = st.selectbox(
+            FIT_ENGINE_LABEL, FIT_ENGINE_OPTIONS, help=FIT_ENGINE_HELP, key='fit_engine'
         )
 
+        if engine == 'bumps':
+            method = st.selectbox(
+                FIT_METHOD_LABEL, FIT_METHOD_BUMPS, help=FIT_METHOD_HELP_BUMPS, key='fit_method'
+            )
+        else:
+            method = st.selectbox(
+                FIT_METHOD_LABEL, FIT_METHOD_LMFIT, help=FIT_METHOD_HELP_LMFIT, key='fit_method'
+            )
+
+    # Run Fit button always visible outside the expander
     if st.sidebar.button(FIT_RUN_BUTTON, type='primary'):
+        engine = st.session_state.get('fit_engine', 'bumps')
+        method = st.session_state.get('fit_method', 'amoeba')
+
         # Apply current parameter settings before fitting
         apply_param_updates(fitter, param_updates)
 
@@ -106,7 +112,7 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
             try:
                 any_vary = any(p['vary'] for p in fitter.params.values())
                 if not any_vary:
-                    st.warning(WARNING_NO_VARY)
+                    st.sidebar.warning(WARNING_NO_VARY)
                 else:
                     result = fitter.fit(engine=engine, method=method)
                     st.session_state.fit_completed = True
