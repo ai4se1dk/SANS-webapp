@@ -14,9 +14,8 @@ from pathlib import Path
 from typing import Optional
 
 import streamlit as st
-from sans_fitter import SANSFitter
+from sans_fitter import SANSFitter, get_all_models
 
-from sans_webapp.sans_analysis_utils import get_all_models
 from sans_webapp.services.ai_chat import send_chat_message, suggest_models_ai
 from sans_webapp.ui_constants import (
     AI_ASSISTED_HEADER,

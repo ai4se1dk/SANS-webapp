@@ -28,9 +28,9 @@ from sans_webapp.components.sidebar import (
     render_data_upload_sidebar,
     render_model_selection_sidebar,
 )
+from sans_fitter import get_all_models  # noqa: F401 - re-exported for backwards compatibility
 from sans_webapp.sans_analysis_utils import (  # noqa: F401 - re-exported for backwards compatibility
     analyze_data_for_ai_suggestion,
-    get_all_models,
     plot_data_and_fit,
     suggest_models_simple,
 )

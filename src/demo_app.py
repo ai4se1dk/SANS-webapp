@@ -10,7 +10,7 @@ sys.path.insert(0, '.')
 
 import numpy as np
 import sans_analysis_utils as utils
-from sans_fitter import SANSFitter
+from sans_fitter import SANSFitter, get_all_models
 
 print('=' * 80)
 print(' SANS DATA ANALYSIS WEB APPLICATION - DEMO ')
@@ -18,7 +18,7 @@ print('=' * 80)
 
 # Step 1: Get available models
 print('\n[Step 1] Fetching available SANS models...')
-models = utils.get_all_models()
+models = get_all_models()
 print(f'✓ Found {len(models)} models from SasModels library')
 print(f'  Examples: {", ".join(models[:5])}, ...')
 

@@ -8,13 +8,12 @@ from typing import Optional, cast
 
 import numpy as np
 import streamlit as st
-from sans_fitter import SANSFitter
+from sans_fitter import SANSFitter, get_all_models
 from sasmodels.direct_model import DirectModel
 
 from sans_webapp.openai_client import create_chat_completion
 from sans_webapp.sans_analysis_utils import (
     analyze_data_for_ai_suggestion,
-    get_all_models,
     suggest_models_simple,
 )
 from sans_webapp.sans_types import FitResult, ParamInfo
