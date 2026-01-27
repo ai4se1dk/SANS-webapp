@@ -11,22 +11,6 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sans_fitter import SANSFitter
-from sasmodels import core
-
-
-def get_all_models() -> list[str]:
-    """
-    Fetch all available models from sasmodels.
-
-    Returns:
-        List of model names
-    """
-    try:
-        all_models = core.list_models()
-        return sorted(all_models)
-    except Exception as e:
-        print(f'Error fetching models: {str(e)}')
-        return []
 
 
 def analyze_data_for_ai_suggestion(q_data: np.ndarray, i_data: np.ndarray) -> str:

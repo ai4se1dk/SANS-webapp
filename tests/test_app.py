@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 
 # Import utilities first (no Streamlit dependency)
-from sans_fitter import SANSFitter
+from sans_fitter import SANSFitter, get_all_models
 
 from sans_webapp import sans_analysis_utils as utils
 
@@ -27,14 +27,24 @@ from sans_webapp import sans_analysis_utils as utils
 
 
 def test_utils_get_all_models():
-    """Test model listing from utils module."""
-    print('Testing utils.get_all_models()...')
-    models = utils.get_all_models()
+    """Test model listing from sans_fitter module."""
+    print('Testing get_all_models() from sans_fitter...')
+    models = get_all_models()
     assert len(models) > 0, 'No models found!'
     assert 'sphere' in models, 'sphere model not found!'
     assert 'cylinder' in models, 'cylinder model not found!'
     assert 'ellipsoid' in models, 'ellipsoid model not found!'
-    print(f'✓ Found {len(models)} models')
+    print(f'OK Found {len(models)} models')
+    return True
+
+
+def test_utils_get_all_models_reexported():
+    """Test that utils.get_all_models is re-exported from sans_fitter."""
+    print('Testing utils.get_all_models() re-export...')
+    models = utils.get_all_models()
+    assert len(models) > 0, 'No models found!'
+    assert 'sphere' in models, 'sphere model not found!'
+    print('OK utils.get_all_models() correctly re-exports from sans_fitter')
     return True
 
 
@@ -1430,6 +1440,7 @@ if __name__ == '__main__':
 
     try:
         results['utils_get_all_models'] = test_utils_get_all_models()
+        results['utils_get_all_models_reexport'] = test_utils_get_all_models_reexported()
         results['utils_analyze_data'] = test_utils_analyze_data()
         results['utils_suggest_models'] = test_utils_suggest_models_simple()
         results['utils_plot'] = test_utils_plot_data_and_fit()
