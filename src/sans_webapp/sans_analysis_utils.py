@@ -13,7 +13,14 @@ from plotly.subplots import make_subplots
 from sans_fitter import SANSFitter, get_all_models
 
 # Re-export get_all_models for backwards compatibility
-__all__ = ['get_all_models', 'analyze_data_for_ai_suggestion', 'suggest_models_simple', 'plot_data_and_fit', 'calculate_residuals', 'plot_data_fit_and_residuals']
+__all__ = [
+    'get_all_models',
+    'analyze_data_for_ai_suggestion',
+    'suggest_models_simple',
+    'plot_data_and_fit',
+    'calculate_residuals',
+    'plot_data_fit_and_residuals',
+]
 
 
 def analyze_data_for_ai_suggestion(q_data: np.ndarray, i_data: np.ndarray) -> str:
