@@ -290,3 +290,48 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
                             st.success(message['content'])
             else:
                 st.caption(AI_CHAT_EMPTY_CAPTION)
+
+
+def render_ai_chat_column(api_key: Optional[str], fitter: SANSFitter) -> None:
+    """
+    Render the AI Chat in the right column using st.chat_message and st.chat_input.
+    Styled like VS Code's chat panel with messages above and input at the bottom.
+
+    Args:
+        api_key: OpenAI API key from the sidebar
+        fitter: The SANSFitter instance
+    """
+    st.markdown(AI_CHAT_SIDEBAR_HEADER)
+    st.caption(AI_CHAT_DESCRIPTION)
+
+    # Initialize chat history in session state
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+
+    # Display chat history using st.chat_message
+    chat_container = st.container(height=450)
+    with chat_container:
+        if st.session_state.chat_history:
+            for message in st.session_state.chat_history:
+                with st.chat_message(message['role']):
+                    st.markdown(message['content'])
+        else:
+            st.caption(AI_CHAT_EMPTY_CAPTION)
+
+    # Clear button above the input
+    if st.session_state.chat_history:
+        if st.button(AI_CHAT_CLEAR_BUTTON, key='clear_chat_col'):
+            st.session_state.chat_history = []
+            st.rerun()
+
+    # Chat input at the bottom using st.chat_input
+    if user_prompt := st.chat_input(AI_CHAT_INPUT_PLACEHOLDER, key='chat_input_col'):
+        # Add user message to history
+        st.session_state.chat_history.append({'role': 'user', 'content': user_prompt})
+
+        # Get AI response
+        with st.spinner(AI_CHAT_THINKING):
+            response = send_chat_message(user_prompt, api_key, fitter)
+            st.session_state.chat_history.append({'role': 'assistant', 'content': response})
+
+        st.rerun()

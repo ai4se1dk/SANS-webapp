@@ -25,7 +25,7 @@ from sans_webapp.components.parameters import (
     render_parameter_configuration,
 )
 from sans_webapp.components.sidebar import (
-    render_ai_chat_sidebar,
+    render_ai_chat_column,
     render_data_upload_sidebar,
     render_model_selection_sidebar,
 )
@@ -143,6 +143,111 @@ def main() -> None:
     st.title(APP_TITLE)
     st.markdown(APP_SUBTITLE)
 
+    # Inject custom CSS and JS for resizable AI chat column
+    st.markdown(
+        """
+        <style>
+        /* Make the right column (AI chat) sticky and resizable */
+        div[data-testid="stHorizontalBlock"] {
+            position: relative;
+        }
+        div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+            position: sticky;
+            top: 3.5rem;
+            height: fit-content;
+            max-height: calc(100vh - 4rem);
+            overflow-y: auto;
+            align-self: flex-start;
+            min-width: 250px;
+            max-width: 50%;
+            border-left: 3px solid #e0e0e0;
+            padding-left: 10px;
+            transition: none;
+        }
+        div[data-testid="stHorizontalBlock"] > div:nth-child(2):hover {
+            border-left-color: #1f77b4;
+        }
+        /* Resize handle */
+        .resize-handle {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            z-index: 1000;
+        }
+        .resize-handle:hover, .resize-handle.dragging {
+            background: rgba(31, 119, 180, 0.3);
+        }
+        </style>
+        <script>
+        (function() {
+            // Wait for Streamlit to render
+            const initResizable = () => {
+                const container = document.querySelector('[data-testid="stHorizontalBlock"]');
+                if (!container) {
+                    setTimeout(initResizable, 100);
+                    return;
+                }
+                
+                const leftCol = container.children[0];
+                const rightCol = container.children[1];
+                
+                if (!leftCol || !rightCol || rightCol.querySelector('.resize-handle')) return;
+                
+                // Create resize handle
+                const handle = document.createElement('div');
+                handle.className = 'resize-handle';
+                rightCol.style.position = 'relative';
+                rightCol.insertBefore(handle, rightCol.firstChild);
+                
+                let startX, startWidth, containerWidth;
+                
+                handle.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    startX = e.clientX;
+                    startWidth = rightCol.offsetWidth;
+                    containerWidth = container.offsetWidth;
+                    handle.classList.add('dragging');
+                    
+                    const onMouseMove = (e) => {
+                        const delta = startX - e.clientX;
+                        const newWidth = Math.min(Math.max(startWidth + delta, 250), containerWidth * 0.5);
+                        const newLeftWidth = containerWidth - newWidth - 20;
+                        
+                        rightCol.style.flex = 'none';
+                        rightCol.style.width = newWidth + 'px';
+                        leftCol.style.flex = 'none';
+                        leftCol.style.width = newLeftWidth + 'px';
+                    };
+                    
+                    const onMouseUp = () => {
+                        handle.classList.remove('dragging');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+                    
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            };
+            
+            // Initialize after a short delay
+            setTimeout(initResizable, 500);
+            
+            // Re-initialize on Streamlit reruns
+            const observer = new MutationObserver(() => {
+                setTimeout(initResizable, 100);
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        })();
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # Initialize session state
     init_session_state()
 
@@ -152,29 +257,34 @@ def main() -> None:
     render_data_upload_sidebar()
     render_model_selection_sidebar()
 
-    # Main content area - handle case when data is not loaded
-    if not st.session_state.data_loaded:
-        st.info(INFO_NO_DATA)
-        st.markdown(DATA_FORMAT_HELP)
-        render_ai_chat_sidebar(st.session_state.chat_api_key, st.session_state.fitter)
-        return
+    # Create two-column layout: main content (70%) and AI chat (30%)
+    col1, col2 = st.columns([0.7, 0.3])
 
-    # Data is loaded - render data preview
-    render_data_preview(st.session_state.fitter)
+    # AI Chat in the right column
+    with col2:
+        render_ai_chat_column(st.session_state.chat_api_key, st.session_state.fitter)
 
-    # Parameter Configuration
-    if st.session_state.model_selected:
-        param_updates = render_parameter_configuration(st.session_state.fitter)
+    # Main content in the left column
+    with col1:
+        # Main content area - handle case when data is not loaded
+        if not st.session_state.data_loaded:
+            st.info(INFO_NO_DATA)
+            st.markdown(DATA_FORMAT_HELP)
+            return
 
-        # Fitting Section (in sidebar)
-        render_fitting_sidebar(param_updates)
+        # Data is loaded - render data preview
+        render_data_preview(st.session_state.fitter)
 
-        # Display fit results
-        if st.session_state.fit_completed:
-            render_fit_results(st.session_state.fitter, param_updates)
+        # Parameter Configuration
+        if st.session_state.model_selected:
+            param_updates = render_parameter_configuration(st.session_state.fitter)
 
-    # Render AI Chat in left sidebar (at the bottom)
-    render_ai_chat_sidebar(st.session_state.chat_api_key, st.session_state.fitter)
+            # Fitting Section (in sidebar)
+            render_fitting_sidebar(param_updates)
+
+            # Display fit results
+            if st.session_state.fit_completed:
+                render_fit_results(st.session_state.fitter, param_updates)
 
 
 if __name__ == '__main__':
