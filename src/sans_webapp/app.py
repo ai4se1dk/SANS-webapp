@@ -191,52 +191,52 @@ def main() -> None:
                     setTimeout(initResizable, 100);
                     return;
                 }
-                
+
                 const leftCol = container.children[0];
                 const rightCol = container.children[1];
-                
+
                 if (!leftCol || !rightCol || rightCol.querySelector('.resize-handle')) return;
-                
+
                 // Create resize handle
                 const handle = document.createElement('div');
                 handle.className = 'resize-handle';
                 rightCol.style.position = 'relative';
                 rightCol.insertBefore(handle, rightCol.firstChild);
-                
+
                 let startX, startWidth, containerWidth;
-                
+
                 handle.addEventListener('mousedown', (e) => {
                     e.preventDefault();
                     startX = e.clientX;
                     startWidth = rightCol.offsetWidth;
                     containerWidth = container.offsetWidth;
                     handle.classList.add('dragging');
-                    
+
                     const onMouseMove = (e) => {
                         const delta = startX - e.clientX;
                         const newWidth = Math.min(Math.max(startWidth + delta, 250), containerWidth * 0.5);
                         const newLeftWidth = containerWidth - newWidth - 20;
-                        
+
                         rightCol.style.flex = 'none';
                         rightCol.style.width = newWidth + 'px';
                         leftCol.style.flex = 'none';
                         leftCol.style.width = newLeftWidth + 'px';
                     };
-                    
+
                     const onMouseUp = () => {
                         handle.classList.remove('dragging');
                         document.removeEventListener('mousemove', onMouseMove);
                         document.removeEventListener('mouseup', onMouseUp);
                     };
-                    
+
                     document.addEventListener('mousemove', onMouseMove);
                     document.addEventListener('mouseup', onMouseUp);
                 });
             };
-            
+
             // Initialize after a short delay
             setTimeout(initResizable, 500);
-            
+
             // Re-initialize on Streamlit reruns
             const observer = new MutationObserver(() => {
                 setTimeout(initResizable, 100);
