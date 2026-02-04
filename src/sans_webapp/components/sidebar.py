@@ -124,16 +124,19 @@ def render_data_upload_sidebar() -> None:
                     tmp_file.write(uploaded_file.getvalue())
                     tmp_file_path = tmp_file.name
 
-                st.session_state.fitter.load_data(tmp_file_path)
-                st.session_state.data_loaded = True
-                st.session_state.last_uploaded_file_id = current_file_id
-                # Collapse data upload, expand model selection
-                st.session_state.expand_data_upload = False
-                st.session_state.expand_model_selection = True
-                st.success(SUCCESS_DATA_UPLOADED)
-
-                os.unlink(tmp_file_path)
-                st.rerun()
+                try:
+                    st.session_state.fitter.load_data(tmp_file_path)
+                    st.session_state.data_loaded = True
+                    st.session_state.last_uploaded_file_id = current_file_id
+                    # Collapse data upload, expand model selection
+                    st.session_state.expand_data_upload = False
+                    st.session_state.expand_model_selection = True
+                    st.success(SUCCESS_DATA_UPLOADED)
+                    st.rerun()
+                finally:
+                    # Always cleanup temp file, even if exception occurs
+                    if os.path.exists(tmp_file_path):
+                        os.unlink(tmp_file_path)
 
             except Exception as e:
                 st.error(f'Error loading data: {str(e)}')
