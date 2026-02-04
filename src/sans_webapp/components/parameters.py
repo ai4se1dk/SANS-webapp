@@ -368,6 +368,9 @@ def render_polydispersity_tab(fitter: SANSFitter) -> None:
         stored_params = set(st.session_state.pd_updates.keys())
         if stored_params != current_pd_params:
             del st.session_state['pd_updates']
+            # Also clear pd_enabled to force re-initialization from fitter's clean state
+            if 'pd_enabled' in st.session_state:
+                del st.session_state['pd_enabled']
 
     # Master enable toggle
     pd_enabled_key = 'pd_enabled'
