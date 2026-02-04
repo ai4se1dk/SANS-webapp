@@ -353,6 +353,53 @@ class TestPolydispersityMultipleModels:
         pd_config = fitter.get_pd_param('radius')
         assert pd_config['pd'] == 0.0  # Back to default
 
+    def test_model_switch_pd_session_state_cleanup(self):
+        """Test that switching models clears stale PD session state keys."""
+        from unittest.mock import MagicMock, patch
+
+        fitter = SANSFitter()
+
+        # Start with sphere model
+        fitter.set_model('sphere')
+        fitter.enable_polydispersity(True)
+
+        # Simulate session state with PD enabled
+        mock_session_state = {
+            'fitter': fitter,
+            'pd_enabled': True,
+            'pd_updates': {'radius': {'pd_width': 0.1, 'pd_n': 35, 'pd_type': 'gaussian', 'vary': True}},
+        }
+
+        with patch('sans_webapp.components.parameters.st') as mock_st:
+            # Setup mock session state
+            mock_st.session_state = MagicMock()
+            mock_st.session_state.__contains__ = lambda self, key: key in mock_session_state
+            mock_st.session_state.__getitem__ = lambda self, key: mock_session_state[key]
+            mock_st.session_state.__setitem__ = lambda self, key, val: mock_session_state.__setitem__(key, val)
+
+            deleted_keys = []
+
+            def mock_delitem(self, key):
+                deleted_keys.append(key)
+                del mock_session_state[key]
+
+            mock_st.session_state.__delitem__ = mock_delitem
+
+            # Switch to cylinder model (different PD params: radius + length)
+            fitter.set_model('cylinder')
+
+            # Mock the necessary streamlit components to prevent actual rendering
+            mock_st.info = MagicMock()
+            mock_st.checkbox = MagicMock(return_value=False)
+
+            # Import and call render function - this should trigger validation
+            from sans_webapp.components.parameters import render_polydispersity_tab
+            render_polydispersity_tab(fitter)
+
+            # Verify that stale session state was cleared
+            assert 'pd_updates' in deleted_keys, "pd_updates should be deleted when model changes"
+            assert 'pd_enabled' in deleted_keys, "pd_enabled should be deleted when model changes"
+
 
 class TestPolydispersityDistributionTypes:
     """Test different polydispersity distribution types."""
