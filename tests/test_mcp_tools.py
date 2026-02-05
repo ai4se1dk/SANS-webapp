@@ -255,6 +255,50 @@ class TestMCPServerTools:
 
             assert 'no data' in result.lower() or 'load data' in result.lower()
 
+    def test_fastmcp_unavailable_uses_dummy_fallback(self):
+        """If FastMCP import fails, the module should provide a dummy MCP with tool registration."""
+        import importlib
+        import sys
+        import types
+
+        # Backup original fastmcp module if present
+        orig_fastmcp = sys.modules.get('fastmcp')
+        orig_mcp_server = sys.modules.get('sans_webapp.mcp_server')
+
+        try:
+            # Insert an empty fake 'fastmcp' module so 'from fastmcp import FastMCP' fails
+            sys.modules['fastmcp'] = types.ModuleType('fastmcp')
+
+            # Remove mcp_server so it will be re-imported
+            if 'sans_webapp.mcp_server' in sys.modules:
+                del sys.modules['sans_webapp.mcp_server']
+
+            m = importlib.import_module('sans_webapp.mcp_server')
+
+            # Module should expose an 'mcp' object with a 'tool' decorator
+            assert hasattr(m, 'mcp')
+            assert callable(m.mcp.tool)
+
+            # Running the dummy mcp should raise a clear RuntimeError
+            with pytest.raises(RuntimeError):
+                m.mcp.run()
+
+            # The module should have recorded the import error
+            assert hasattr(m, '_FASTMCP_IMPORT_ERROR')
+        finally:
+            # Restore original modules
+            if orig_fastmcp is not None:
+                sys.modules['fastmcp'] = orig_fastmcp
+            else:
+                del sys.modules['fastmcp']
+
+            # Restore original mcp_server module if it was present
+            if orig_mcp_server is not None:
+                sys.modules['sans_webapp.mcp_server'] = orig_mcp_server
+            else:
+                if 'sans_webapp.mcp_server' in sys.modules:
+                    del sys.modules['sans_webapp.mcp_server']
+
 
 # =============================================================================
 # Test Claude MCP client

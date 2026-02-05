@@ -6,13 +6,18 @@ Tools allow Claude to interact with SANSFitter: list models,
 set parameters, run fits, and query results.
 """
 
-from fastmcp import FastMCP
+from typing import Any
+
 from sans_fitter import SANSFitter, get_all_models
 
-# MCP Server instance
-mcp = FastMCP(
-    name='sans-webapp-mcp',
-    instructions="""
+# Try to instantiate FastMCP, but be resilient in test environments where
+# FastMCP's pydantic-based Settings may raise due to version mismatches.
+try:
+    from fastmcp import FastMCP
+
+    mcp: Any = FastMCP(
+        name='sans-webapp-mcp',
+        instructions="""
 You are a SANS (Small-Angle Neutron Scattering) data analysis assistant.
 You help users fit scattering data to physical models using the sasmodels library.
 
@@ -35,7 +40,27 @@ When helping users:
 
 Always explain what you're doing and why. Use proper scientific units.
 """,
-)
+    )
+except Exception as e:  # pragma: no cover - environment-specific fallback
+    # Create a lightweight dummy MCP with the minimal interface our code expects
+    class _DummyMCP:
+        def __init__(self):
+            self._tools: dict[str, Any] = {}
+
+        def tool(self, name: str):
+            def decorator(fn):
+                self._tools[name] = fn
+                return fn
+
+            return decorator
+
+        def run(self):
+            raise RuntimeError(
+                'FastMCP is unavailable in this environment. Tools are not runnable.'
+            )
+
+    mcp: Any = _DummyMCP()
+    _FASTMCP_IMPORT_ERROR = e
 
 # Global reference to the fitter - set by webapp at startup
 _fitter: SANSFitter | None = None
