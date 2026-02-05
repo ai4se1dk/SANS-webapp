@@ -10,6 +10,8 @@ from typing import Any, Optional
 import streamlit as st
 from sans_fitter import SANSFitter
 
+from sans_webapp.services.session_state import clamp_for_display
+
 
 class SessionStateBridge:
     """
@@ -187,6 +189,43 @@ class SessionStateBridge:
         ]
         for key in keys_to_remove:
             del st.session_state[key]
+
+    def set_parameter_value(self, param_name: str, value: float) -> None:
+        """Set parameter value widget state."""
+        st.session_state[f'value_{param_name}'] = clamp_for_display(value)
+
+    def set_parameter_bounds(
+        self, param_name: str, min_val: float, max_val: float
+    ) -> None:
+        """Set parameter bounds widget state."""
+        st.session_state[f'min_{param_name}'] = clamp_for_display(min_val)
+        st.session_state[f'max_{param_name}'] = clamp_for_display(max_val)
+
+    def set_parameter_vary(self, param_name: str, vary: bool) -> None:
+        """Set parameter vary checkbox state."""
+        st.session_state[f'vary_{param_name}'] = vary
+
+    def set_parameter_widget(
+        self,
+        param_name: str,
+        value: float | None = None,
+        min_val: float | None = None,
+        max_val: float | None = None,
+        vary: bool | None = None,
+    ) -> None:
+        """
+        Set individual parameter widget state.
+
+        Only sets provided values (non-None arguments).
+        """
+        if value is not None:
+            st.session_state[f'value_{param_name}'] = clamp_for_display(value)
+        if min_val is not None:
+            st.session_state[f'min_{param_name}'] = clamp_for_display(min_val)
+        if max_val is not None:
+            st.session_state[f'max_{param_name}'] = clamp_for_display(max_val)
+        if vary is not None:
+            st.session_state[f'vary_{param_name}'] = vary
 
 
 # Singleton instance
