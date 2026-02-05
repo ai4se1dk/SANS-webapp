@@ -16,7 +16,7 @@ from typing import Optional
 import streamlit as st
 from sans_fitter import SANSFitter, get_all_models
 
-from sans_webapp.services.ai_chat import send_chat_message, suggest_models_ai
+from sans_webapp.services.ai_chat import send_chat_message, suggest_models_ai, response_requests_enable_tools
 from sans_webapp.ui_constants import (
     AI_ASSISTED_HEADER,
     AI_CHAT_CLEAR_BUTTON,
@@ -230,13 +230,30 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
     Uses an expander that is collapsed by default.
 
     Args:
-        api_key: OpenAI API key from the sidebar
+        api_key: Anthropic API key from the sidebar
         fitter: The SANSFitter instance
     """
     with st.sidebar:
         st.markdown('---')
         with st.expander(AI_CHAT_SIDEBAR_HEADER, expanded=st.session_state.show_ai_chat):
             st.markdown(AI_CHAT_DESCRIPTION)
+
+            # AI Tools Enabled Toggle
+            st.markdown('---')
+            ai_tools_enabled = st.toggle(
+                '🔧 Enable AI Tools',
+                value=st.session_state.get('ai_tools_enabled', False),
+                help='When enabled, the AI can directly modify model settings, run fits, and update plots.',
+                key='ai_tools_toggle',
+            )
+            st.session_state.ai_tools_enabled = ai_tools_enabled
+
+            if ai_tools_enabled:
+                st.caption('✅ AI can modify model parameters and run fits')
+            else:
+                st.caption('🔒 AI is in read-only mode (chat only)')
+
+            st.markdown('---')
 
             # Initialize chat history in session state
             if 'chat_history' not in st.session_state:
@@ -254,9 +271,9 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
             # Send button
             col_send, col_clear = st.columns([1, 1])
             with col_send:
-                send_clicked = st.button(AI_CHAT_SEND_BUTTON, type='primary', width='stretch')
+                send_clicked = st.button(AI_CHAT_SEND_BUTTON, type='primary', use_container_width=True)
             with col_clear:
-                clear_clicked = st.button(AI_CHAT_CLEAR_BUTTON, width='stretch')
+                clear_clicked = st.button(AI_CHAT_CLEAR_BUTTON, use_container_width=True)
 
             # Handle clear
             if clear_clicked:
@@ -265,12 +282,27 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
 
             # Handle send
             if send_clicked and user_prompt.strip():
-                with st.spinner(AI_CHAT_THINKING):
+                # Show status while processing
+                with st.status(AI_CHAT_THINKING, expanded=True) as status:
+                    st.write('Sending message to AI...')
+                    
                     response = send_chat_message(user_prompt.strip(), api_key, fitter)
+                    
+                    # Check if tools were used (response contains tool markers)
+                    if '[Used tool:' in response:
+                        st.write('🔧 AI used tools to modify settings')
+                    
                     st.session_state.chat_history.append(
                         {'role': 'user', 'content': user_prompt.strip()}
                     )
                     st.session_state.chat_history.append({'role': 'assistant', 'content': response})
+                    
+                    status.update(label='Complete!', state='complete', expanded=False)
+                
+                # Check if UI refresh is needed (tools modified state)
+                if st.session_state.get('needs_rerun', False):
+                    st.session_state.needs_rerun = False
+                
                 st.rerun()
 
             # Display chat history (non-editable but selectable)
@@ -287,7 +319,31 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
                             st.info(message['content'])
                         else:
                             st.markdown('**🤖 Assistant:**')
-                            st.success(message['content'])
+                            # Check for tool usage in response
+                            content = message['content']
+
+                            # If the assistant indicates it used tools, present the main response
+                            if '[Used tool:' in content:
+                                # Split out tool invocation log
+                                parts = content.rsplit('\n\n[Used tool:', 1)
+                                main_response = parts[0]
+                                st.success(main_response)
+                                if len(parts) > 1:
+                                    tool_log = '[Used tool:' + parts[1]
+                                    st.caption(f'🔧 {tool_log}')
+                            else:
+                                st.success(content)
+
+                            # If the assistant asked the user to enable AI tools, offer an inline button
+                            try:
+                                if response_requests_enable_tools(content):
+                                    if st.button('Enable AI Tools', key=f'enable_ai_tools_msg_{_i}'):
+                                        st.session_state.ai_tools_enabled = True
+                                        st.success('✅ AI Tools enabled. Send your message again and I can make the change for you.')
+                                        st.rerun()
+                            except Exception:
+                                # If detection or session interaction fails, silently ignore
+                                pass
             else:
                 st.caption(AI_CHAT_EMPTY_CAPTION)
 
@@ -298,7 +354,7 @@ def render_ai_chat_column(api_key: Optional[str], fitter: SANSFitter) -> None:
     Styled like VS Code's chat panel with messages above and input at the bottom.
 
     Args:
-        api_key: OpenAI API key from the sidebar
+        api_key: Anthropic API key from the sidebar
         fitter: The SANSFitter instance
     """
     st.markdown(AI_CHAT_SIDEBAR_HEADER)
@@ -317,6 +373,26 @@ def render_ai_chat_column(api_key: Optional[str], fitter: SANSFitter) -> None:
                     st.markdown(message['content'])
         else:
             st.caption(AI_CHAT_EMPTY_CAPTION)
+
+        # Also support enabling AI tools directly from the chat column when the assistant
+        # has asked the user to enable AI tools.
+        if st.session_state.chat_history:
+            # Find last assistant message
+            last_assistant = None
+            for message in reversed(st.session_state.chat_history):
+                if message['role'] == 'assistant':
+                    last_assistant = message
+                    break
+
+            if last_assistant is not None:
+                try:
+                    if response_requests_enable_tools(last_assistant['content']):
+                        if st.button('Enable AI Tools (from chat)', key='enable_ai_tools_col'):
+                            st.session_state.ai_tools_enabled = True
+                            st.success('✅ AI Tools enabled. Send your message again and I can make the change for you.')
+                            st.rerun()
+                except Exception:
+                    pass
 
     # Clear button above the input
     if st.session_state.chat_history:

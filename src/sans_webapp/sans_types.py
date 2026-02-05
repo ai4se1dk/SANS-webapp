@@ -5,7 +5,7 @@ Contains TypedDicts used across the application for type hinting
 and IDE support.
 """
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 
 class ParamInfo(TypedDict):
@@ -17,6 +17,22 @@ class ParamInfo(TypedDict):
     vary: bool
     description: str | None
 
+
+class MCPToolResult(TypedDict, total=False):
+    """Standardized MCP tool invocation result."""
+
+    tool_name: str
+    input: dict[str, Any]
+    result: str
+    success: bool
+
+
+class ChatMessage(TypedDict, total=False):
+    """Chat message structure including optional tool invocation details."""
+
+    role: str
+    content: str
+    tool_invocations: list[MCPToolResult]
 
 class FitParamInfo(TypedDict, total=False):
     """Fitted parameter information."""

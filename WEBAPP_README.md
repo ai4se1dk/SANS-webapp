@@ -18,7 +18,7 @@ A Streamlit-based web application for Small Angle Neutron Scattering (SANS) data
 
 **AI-Assisted Mode:**
 - Intelligent model suggestions based on data characteristics
-- Uses OpenAI API for advanced analysis (optional)
+- Uses Anthropic (Claude) API for advanced analysis and MCP tool access (optional)
 - Built-in heuristic algorithm for offline suggestions
 - Analyzes power-law slopes, Q-range, and intensity decay patterns
 
@@ -155,7 +155,7 @@ Q,I,dI
 
 **AI-Assisted Selection:**
 1. Select "AI-Assisted" radio button
-2. (Optional) Enter OpenAI API key for enhanced suggestions
+2. (Optional) Enter Anthropic (Claude) API key for enhanced suggestions and MCP tool access
 3. Click "Get AI Suggestions"
 4. Choose from suggested models
 5. Click "Load Model"
@@ -322,7 +322,7 @@ The built-in heuristic algorithm analyzes:
 - **Q-range**: Identifies size scales
 - **Intensity decay**: Indicates structure complexity
 
-For enhanced suggestions with OpenAI API:
+For enhanced suggestions with Anthropic (Claude):
 - Analyzes complete data patterns
 - Considers multiple features simultaneously
 - Provides context-aware recommendations
@@ -394,13 +394,13 @@ Access at `http://localhost:8501`
 
 ## API Key Management
 
-### OpenAI API (Optional)
+### Anthropic API (Optional)
 
-For AI-powered model suggestions:
+For AI-powered model suggestions and MCP tool access (Anthropic Claude):
 
-1. Sign up at [platform.openai.com](https://platform.openai.com)
+1. Create an account at https://console.anthropic.com/
 2. Create an API key
-3. Use in one of three ways:
+3. Use in one of two ways:
 
 **Method 1: Enter in UI** (Recommended)
 - Paste key in sidebar text input
@@ -408,16 +408,17 @@ For AI-powered model suggestions:
 
 **Method 2: Environment Variable**
 ```bash
-export OPENAI_API_KEY=your-key-here
+export ANTHROPIC_API_KEY=your-anthropic-key-here
 sans-webapp
 ```
 
 **Method 3: .env File**
 ```bash
-echo "OPENAI_API_KEY=your-key-here" > .env
+# Store keys in a local .env file (do not commit this file to version control)
+echo "ANTHROPIC_API_KEY=your-anthropic-key-here" > .env
 ```
 
-**Note**: The app works without API key using heuristic suggestions.
+**Note**: The app works without an API key using heuristic suggestions.
 
 ## Troubleshooting
 
@@ -508,7 +509,7 @@ SANS-webapp/
 │       ├── __main__.py         # Entry point for CLI & module execution
 │       ├── app.py              # Main Streamlit application
 │       ├── demo_app.py         # Command-line demo
-│       ├── openai_client.py    # OpenAI API wrapper
+│       ├── openai_client.py    # Legacy OpenAI wrapper (optional)
 │       ├── sans_analysis_utils.py  # Shared utility functions
 │       ├── sans_types.py       # TypedDict definitions
 │       ├── ui_constants.py     # UI string constants
@@ -544,7 +545,7 @@ BSD 3-Clause License. See [LICENSE](LICENSE) for details.
 - **BUMPS**: https://github.com/bumps/bumps
 - **Streamlit**: https://streamlit.io
 - **Plotly**: https://plotly.com/python/
-- **OpenAI**: https://openai.com
+- **Anthropic (Claude)**: https://www.anthropic.com
 
 ## Acknowledgments
 

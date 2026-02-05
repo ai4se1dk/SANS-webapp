@@ -37,12 +37,12 @@ python -m sans_webapp    # Module execution
 - **Key Features**:
   - Data upload (CSV, .dat files)
   - Manual model selection from 79+ SasModels
-  - AI-assisted model suggestion (with OpenAI API or heuristics)
+  - AI-assisted model suggestion (with Anthropic (Claude) API or heuristics)
   - Interactive parameter configuration with Streamlit UI
   - Real-time fitting with BUMPS and LMFit engines
   - Interactive Plotly visualization
   - CSV export of results
-- **Dependencies**: streamlit, plotly, pandas, numpy, openai, sasmodels, sans_fitter
+- **Dependencies**: streamlit, plotly, pandas, numpy, anthropic, sasmodels, sans_fitter
 - **Run**: `sans-webapp` or `python -m sans_webapp`
 
 #### `src/sans_webapp/sans_analysis_utils.py` (Shared Utilities)
@@ -64,8 +64,8 @@ python -m sans_webapp    # Module execution
 - **Purpose**: All UI string constants centralized
 - **Lines**: ~145 lines
 
-#### `src/sans_webapp/openai_client.py` (OpenAI Integration)
-- **Purpose**: OpenAI API wrapper for AI chat functionality
+#### `src/sans_webapp/openai_client.py` (Legacy OpenAI wrapper)
+- **Purpose**: Legacy OpenAI API wrapper (kept for fallback behavior)
 
 ### Component Modules (`src/sans_webapp/components/`)
 
@@ -195,7 +195,7 @@ python -m sans_webapp    # Module execution
 ### 2. Model Selection ✓
 - Manual: 79+ models from SasModels
 - AI-Assisted: Heuristic-based suggestions
-- AI-Assisted: OpenAI API integration (optional)
+- AI-Assisted: Anthropic (Claude) API integration (optional)
 - Dynamic model loading
 
 ### 3. Parameter Configuration ✓
@@ -264,8 +264,8 @@ python -m sans_webapp      # Run as module
 
 ## API Integration
 
-### OpenAI API (Optional)
-- **Purpose**: Enhanced AI model suggestions
+### Anthropic API (Optional)
+- **Purpose**: Enhanced AI model suggestions and MCP tool access (Anthropic Claude)
 - **Cost**: Pay-per-use pricing
 - **Fallback**: Built-in heuristic suggestions work without API key
 - **Privacy**: API key not stored, session-only

@@ -6,17 +6,17 @@ Add an embedded FastMCP server to SANS-webapp that exposes SANS-fitter functiona
 
 ### Steps
 
-**1. Add dependencies to `pyproject.toml`**
+**1. Add dependencies to `pyproject.toml`** ✅ DONE
 - Add `fastmcp` for MCP server implementation
 - Add `anthropic` for Claude API client
 - Add `mcp` SDK if needed for client integration within Streamlit
 
-**2. Create MCP server module at `src/sans_webapp/mcp_server.py`**
+**2. Create MCP server module at `src/sans_webapp/mcp_server.py`** ✅ DONE
 - Import `FastMCP` from `fastmcp`
 - Copy tool decoration pattern from [main.py](src/sans_pilot/main.py) in SANS-pilot
 - Define server with name `"sans-webapp-mcp"` and instructions describing SANS fitting capabilities
 
-**3. Implement MCP tools matching SANS-pilot tools + webapp-specific actions**
+**3. Implement MCP tools matching SANS-pilot tools + webapp-specific actions** ✅ DONE
 
 | Tool Name | Description | State Effect |
 |-----------|-------------|--------------|
@@ -40,43 +40,49 @@ Each state-modifying tool will:
 
 Gate all state mutations behind a global toggle (e.g., `st.session_state.ai_tools_enabled`). If the toggle is off, tools should return a consistent "tools disabled" response without mutating state.
 
-**4. Create Claude MCP client at `src/sans_webapp/services/claude_mcp_client.py`**
+**4. Create Claude MCP client at `src/sans_webapp/services/claude_mcp_client.py`** ✅ DONE
 - Replace current `openai_client.py` usage
 - Use Anthropic SDK with MCP tool-use capability
 - Configure MCP tool schemas from the embedded server
 - Handle tool invocation round-trips natively
 
-**5. Modify `services/ai_chat.py`**
+**5. Modify `services/ai_chat.py`** ✅ DONE
 - Replace `create_chat_completion()` with Claude MCP-enabled chat
 - Keep context-building logic from current `_build_context()` 
 - Process tool calls and apply results to state
 - After any state-modifying tool, set a rerun flag (e.g., `st.session_state.needs_rerun = True`) and trigger `st.rerun()` once in the main UI cycle
 
-**6. Update `components/sidebar.py` chat UI**
+**6. Update `components/sidebar.py` chat UI** ✅ DONE
 - Keep existing chat interface (text input, history display)
 - Add an "AI tools enabled" toggle (global on/off)
 - Add indicator when AI is invoking tools
 - Potentially show tool invocation status (e.g., "Setting model to sphere...")
 - Handle streaming responses if supported
 
-**7. Create session-state bridge for MCP tools at `src/sans_webapp/services/mcp_state_bridge.py`**
+**7. Create session-state bridge for MCP tools at `src/sans_webapp/services/mcp_state_bridge.py`** ✅ DONE
 - Provide typed accessors for `get_fitter()`, `get_session_state()`
 - Ensure thread-safety if MCP runs in separate thread (queue mutations for main thread)
 - Handle edge cases: no data loaded, no model selected, etc.
 
-**8. Update `app.py` initialization**
+**8. Update `app.py` initialization** ✅ DONE
 - Initialize MCP server on app startup (once per session)
 - Register MCP tools with state references
 - Set up Claude client with API key (from session_state or env)
 
-**9. Add environment configuration**
+> Status: Implemented. `app.py` now assigns the current `SANSFitter` and `st.session_state` to the embedded MCP server using `set_fitter()` and `set_state_accessor()`. The Claude MCP client is pre-warmed at startup when an Anthropic API key is present (from `st.session_state.chat_api_key` or `ANTHROPIC_API_KEY`). Initialization errors are stored in `st.session_state.ai_client_error` and do not block UI startup.
+
+**9. Add environment configuration** ✅ DONE
 - `ANTHROPIC_API_KEY` env var for Claude API
 - Update `.env` template and documentation
 - Consider API key input in sidebar (like current `chat_api_key`)
 
-**10. Update types in `sans_types.py`**
+> Status: Implemented. Added `.env.template` with example keys and updated `WEBAPP_README.md` to document `ANTHROPIC_API_KEY` usage (env var and `.env` file examples). Unit tests verify the template exists and `init_mcp_and_ai()` will use `ANTHROPIC_API_KEY` from the environment when `st.session_state.chat_api_key` is not present.
+
+**10. Update types in `sans_types.py`** ✅ DONE
 - Add `MCPToolResult` TypedDict for standardized tool responses
 - Add `ChatMessage` type with tool invocation support
+
+> Status: Implemented. Added `MCPToolResult` and `ChatMessage` TypedDicts to `src/sans_webapp/sans_types.py`. Added unit tests in `tests/test_sans_types.py` to validate the structures.
 
 ### File Structure (New/Modified)
 
@@ -95,7 +101,7 @@ src/sans_webapp/
 
 ### Tool Implementation Example
 
-Model the tools on [main.py](src/sans_pilot/main.py) pattern:
+Model the tools on [main.py](C:\projects\ai\SANS-pilot\src\sans_pilot\main.py) pattern:
 
 ```python
 @mcp.tool(name="set-model", description="Load a SANS model (e.g., 'sphere', 'cylinder')")
@@ -133,7 +139,11 @@ def set_model(model_name: str) -> str:
 
 ### Verification
 
-- **Unit tests**: Add tests for MCP tools in [tests/](tests/) folder, mocking session_state
+- **Unit tests**: Add tests for MCP tools in [tests/](tests/) folder, mocking session_state ✅ DONE
+  - `tests/test_mcp_tools.py` - Tests for MCP server tools, schemas, and state bridge
+  - `tests/test_ai_chat.py` - Tests for AI chat service
+  - `tests/test_sidebar_ai_chat.py` - Tests for sidebar UI components
+  - `tests/conftest.py` - Shared fixtures (MockSessionState, MockFitter)
 - **Integration test**: Manual flow through chat → tool invocation → UI update
 - **Regression test**: Ensure existing UI controls still work alongside AI
 - **Test command**: `pytest tests/ -v`
