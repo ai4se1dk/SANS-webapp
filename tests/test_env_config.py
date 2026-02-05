@@ -2,16 +2,15 @@
 Tests for environment configuration: .env.template and ANTHROPIC_API_KEY handling.
 """
 
-from unittest.mock import MagicMock, patch
-
 import os
+from unittest.mock import MagicMock, patch
 
 
 def test_env_template_contains_keys():
     path = os.path.join(os.path.dirname(__file__), os.pardir, '.env.template')
     path = os.path.abspath(path)
 
-    with open(path, 'r', encoding='utf-8') as fh:
+    with open(path, encoding='utf-8') as fh:
         content = fh.read()
 
     assert 'ANTHROPIC_API_KEY' in content, '.env.template should contain ANTHROPIC_API_KEY'
@@ -47,7 +46,7 @@ def test_readme_mentions_anthropic_key():
     readme_path = os.path.join(os.path.dirname(__file__), os.pardir, 'WEBAPP_README.md')
     readme_path = os.path.abspath(readme_path)
 
-    with open(readme_path, 'r', encoding='utf-8') as fh:
+    with open(readme_path, encoding='utf-8') as fh:
         content = fh.read()
 
     assert 'ANTHROPIC_API_KEY' in content, 'WEBAPP_README.md should document ANTHROPIC_API_KEY'

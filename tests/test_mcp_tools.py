@@ -5,10 +5,10 @@ Tests the MCP tools, Claude client, and session state bridge
 created in Steps 1-7 of the MCP integration.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
 from typing import Any
+from unittest.mock import MagicMock, PropertyMock, patch
 
+import pytest
 
 # =============================================================================
 # Test fixtures
@@ -191,7 +191,7 @@ class TestMCPServerTools:
 
     def test_set_model_when_tools_enabled(self, mock_fitter, mock_session_state):
         """set_model should work when tools are enabled."""
-        from sans_webapp.mcp_server import set_model, set_fitter
+        from sans_webapp.mcp_server import set_fitter, set_model
 
         mock_session_state.ai_tools_enabled = True
         mock_session_state._data['fitter'] = mock_fitter
@@ -208,7 +208,7 @@ class TestMCPServerTools:
 
     def test_set_model_when_tools_disabled(self, mock_fitter, mock_session_state):
         """set_model should refuse when tools are disabled."""
-        from sans_webapp.mcp_server import set_model, set_fitter
+        from sans_webapp.mcp_server import set_fitter, set_model
 
         mock_session_state.ai_tools_enabled = False
         mock_session_state._data['fitter'] = mock_fitter
@@ -224,7 +224,7 @@ class TestMCPServerTools:
 
     def test_set_parameter(self, mock_fitter, mock_session_state):
         """set_parameter should update parameter values."""
-        from sans_webapp.mcp_server import set_parameter, set_fitter
+        from sans_webapp.mcp_server import set_fitter, set_parameter
 
         mock_session_state.ai_tools_enabled = True
         mock_fitter.set_model('sphere')

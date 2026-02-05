@@ -4,8 +4,9 @@ Unit tests for the AI chat sidebar component.
 Tests the changes made to sidebar.py in Step 6.
 """
 
+from unittest.mock import MagicMock, PropertyMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
 
 
 class MockSessionState:

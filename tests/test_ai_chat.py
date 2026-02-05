@@ -4,10 +4,11 @@ Unit tests for AI chat service with Claude MCP integration.
 Tests the modified ai_chat.py from Step 5.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
 from typing import Any
+from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pytest
 
 
 class MockSessionState:
@@ -176,7 +177,7 @@ class TestSendChatMessage:
         """If tools are disabled and user requests a state change, prompt to enable them."""
         from sans_webapp.services.ai_chat import send_chat_message
 
-        with patch('sans_webapp.services.ai_chat.get_claude_client') as mock_get_client:
+        with patch('sans_webapp.services.ai_chat.get_claude_client') as _mock_get_client:
             with patch('sans_webapp.services.ai_chat.st') as mock_st:
                 # Simulate tools disabled
                 mock_st.session_state = MockSessionState()

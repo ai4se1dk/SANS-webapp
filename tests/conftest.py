@@ -2,9 +2,10 @@
 Shared pytest fixtures for SANS-webapp tests.
 """
 
-import pytest
 from unittest.mock import MagicMock
+
 import numpy as np
+import pytest
 
 
 class MockSessionState:

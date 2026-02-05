@@ -2,7 +2,7 @@
 Tests for newly added types in sans_types.py
 """
 
-from sans_webapp.sans_types import MCPToolResult, ChatMessage
+from sans_webapp.sans_types import ChatMessage, MCPToolResult
 
 
 def test_mcp_tool_result_fields():

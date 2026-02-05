@@ -11,8 +11,14 @@ import streamlit as st
 from sans_fitter import SANSFitter, get_all_models
 from sasmodels.direct_model import DirectModel
 
+# MCP & Claude imports
+from sans_webapp.mcp_server import set_fitter
 from sans_webapp.openai_client import create_chat_completion
 from sans_webapp.sans_types import FitResult, ParamInfo
+from sans_webapp.services.claude_mcp_client import (
+    get_claude_client,
+    reset_client,
+)
 from sans_webapp.ui_constants import WARNING_NO_API_KEY
 
 
@@ -114,21 +120,9 @@ def _send_chat_message_openai(user_message: str, api_key: Optional[str], fitter:
         return f'❌ Error: {str(e)}'
 
 
-"""
-AI Chat services for SANS webapp.
-
-Provides functions for AI-assisted SANS model analysis using Claude with MCP tools.
-"""
-
-from typing import Optional
-
-from sans_fitter import SANSFitter
-
-from sans_webapp.mcp_server import set_fitter
-from sans_webapp.services.claude_mcp_client import (
-    get_claude_client,
-    reset_client,
-)
+# AI Chat services for SANS webapp.
+#
+# Provides functions for AI-assisted SANS model analysis using Claude with MCP tools.
 
 # System prompt for SANS model suggestions (used for simple suggestions without tools)
 SUGGEST_MODELS_SYSTEM_PROMPT = """You are a SANS (Small-Angle Neutron Scattering) expert.
@@ -420,7 +414,5 @@ def send_chat_message_with_tools(
     needs_rerun = getattr(st.session_state, 'needs_rerun', False)
     if needs_rerun:
         st.session_state.needs_rerun = False  # Reset the flag
-
-    return response, tool_invocations, needs_rerun
 
     return response, tool_invocations, needs_rerun
