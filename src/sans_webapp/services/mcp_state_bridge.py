@@ -194,9 +194,7 @@ class SessionStateBridge:
         """Set parameter value widget state."""
         st.session_state[f'value_{param_name}'] = clamp_for_display(value)
 
-    def set_parameter_bounds(
-        self, param_name: str, min_val: float, max_val: float
-    ) -> None:
+    def set_parameter_bounds(self, param_name: str, min_val: float, max_val: float) -> None:
         """Set parameter bounds widget state."""
         st.session_state[f'min_{param_name}'] = clamp_for_display(min_val)
         st.session_state[f'max_{param_name}'] = clamp_for_display(max_val)

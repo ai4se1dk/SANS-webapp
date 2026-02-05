@@ -260,7 +260,9 @@ def set_parameter(
 
         # Update UI widgets via bridge
         bridge = get_state_bridge()
-        bridge.set_parameter_widget(name, value=value, min_val=min_bound, max_val=max_bound, vary=vary)
+        bridge.set_parameter_widget(
+            name, value=value, min_val=min_bound, max_val=max_bound, vary=vary
+        )
         bridge.set_needs_rerun(True)
 
         return f"Parameter '{name}' updated: {', '.join(changes)}"
