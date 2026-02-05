@@ -70,18 +70,17 @@ from sans_webapp.ui_constants import (
 def init_mcp_and_ai() -> None:
     """Initialize MCP references and pre-warm Claude client if an API key exists.
 
-    Calls into `sans_webapp.mcp_server` to set the current fitter and session accessor.
+    Calls into `sans_webapp.mcp_server` to set the current fitter reference.
     Attempts to create the Claude client singleton if an API key is configured in
     `st.session_state.chat_api_key` or in the `ANTHROPIC_API_KEY` environment variable.
     Errors are captured in `st.session_state.ai_client_error` to avoid breaking UI startup.
     """
     try:
-        from sans_webapp.mcp_server import set_fitter, set_state_accessor
+        from sans_webapp.mcp_server import set_fitter
         from sans_webapp.services.claude_mcp_client import get_claude_client
 
-        # Provide the MCP server with direct access to the current fitter and session
+        # Provide the MCP server with direct access to the current fitter
         set_fitter(st.session_state.fitter)
-        set_state_accessor(st.session_state)
 
         # Attempt to initialize the Claude client if API key is configured
         api_key = st.session_state.get('chat_api_key') or __import__('os').environ.get(

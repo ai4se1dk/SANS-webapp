@@ -44,6 +44,12 @@ class MockSessionState:
         else:
             self._data[name] = value
 
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, value):
+        self._data[key] = value
+
     def get(self, key, default=None):
         return self._data.get(key, default)
 
@@ -185,57 +191,69 @@ class TestMCPServerTools:
 
     def test_set_model_when_tools_enabled(self, mock_fitter, mock_session_state):
         """set_model should work when tools are enabled."""
-        from sans_webapp.mcp_server import set_model, set_fitter, set_state_accessor
+        from sans_webapp.mcp_server import set_model, set_fitter
 
         mock_session_state.ai_tools_enabled = True
+        mock_session_state._data['fitter'] = mock_fitter
         set_fitter(mock_fitter)
-        set_state_accessor(mock_session_state)
 
-        result = set_model('sphere')
+        with patch('sans_webapp.services.mcp_state_bridge.st') as mock_st:
+            mock_st.session_state = mock_session_state
 
-        assert 'sphere' in result
-        assert mock_session_state.current_model == 'sphere'
-        assert mock_session_state.model_selected is True
+            result = set_model('sphere')
+
+            assert 'sphere' in result
+            assert mock_session_state.current_model == 'sphere'
+            assert mock_session_state.model_selected is True
 
     def test_set_model_when_tools_disabled(self, mock_fitter, mock_session_state):
         """set_model should refuse when tools are disabled."""
-        from sans_webapp.mcp_server import set_model, set_fitter, set_state_accessor
+        from sans_webapp.mcp_server import set_model, set_fitter
 
         mock_session_state.ai_tools_enabled = False
+        mock_session_state._data['fitter'] = mock_fitter
         set_fitter(mock_fitter)
-        set_state_accessor(mock_session_state)
 
-        result = set_model('sphere')
+        with patch('sans_webapp.services.mcp_state_bridge.st') as mock_st:
+            mock_st.session_state = mock_session_state
 
-        assert 'disabled' in result.lower()
-        assert mock_session_state.model_selected is False
+            result = set_model('sphere')
+
+            assert 'disabled' in result.lower()
+            assert mock_session_state.model_selected is False
 
     def test_set_parameter(self, mock_fitter, mock_session_state):
         """set_parameter should update parameter values."""
-        from sans_webapp.mcp_server import set_parameter, set_fitter, set_state_accessor
+        from sans_webapp.mcp_server import set_parameter, set_fitter
 
         mock_session_state.ai_tools_enabled = True
         mock_fitter.set_model('sphere')
+        mock_session_state._data['fitter'] = mock_fitter
         set_fitter(mock_fitter)
-        set_state_accessor(mock_session_state)
 
-        result = set_parameter('radius', value=100.0)
+        with patch('sans_webapp.services.mcp_state_bridge.st') as mock_st:
+            mock_st.session_state = mock_session_state
 
-        assert 'radius' in result
-        assert 'updated' in result.lower() or '100' in result
+            result = set_parameter('radius', value=100.0)
+
+            assert 'radius' in result
+            assert 'updated' in result.lower() or '100' in result
 
     def test_run_fit_requires_data(self, mock_fitter, mock_session_state):
         """run_fit should fail if no data is loaded."""
-        from sans_webapp.mcp_server import run_fit, set_fitter, set_state_accessor
+        from sans_webapp.mcp_server import run_fit, set_fitter
 
         mock_session_state.ai_tools_enabled = True
         mock_fitter.data = None
+        mock_session_state._data['fitter'] = mock_fitter
         set_fitter(mock_fitter)
-        set_state_accessor(mock_session_state)
 
-        result = run_fit()
+        with patch('sans_webapp.services.mcp_state_bridge.st') as mock_st:
+            mock_st.session_state = mock_session_state
 
-        assert 'no data' in result.lower() or 'load data' in result.lower()
+            result = run_fit()
+
+            assert 'no data' in result.lower() or 'load data' in result.lower()
 
 
 # =============================================================================

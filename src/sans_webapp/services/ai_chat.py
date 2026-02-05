@@ -124,7 +124,7 @@ from typing import Optional
 
 from sans_fitter import SANSFitter
 
-from sans_webapp.mcp_server import set_fitter, set_state_accessor
+from sans_webapp.mcp_server import set_fitter
 from sans_webapp.services.claude_mcp_client import (
     get_claude_client,
     reset_client,
@@ -180,9 +180,8 @@ def _build_context(fitter: SANSFitter) -> str:
 
 
 def _ensure_mcp_initialized(fitter: SANSFitter) -> None:
-    """Ensure MCP server has access to the fitter and session state."""
+    """Ensure MCP server has access to the fitter."""
     set_fitter(fitter)
-    set_state_accessor(st.session_state)
 
 
 def suggest_models_ai(

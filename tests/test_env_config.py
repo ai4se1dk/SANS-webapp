@@ -33,7 +33,6 @@ def test_init_mcp_uses_anthropic_env_var_if_no_session_key():
         with patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'ENV_KEY'}, clear=True):
             with (
                 patch('sans_webapp.mcp_server.set_fitter') as mock_set_fitter,
-                patch('sans_webapp.mcp_server.set_state_accessor') as mock_set_accessor,
                 patch(
                     'sans_webapp.services.claude_mcp_client.get_claude_client'
                 ) as mock_get_client,
@@ -41,7 +40,6 @@ def test_init_mcp_uses_anthropic_env_var_if_no_session_key():
                 app.init_mcp_and_ai()
 
                 mock_set_fitter.assert_called_once_with('FAKE_FITTER')
-                mock_set_accessor.assert_called_once_with(mock_st.session_state)
                 mock_get_client.assert_called_once_with('ENV_KEY')
 
 

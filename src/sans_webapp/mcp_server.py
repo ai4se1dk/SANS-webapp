@@ -6,8 +6,6 @@ Tools allow Claude to interact with SANSFitter: list models,
 set parameters, run fits, and query results.
 """
 
-from typing import Any
-
 from fastmcp import FastMCP
 from sans_fitter import SANSFitter, get_all_models
 
@@ -41,19 +39,12 @@ Always explain what you're doing and why. Use proper scientific units.
 
 # Global reference to the fitter - set by webapp at startup
 _fitter: SANSFitter | None = None
-_state_accessor: Any = None  # Will hold session_state accessor
 
 
 def set_fitter(fitter: SANSFitter) -> None:
     """Set the global fitter reference for MCP tools."""
     global _fitter
     _fitter = fitter
-
-
-def set_state_accessor(accessor: Any) -> None:
-    """Set the session state accessor for MCP tools."""
-    global _state_accessor
-    _state_accessor = accessor
 
 
 def get_fitter() -> SANSFitter:
@@ -65,9 +56,9 @@ def get_fitter() -> SANSFitter:
 
 def _check_tools_enabled() -> bool:
     """Check if AI tools are enabled in session state."""
-    if _state_accessor is None:
-        return True  # Default to enabled if no accessor
-    return getattr(_state_accessor, 'ai_tools_enabled', True)
+    from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
+    return get_state_bridge().are_tools_enabled()
 
 
 # =============================================================================
@@ -202,15 +193,18 @@ def set_model(model_name: str) -> str:
         return 'AI tools are disabled. Enable them in the sidebar to allow model changes.'
 
     try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
         fitter = get_fitter()
         fitter.set_model(model_name)
 
-        # Update session state if accessor available
-        if _state_accessor is not None:
-            _state_accessor.current_model = model_name
-            _state_accessor.model_selected = True
-            _state_accessor.fit_completed = False
-            _state_accessor.needs_rerun = True
+        # Update session state via bridge
+        bridge = get_state_bridge()
+        bridge.clear_parameter_widgets()  # Clear old model's widgets
+        bridge.set_current_model(model_name)
+        bridge.set_model_selected(True)
+        bridge.set_fit_completed(False)
+        bridge.set_needs_rerun(True)
 
         param_names = list(fitter.params.keys()) if hasattr(fitter, 'params') else []
         return f"Model '{model_name}' loaded successfully.\nParameters: {', '.join(param_names)}"
@@ -239,6 +233,8 @@ def set_parameter(
         return 'AI tools are disabled. Enable them in the sidebar to allow parameter changes.'
 
     try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
         fitter = get_fitter()
 
         if not hasattr(fitter, 'params') or name not in fitter.params:
@@ -262,8 +258,10 @@ def set_parameter(
             param.vary = vary
             changes.append(f'vary={vary}')
 
-        if _state_accessor is not None:
-            _state_accessor.needs_rerun = True
+        # Update UI widgets via bridge
+        bridge = get_state_bridge()
+        bridge.set_parameter_widget(name, value=value, min_val=min_bound, max_val=max_bound, vary=vary)
+        bridge.set_needs_rerun(True)
 
         return f"Parameter '{name}' updated: {', '.join(changes)}"
     except Exception as e:
@@ -283,7 +281,10 @@ def set_multiple_parameters(parameters: dict[str, dict]) -> str:
         return 'AI tools are disabled. Enable them in the sidebar to allow parameter changes.'
 
     try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
         fitter = get_fitter()
+        bridge = get_state_bridge()
         results = []
 
         for name, settings in parameters.items():
@@ -309,10 +310,18 @@ def set_multiple_parameters(parameters: dict[str, dict]) -> str:
                 param.vary = settings['vary']
                 changes.append(f'vary={settings["vary"]}')
 
+            # Update UI widget via bridge
+            bridge.set_parameter_widget(
+                name,
+                value=settings.get('value'),
+                min_val=settings.get('min'),
+                max_val=settings.get('max'),
+                vary=settings.get('vary'),
+            )
+
             results.append(f'  - {name}: {", ".join(changes)}')
 
-        if _state_accessor is not None:
-            _state_accessor.needs_rerun = True
+        bridge.set_needs_rerun(True)
 
         return 'Parameters updated:\n' + '\n'.join(results)
     except Exception as e:
@@ -334,6 +343,8 @@ def enable_polydispersity(
         return 'AI tools are disabled. Enable them in the sidebar to allow polydispersity changes.'
 
     try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
         fitter = get_fitter()
 
         # Check if model supports polydispersity for this parameter
@@ -342,8 +353,8 @@ def enable_polydispersity(
             fitter.params[pd_param_name].value = pd_value
             fitter.params[pd_param_name].vary = True
 
-            if _state_accessor is not None:
-                _state_accessor.needs_rerun = True
+            bridge = get_state_bridge()
+            bridge.set_needs_rerun(True)
 
             return f"Polydispersity enabled for '{parameter_name}': {pd_type} distribution, width={pd_value}"
         else:
@@ -365,13 +376,15 @@ def set_structure_factor(sf_name: str) -> str:
         )
 
     try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
         fitter = get_fitter()
 
         if hasattr(fitter, 'set_structure_factor'):
             fitter.set_structure_factor(sf_name)
 
-            if _state_accessor is not None:
-                _state_accessor.needs_rerun = True
+            bridge = get_state_bridge()
+            bridge.set_needs_rerun(True)
 
             return f"Structure factor '{sf_name}' added. Additional parameters are now available for the interaction potential."
         else:
@@ -388,13 +401,15 @@ def remove_structure_factor() -> str:
         )
 
     try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
         fitter = get_fitter()
 
         if hasattr(fitter, 'remove_structure_factor'):
             fitter.remove_structure_factor()
 
-            if _state_accessor is not None:
-                _state_accessor.needs_rerun = True
+            bridge = get_state_bridge()
+            bridge.set_needs_rerun(True)
 
             return 'Structure factor removed.'
         else:
@@ -413,6 +428,8 @@ def run_fit() -> str:
         return 'AI tools are disabled. Enable them in the sidebar to run fits.'
 
     try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
         fitter = get_fitter()
 
         if not hasattr(fitter, 'data') or fitter.data is None:
@@ -424,11 +441,11 @@ def run_fit() -> str:
         # Run the fit
         result = fitter.fit()
 
-        # Update session state
-        if _state_accessor is not None:
-            _state_accessor.fit_completed = True
-            _state_accessor.fit_result = result
-            _state_accessor.needs_rerun = True
+        # Update session state via bridge
+        bridge = get_state_bridge()
+        bridge.set_fit_completed(True)
+        bridge.set_fit_result(result)
+        bridge.set_needs_rerun(True)
 
         # Format results
         lines = ['Fit completed!']

@@ -239,11 +239,6 @@ class TestEnsureMCPInitialized:
         from sans_webapp.services.ai_chat import _ensure_mcp_initialized
 
         with patch('sans_webapp.services.ai_chat.set_fitter') as mock_set_fitter:
-            with patch('sans_webapp.services.ai_chat.set_state_accessor') as mock_set_accessor:
-                with patch('sans_webapp.services.ai_chat.st') as mock_st:
-                    mock_st.session_state = MockSessionState()
+            _ensure_mcp_initialized(mock_fitter)
 
-                    _ensure_mcp_initialized(mock_fitter)
-
-                    mock_set_fitter.assert_called_once_with(mock_fitter)
-                    mock_set_accessor.assert_called_once()
+            mock_set_fitter.assert_called_once_with(mock_fitter)
