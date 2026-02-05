@@ -1,6 +1,7 @@
 """
 Tests for newly added types in sans_types.py
 """
+
 from sans_webapp.sans_types import MCPToolResult, ChatMessage
 
 
@@ -21,7 +22,7 @@ def test_mcp_tool_result_fields():
 
 def test_chat_message_with_tools():
     sample_tool = MCPToolResult(
-        tool_name='set-model', input={'model_name': 'sphere'}, result="OK", success=True
+        tool_name='set-model', input={'model_name': 'sphere'}, result='OK', success=True
     )
 
     msg: ChatMessage = {

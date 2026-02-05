@@ -16,7 +16,11 @@ from typing import Optional
 import streamlit as st
 from sans_fitter import SANSFitter, get_all_models
 
-from sans_webapp.services.ai_chat import send_chat_message, suggest_models_ai, response_requests_enable_tools
+from sans_webapp.services.ai_chat import (
+    response_requests_enable_tools,
+    send_chat_message,
+    suggest_models_ai,
+)
 from sans_webapp.ui_constants import (
     AI_ASSISTED_HEADER,
     AI_CHAT_CLEAR_BUTTON,
@@ -271,7 +275,9 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
             # Send button
             col_send, col_clear = st.columns([1, 1])
             with col_send:
-                send_clicked = st.button(AI_CHAT_SEND_BUTTON, type='primary', use_container_width=True)
+                send_clicked = st.button(
+                    AI_CHAT_SEND_BUTTON, type='primary', use_container_width=True
+                )
             with col_clear:
                 clear_clicked = st.button(AI_CHAT_CLEAR_BUTTON, use_container_width=True)
 
@@ -285,24 +291,24 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
                 # Show status while processing
                 with st.status(AI_CHAT_THINKING, expanded=True) as status:
                     st.write('Sending message to AI...')
-                    
+
                     response = send_chat_message(user_prompt.strip(), api_key, fitter)
-                    
+
                     # Check if tools were used (response contains tool markers)
                     if '[Used tool:' in response:
                         st.write('🔧 AI used tools to modify settings')
-                    
+
                     st.session_state.chat_history.append(
                         {'role': 'user', 'content': user_prompt.strip()}
                     )
                     st.session_state.chat_history.append({'role': 'assistant', 'content': response})
-                    
+
                     status.update(label='Complete!', state='complete', expanded=False)
-                
+
                 # Check if UI refresh is needed (tools modified state)
                 if st.session_state.get('needs_rerun', False):
                     st.session_state.needs_rerun = False
-                
+
                 st.rerun()
 
             # Display chat history (non-editable but selectable)
@@ -337,9 +343,13 @@ def render_ai_chat_sidebar(api_key: Optional[str], fitter: SANSFitter) -> None:
                             # If the assistant asked the user to enable AI tools, offer an inline button
                             try:
                                 if response_requests_enable_tools(content):
-                                    if st.button('Enable AI Tools', key=f'enable_ai_tools_msg_{_i}'):
+                                    if st.button(
+                                        'Enable AI Tools', key=f'enable_ai_tools_msg_{_i}'
+                                    ):
                                         st.session_state.ai_tools_enabled = True
-                                        st.success('✅ AI Tools enabled. Send your message again and I can make the change for you.')
+                                        st.success(
+                                            '✅ AI Tools enabled. Send your message again and I can make the change for you.'
+                                        )
                                         st.rerun()
                             except Exception:
                                 # If detection or session interaction fails, silently ignore
@@ -389,7 +399,9 @@ def render_ai_chat_column(api_key: Optional[str], fitter: SANSFitter) -> None:
                     if response_requests_enable_tools(last_assistant['content']):
                         if st.button('Enable AI Tools (from chat)', key='enable_ai_tools_col'):
                             st.session_state.ai_tools_enabled = True
-                            st.success('✅ AI Tools enabled. Send your message again and I can make the change for you.')
+                            st.success(
+                                '✅ AI Tools enabled. Send your message again and I can make the change for you.'
+                            )
                             st.rerun()
                 except Exception:
                     pass

@@ -67,8 +67,6 @@ from sans_webapp.ui_constants import (
 )
 
 
-
-
 def init_mcp_and_ai() -> None:
     """Initialize MCP references and pre-warm Claude client if an API key exists.
 
@@ -98,7 +96,7 @@ def init_mcp_and_ai() -> None:
                 st.session_state.ai_client_error = str(e)
     except Exception as e:  # pragma: no cover - defensive logging
         # Non-fatal: continue running the app even if MCP initialization fails
-        print(f"Warning: failed to initialize MCP/AI client: {e}")
+        print(f'Warning: failed to initialize MCP/AI client: {e}')
 
 
 def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:

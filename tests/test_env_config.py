@@ -1,6 +1,7 @@
 """
 Tests for environment configuration: .env.template and ANTHROPIC_API_KEY handling.
 """
+
 from unittest.mock import MagicMock, patch
 
 import os
@@ -14,8 +15,9 @@ def test_env_template_contains_keys():
         content = fh.read()
 
     assert 'ANTHROPIC_API_KEY' in content, '.env.template should contain ANTHROPIC_API_KEY'
-    assert 'OPENAI_API_KEY' not in content, '.env.template should not contain OPENAI_API_KEY (replaced by Anthropic)'
-
+    assert 'OPENAI_API_KEY' not in content, (
+        '.env.template should not contain OPENAI_API_KEY (replaced by Anthropic)'
+    )
 
 
 def test_init_mcp_uses_anthropic_env_var_if_no_session_key():
@@ -29,11 +31,13 @@ def test_init_mcp_uses_anthropic_env_var_if_no_session_key():
 
     with patch.object(app, 'st', mock_st):
         with patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'ENV_KEY'}, clear=True):
-            with patch('sans_webapp.mcp_server.set_fitter') as mock_set_fitter, patch(
-                'sans_webapp.mcp_server.set_state_accessor'
-            ) as mock_set_accessor, patch(
-                'sans_webapp.services.claude_mcp_client.get_claude_client'
-            ) as mock_get_client:
+            with (
+                patch('sans_webapp.mcp_server.set_fitter') as mock_set_fitter,
+                patch('sans_webapp.mcp_server.set_state_accessor') as mock_set_accessor,
+                patch(
+                    'sans_webapp.services.claude_mcp_client.get_claude_client'
+                ) as mock_get_client,
+            ):
                 app.init_mcp_and_ai()
 
                 mock_set_fitter.assert_called_once_with('FAKE_FITTER')

@@ -34,6 +34,7 @@ class ChatMessage(TypedDict, total=False):
     content: str
     tool_invocations: list[MCPToolResult]
 
+
 class FitParamInfo(TypedDict, total=False):
     """Fitted parameter information."""
 

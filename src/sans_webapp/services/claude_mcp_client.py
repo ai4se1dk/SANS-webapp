@@ -5,14 +5,10 @@ Provides Anthropic Claude integration with MCP tool-use capability.
 Handles tool invocation round-trips between Claude and the embedded MCP server.
 """
 
-import json
 import os
 from typing import Any
 
 from anthropic import Anthropic
-
-from sans_webapp.mcp_server import mcp
-
 
 # Tool name to function mapping - built from MCP server
 _tool_handlers: dict[str, callable] = {}
@@ -40,17 +36,17 @@ def _build_tool_handlers() -> dict[str, callable]:
     )
 
     _tool_handlers = {
-        "list-sans-models": list_sans_models,
-        "get-model-parameters": get_model_parameters,
-        "get-current-state": get_current_state,
-        "get-fit-results": get_fit_results,
-        "set-model": set_model,
-        "set-parameter": set_parameter,
-        "set-multiple-parameters": set_multiple_parameters,
-        "enable-polydispersity": enable_polydispersity,
-        "set-structure-factor": set_structure_factor,
-        "remove-structure-factor": remove_structure_factor,
-        "run-fit": run_fit,
+        'list-sans-models': list_sans_models,
+        'get-model-parameters': get_model_parameters,
+        'get-current-state': get_current_state,
+        'get-fit-results': get_fit_results,
+        'set-model': set_model,
+        'set-parameter': set_parameter,
+        'set-multiple-parameters': set_multiple_parameters,
+        'enable-polydispersity': enable_polydispersity,
+        'set-structure-factor': set_structure_factor,
+        'remove-structure-factor': remove_structure_factor,
+        'run-fit': run_fit,
     }
     return _tool_handlers
 
@@ -64,167 +60,167 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
     """
     tools = [
         {
-            "name": "list-sans-models",
-            "description": "List all available SANS models from sasmodels library. Returns a formatted list of model names that can be used with set-model.",
-            "input_schema": {
-                "type": "object",
-                "properties": {},
-                "required": [],
+            'name': 'list-sans-models',
+            'description': 'List all available SANS models from sasmodels library. Returns a formatted list of model names that can be used with set-model.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
             },
         },
         {
-            "name": "get-model-parameters",
-            "description": "Get parameter details for a specific SANS model. Shows parameter names, default values, units, and descriptions.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "model_name": {
-                        "type": "string",
-                        "description": "Name of the model (e.g., 'sphere', 'cylinder')",
+            'name': 'get-model-parameters',
+            'description': 'Get parameter details for a specific SANS model. Shows parameter names, default values, units, and descriptions.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'model_name': {
+                        'type': 'string',
+                        'description': "Name of the model (e.g., 'sphere', 'cylinder')",
                     }
                 },
-                "required": ["model_name"],
+                'required': ['model_name'],
             },
         },
         {
-            "name": "get-current-state",
-            "description": "Get the current state of the SANS fitter. Shows loaded data info, current model, and parameter values.",
-            "input_schema": {
-                "type": "object",
-                "properties": {},
-                "required": [],
+            'name': 'get-current-state',
+            'description': 'Get the current state of the SANS fitter. Shows loaded data info, current model, and parameter values.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
             },
         },
         {
-            "name": "get-fit-results",
-            "description": "Get the results from the most recent fit. Shows optimized parameter values, uncertainties, and fit statistics.",
-            "input_schema": {
-                "type": "object",
-                "properties": {},
-                "required": [],
+            'name': 'get-fit-results',
+            'description': 'Get the results from the most recent fit. Shows optimized parameter values, uncertainties, and fit statistics.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
             },
         },
         {
-            "name": "set-model",
-            "description": "Load a SANS model for fitting.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "model_name": {
-                        "type": "string",
-                        "description": "Name of the model to load (e.g., 'sphere', 'cylinder', 'ellipsoid')",
+            'name': 'set-model',
+            'description': 'Load a SANS model for fitting.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'model_name': {
+                        'type': 'string',
+                        'description': "Name of the model to load (e.g., 'sphere', 'cylinder', 'ellipsoid')",
                     }
                 },
-                "required": ["model_name"],
+                'required': ['model_name'],
             },
         },
         {
-            "name": "set-parameter",
-            "description": "Set a parameter's value and/or fitting options.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Parameter name (e.g., 'radius', 'sld')",
+            'name': 'set-parameter',
+            'description': "Set a parameter's value and/or fitting options.",
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'name': {
+                        'type': 'string',
+                        'description': "Parameter name (e.g., 'radius', 'sld')",
                     },
-                    "value": {
-                        "type": "number",
-                        "description": "New value for the parameter (optional)",
+                    'value': {
+                        'type': 'number',
+                        'description': 'New value for the parameter (optional)',
                     },
-                    "min_bound": {
-                        "type": "number",
-                        "description": "Minimum bound for fitting (optional)",
+                    'min_bound': {
+                        'type': 'number',
+                        'description': 'Minimum bound for fitting (optional)',
                     },
-                    "max_bound": {
-                        "type": "number",
-                        "description": "Maximum bound for fitting (optional)",
+                    'max_bound': {
+                        'type': 'number',
+                        'description': 'Maximum bound for fitting (optional)',
                     },
-                    "vary": {
-                        "type": "boolean",
-                        "description": "Whether parameter should vary during fitting (optional)",
+                    'vary': {
+                        'type': 'boolean',
+                        'description': 'Whether parameter should vary during fitting (optional)',
                     },
                 },
-                "required": ["name"],
+                'required': ['name'],
             },
         },
         {
-            "name": "set-multiple-parameters",
-            "description": "Set multiple parameters at once.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "parameters": {
-                        "type": "object",
-                        "description": "Dictionary mapping parameter names to their settings. Each value is a dict with optional keys: 'value', 'min', 'max', 'vary'. Example: {\"radius\": {\"value\": 50, \"vary\": true}}",
-                        "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                                "value": {"type": "number"},
-                                "min": {"type": "number"},
-                                "max": {"type": "number"},
-                                "vary": {"type": "boolean"},
+            'name': 'set-multiple-parameters',
+            'description': 'Set multiple parameters at once.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'parameters': {
+                        'type': 'object',
+                        'description': "Dictionary mapping parameter names to their settings. Each value is a dict with optional keys: 'value', 'min', 'max', 'vary'. Example: {\"radius\": {\"value\": 50, \"vary\": true}}",
+                        'additionalProperties': {
+                            'type': 'object',
+                            'properties': {
+                                'value': {'type': 'number'},
+                                'min': {'type': 'number'},
+                                'max': {'type': 'number'},
+                                'vary': {'type': 'boolean'},
                             },
                         },
                     }
                 },
-                "required": ["parameters"],
+                'required': ['parameters'],
             },
         },
         {
-            "name": "enable-polydispersity",
-            "description": "Enable polydispersity for a size parameter.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "parameter_name": {
-                        "type": "string",
-                        "description": "Name of the parameter to make polydisperse (e.g., 'radius')",
+            'name': 'enable-polydispersity',
+            'description': 'Enable polydispersity for a size parameter.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'parameter_name': {
+                        'type': 'string',
+                        'description': "Name of the parameter to make polydisperse (e.g., 'radius')",
                     },
-                    "pd_type": {
-                        "type": "string",
-                        "description": "Distribution type ('gaussian', 'lognormal', 'schulz')",
-                        "default": "gaussian",
+                    'pd_type': {
+                        'type': 'string',
+                        'description': "Distribution type ('gaussian', 'lognormal', 'schulz')",
+                        'default': 'gaussian',
                     },
-                    "pd_value": {
-                        "type": "number",
-                        "description": "Width of the distribution (relative, typically 0.01-0.5)",
-                        "default": 0.1,
+                    'pd_value': {
+                        'type': 'number',
+                        'description': 'Width of the distribution (relative, typically 0.01-0.5)',
+                        'default': 0.1,
                     },
                 },
-                "required": ["parameter_name"],
+                'required': ['parameter_name'],
             },
         },
         {
-            "name": "set-structure-factor",
-            "description": "Add a structure factor to account for interparticle interactions.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "sf_name": {
-                        "type": "string",
-                        "description": "Structure factor name (e.g., 'hardsphere', 'stickyhardsphere', 'squarewell')",
+            'name': 'set-structure-factor',
+            'description': 'Add a structure factor to account for interparticle interactions.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'sf_name': {
+                        'type': 'string',
+                        'description': "Structure factor name (e.g., 'hardsphere', 'stickyhardsphere', 'squarewell')",
                     }
                 },
-                "required": ["sf_name"],
+                'required': ['sf_name'],
             },
         },
         {
-            "name": "remove-structure-factor",
-            "description": "Remove any structure factor from the current model.",
-            "input_schema": {
-                "type": "object",
-                "properties": {},
-                "required": [],
+            'name': 'remove-structure-factor',
+            'description': 'Remove any structure factor from the current model.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
             },
         },
         {
-            "name": "run-fit",
-            "description": "Run the curve fitting optimization. Uses the currently loaded model and parameter settings to fit the data. Returns fit quality metrics and optimized parameter values.",
-            "input_schema": {
-                "type": "object",
-                "properties": {},
-                "required": [],
+            'name': 'run-fit',
+            'description': 'Run the curve fitting optimization. Uses the currently loaded model and parameter settings to fit the data. Returns fit quality metrics and optimized parameter values.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
             },
         },
     ]
@@ -245,7 +241,7 @@ def execute_tool(tool_name: str, tool_input: dict[str, Any]) -> str:
     handlers = _build_tool_handlers()
 
     if tool_name not in handlers:
-        return f"Unknown tool: {tool_name}"
+        return f'Unknown tool: {tool_name}'
 
     handler = handlers[tool_name]
 
@@ -255,9 +251,9 @@ def execute_tool(tool_name: str, tool_input: dict[str, Any]) -> str:
         return result
     except TypeError as e:
         # Handle parameter mismatch
-        return f"Tool parameter error: {str(e)}"
+        return f'Tool parameter error: {str(e)}'
     except Exception as e:
-        return f"Tool execution error: {str(e)}"
+        return f'Tool execution error: {str(e)}'
 
 
 class ClaudeMCPClient:
@@ -274,14 +270,14 @@ class ClaudeMCPClient:
         Args:
             api_key: Anthropic API key. If None, reads from ANTHROPIC_API_KEY env var.
         """
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        self.api_key = api_key or os.environ.get('ANTHROPIC_API_KEY')
         if not self.api_key:
             raise ValueError(
-                "Anthropic API key required. Set ANTHROPIC_API_KEY or pass api_key parameter."
+                'Anthropic API key required. Set ANTHROPIC_API_KEY or pass api_key parameter.'
             )
 
         self.client = Anthropic(api_key=self.api_key)
-        self.model = "claude-sonnet-4-20250514"
+        self.model = 'claude-sonnet-4-20250514'
         self.tools = get_mcp_tool_schemas()
 
         # System prompt for SANS fitting context
@@ -328,20 +324,24 @@ The application shows plots and parameter tables that update when you use tools 
         # Add conversation history
         if conversation_history:
             for msg in conversation_history:
-                messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"],
-                })
+                messages.append(
+                    {
+                        'role': msg['role'],
+                        'content': msg['content'],
+                    }
+                )
 
         # Add context to user message if provided
         full_user_message = user_message
         if context:
-            full_user_message = f"[Current State]\n{context}\n\n[User Message]\n{user_message}"
+            full_user_message = f'[Current State]\n{context}\n\n[User Message]\n{user_message}'
 
-        messages.append({
-            "role": "user",
-            "content": full_user_message,
-        })
+        messages.append(
+            {
+                'role': 'user',
+                'content': full_user_message,
+            }
+        )
 
         tool_invocations = []
 
@@ -356,12 +356,12 @@ The application shows plots and parameter tables that update when you use tools 
             )
 
             # Check if we need to handle tool use
-            if response.stop_reason == "tool_use":
+            if response.stop_reason == 'tool_use':
                 # Process each tool use block
                 tool_results = []
 
                 for block in response.content:
-                    if block.type == "tool_use":
+                    if block.type == 'tool_use':
                         tool_name = block.name
                         tool_input = block.input
                         tool_use_id = block.id
@@ -369,35 +369,43 @@ The application shows plots and parameter tables that update when you use tools 
                         # Execute the tool
                         result = execute_tool(tool_name, tool_input)
 
-                        tool_invocations.append({
-                            "tool_name": tool_name,
-                            "input": tool_input,
-                            "result": result,
-                        })
+                        tool_invocations.append(
+                            {
+                                'tool_name': tool_name,
+                                'input': tool_input,
+                                'result': result,
+                            }
+                        )
 
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": tool_use_id,
-                            "content": result,
-                        })
+                        tool_results.append(
+                            {
+                                'type': 'tool_result',
+                                'tool_use_id': tool_use_id,
+                                'content': result,
+                            }
+                        )
 
                 # Add assistant's response (with tool use) to messages
-                messages.append({
-                    "role": "assistant",
-                    "content": response.content,
-                })
+                messages.append(
+                    {
+                        'role': 'assistant',
+                        'content': response.content,
+                    }
+                )
 
                 # Add tool results
-                messages.append({
-                    "role": "user",
-                    "content": tool_results,
-                })
+                messages.append(
+                    {
+                        'role': 'user',
+                        'content': tool_results,
+                    }
+                )
 
             else:
                 # No more tool use, extract final text response
-                final_response = ""
+                final_response = ''
                 for block in response.content:
-                    if hasattr(block, "text"):
+                    if hasattr(block, 'text'):
                         final_response += block.text
 
                 return final_response, tool_invocations

@@ -12,10 +12,6 @@ from sans_fitter import SANSFitter, get_all_models
 from sasmodels.direct_model import DirectModel
 
 from sans_webapp.openai_client import create_chat_completion
-from sans_webapp.sans_analysis_utils import (
-    analyze_data_for_ai_suggestion,
-    suggest_models_simple,
-)
 from sans_webapp.sans_types import FitResult, ParamInfo
 from sans_webapp.ui_constants import WARNING_NO_API_KEY
 
@@ -124,16 +120,12 @@ AI Chat services for SANS webapp.
 Provides functions for AI-assisted SANS model analysis using Claude with MCP tools.
 """
 
-import os
-from typing import Any, Optional
+from typing import Optional
 
-import numpy as np
-import streamlit as st
-from sans_fitter import SANSFitter, get_all_models
+from sans_fitter import SANSFitter
 
 from sans_webapp.mcp_server import set_fitter, set_state_accessor
 from sans_webapp.services.claude_mcp_client import (
-    ClaudeMCPClient,
     get_claude_client,
     reset_client,
 )
@@ -142,7 +134,7 @@ from sans_webapp.services.claude_mcp_client import (
 SUGGEST_MODELS_SYSTEM_PROMPT = """You are a SANS (Small-Angle Neutron Scattering) expert.
 Based on the scattering data characteristics provided, suggest appropriate sasmodels models.
 Return ONLY a comma-separated list of model names, nothing else.
-Available models include: sphere, cylinder, ellipsoid, core_shell_sphere, 
+Available models include: sphere, cylinder, ellipsoid, core_shell_sphere,
 core_shell_cylinder, gaussian_peak, power_law, fractal, etc."""
 
 
@@ -224,7 +216,7 @@ Return ONLY a comma-separated list of model names, nothing else.
 
 {data_desc}
 
-Available models include: sphere, cylinder, ellipsoid, core_shell_sphere, 
+Available models include: sphere, cylinder, ellipsoid, core_shell_sphere,
 core_shell_cylinder, gaussian_peak, power_law, fractal, etc."""
 
         response = client.simple_chat(prompt)
@@ -242,9 +234,7 @@ core_shell_cylinder, gaussian_peak, power_law, fractal, etc."""
         return ['sphere', 'cylinder', 'ellipsoid']
 
 
-def _send_chat_message_claude(
-    prompt: str, api_key: Optional[str], fitter: SANSFitter
-) -> str:
+def _send_chat_message_claude(prompt: str, api_key: Optional[str], fitter: SANSFitter) -> str:
     """
     Send a chat message and get AI response with MCP tool support.
 
@@ -269,7 +259,7 @@ def _send_chat_message_claude(
                 reset_client()
                 client = get_claude_client(api_key)
             else:
-                return "Error: Anthropic API key not configured. Please enter your API key in the sidebar."
+                return 'Error: Anthropic API key not configured. Please enter your API key in the sidebar.'
 
         # Build context from current fitter state
         context = _build_context(fitter)
@@ -279,10 +269,12 @@ def _send_chat_message_claude(
         if hasattr(st.session_state, 'chat_history'):
             # Convert to format expected by Claude client
             for msg in st.session_state.chat_history:
-                conversation_history.append({
-                    'role': msg['role'],
-                    'content': msg['content'],
-                })
+                conversation_history.append(
+                    {
+                        'role': msg['role'],
+                        'content': msg['content'],
+                    }
+                )
 
         # Send message with tool support
         response, tool_invocations = client.chat(
@@ -302,10 +294,10 @@ def _send_chat_message_claude(
             tool_summary = []
             for invocation in tool_invocations:
                 tool_name = invocation['tool_name']
-                tool_summary.append(f"[Used tool: {tool_name}]")
+                tool_summary.append(f'[Used tool: {tool_name}]')
 
             if tool_summary:
-                response = response + "\n\n" + "\n".join(tool_summary)
+                response = response + '\n\n' + '\n'.join(tool_summary)
 
         return response
 
@@ -345,7 +337,7 @@ def send_chat_message(user_message: str, api_key: Optional[str], fitter: SANSFit
     if any(k in lowered for k in mutation_keywords):
         return (
             "I can make that change automatically if you enable 'AI Tools' in the sidebar "
-            "(🔧 Enable AI Tools). Please toggle it on and send the message again."
+            '(🔧 Enable AI Tools). Please toggle it on and send the message again.'
         )
 
     return _send_chat_message_openai(user_message, api_key, fitter)
@@ -392,7 +384,7 @@ def send_chat_message_with_tools(
             client = get_claude_client(api_key)
         else:
             return (
-                "Error: Anthropic API key not configured.",
+                'Error: Anthropic API key not configured.',
                 [],
                 False,
             )

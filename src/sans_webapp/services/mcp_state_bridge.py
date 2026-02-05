@@ -14,7 +14,7 @@ from sans_fitter import SANSFitter
 class SessionStateBridge:
     """
     Bridge between MCP tools and Streamlit session state.
-    
+
     Provides type-safe accessors for the fitter and related state,
     with proper error handling for edge cases.
     """
@@ -31,20 +31,20 @@ class SessionStateBridge:
     def get_fitter(self) -> SANSFitter:
         """
         Get the current SANSFitter instance.
-        
+
         Returns:
             The SANSFitter instance from session state.
-            
+
         Raises:
             RuntimeError: If fitter is not initialized.
         """
         if 'fitter' not in st.session_state:
-            raise RuntimeError("Fitter not initialized. Please wait for app to load.")
-        
+            raise RuntimeError('Fitter not initialized. Please wait for app to load.')
+
         fitter = st.session_state.fitter
         if fitter is None:
-            raise RuntimeError("Fitter is None. Please reload the application.")
-        
+            raise RuntimeError('Fitter is None. Please reload the application.')
+
         return fitter
 
     def has_fitter(self) -> bool:
@@ -128,13 +128,13 @@ class SessionStateBridge:
     def set_fit_status(self, status: str) -> None:
         """
         Set the fit status.
-        
+
         Args:
             status: One of 'idle', 'queued', 'running', 'completed', 'failed'
         """
         valid_statuses = {'idle', 'queued', 'running', 'completed', 'failed'}
         if status not in valid_statuses:
-            raise ValueError(f"Invalid fit status: {status}. Must be one of {valid_statuses}")
+            raise ValueError(f'Invalid fit status: {status}. Must be one of {valid_statuses}')
         st.session_state.fit_status = status
 
     def get_fit_error(self) -> Optional[str]:
@@ -174,7 +174,7 @@ class SessionStateBridge:
         st.session_state.chat_api_key = api_key
 
     # Parameter widget state management
-    
+
     def clear_parameter_widgets(self) -> None:
         """Clear all parameter widget state (for model changes)."""
         keys_to_remove = [
@@ -206,41 +206,43 @@ def get_fitter() -> SANSFitter:
     return get_state_bridge().get_fitter()
 
 
-def check_preconditions(require_data: bool = False, require_model: bool = False) -> tuple[bool, str]:
+def check_preconditions(
+    require_data: bool = False, require_model: bool = False
+) -> tuple[bool, str]:
     """
     Check preconditions for tool execution.
-    
+
     Args:
         require_data: Whether data must be loaded
         require_model: Whether a model must be selected
-        
+
     Returns:
         Tuple of (success, error_message)
     """
     bridge = get_state_bridge()
-    
+
     if not bridge.has_fitter():
-        return False, "Fitter not initialized. Please wait for app to load."
-    
+        return False, 'Fitter not initialized. Please wait for app to load.'
+
     if require_data and not bridge.has_data():
-        return False, "No data loaded. Please load data first."
-    
+        return False, 'No data loaded. Please load data first.'
+
     if require_model and not bridge.has_model():
-        return False, "No model selected. Please select a model first."
-    
-    return True, ""
+        return False, 'No model selected. Please select a model first.'
+
+    return True, ''
 
 
 def check_tools_enabled() -> tuple[bool, str]:
     """
     Check if AI tools are enabled.
-    
+
     Returns:
         Tuple of (enabled, message)
     """
     bridge = get_state_bridge()
-    
+
     if not bridge.are_tools_enabled():
-        return False, "AI tools are disabled. Enable them in the sidebar to allow modifications."
-    
-    return True, ""
+        return False, 'AI tools are disabled. Enable them in the sidebar to allow modifications.'
+
+    return True, ''
