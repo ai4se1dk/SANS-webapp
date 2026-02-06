@@ -1,150 +1,110 @@
 # Technology Stack
 
-**Analysis Date:** 2026-02-04
+**Analysis Date:** 2026-02-05
 
 ## Languages
 
 **Primary:**
-- Python 3.10+ - Main language for backend, CLI, and web application
-- HTML/CSS - Rendered by Streamlit framework
-
-**Secondary:**
-- YAML - Configuration files (pyproject.toml, pre-commit hooks)
+- Python 3.10+ - Entire application, from web framework to scientific computing
 
 ## Runtime
 
 **Environment:**
-- Python 3.10+ (pinned in `pyproject.toml`: `requires-python = ">=3.10"`)
-- CPython (verified in Dockerfile: `FROM python:3.10-slim`)
+- Python 3.10+ (as defined in `pyproject.toml`)
+- Streamlit runtime
 
 **Package Manager:**
-- `pip` with setuptools (defined in `[build-system]` section)
-- `pixi` for environment management (Conda-based, cross-platform: `platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]`)
-- Lockfile: `pixi.lock` (present)
+- pip (with setuptools)
+- pixi (workspace/environment management)
+- Lockfile: `pixi.lock` present
 
 ## Frameworks
 
-**Core Web Framework:**
-- Streamlit 1.28.0+ - Interactive web UI framework
-  - Entry point: `src/sans_webapp/app.py`
-  - Run command: `streamlit run src/sans_webapp/app.py`
-  - Server port: 8501 (default, configurable)
+**Core:**
+- Streamlit 1.28.0+ - Web framework for interactive data analysis UI
+- sans-fitter 0.0.3+ - SANS curve fitting engine, wraps sasmodels optimization
+- FastMCP 1.0+ - Model Context Protocol server for Claude integration
 
 **Scientific Computing:**
-- SANS-Fitter 0.0.3+ - Custom package for SANS data analysis
-  - Imported as: `from sans_fitter import SANSFitter, get_all_models`
-  - Location: `src/sans_webapp/services/ai_chat.py`, `src/sans_webapp/components/*.py`
-- SasModels 1.0+ - Small Angle Scattering models library
-  - Imported as: `from sasmodels.direct_model import DirectModel`
-  - Used for model calculations in `src/sans_webapp/services/ai_chat.py`
-- SasData 0.8+ - SAS data handling
-- BUMPS 0.9+ - Optimization engine for model fitting
-  - Alternative: LMFit (referenced in UI but not in pyproject.toml as direct dependency)
+- NumPy 1.20+ - Numerical array operations for scattering data
+- SciPy 1.7+ - Scientific computing (optimization, statistics)
+- Matplotlib 3.5+ - Base plotting library
+- Plotly 5.17.0+ - Interactive visualizations (zoom, pan, export)
+- SasModels 1.0+ - Physical models for SANS (sphere, cylinder, ellipsoid, etc.)
+- SasData 0.8+ - SANS data file I/O and handling
+- Pandas 2.0.0+ - Data manipulation and CSV import/export
 
-**Visualization:**
-- Plotly 5.17.0+ - Interactive plots
-  - Location: `src/sans_webapp/sans_analysis_utils.py`
-  - Used for data visualization with zoom, pan, export
+**Optimization/Fitting:**
+- BUMPS 0.9+ - Curve fitting optimization engine
+- LMFit - Alternative optimization via sans-fitter wrapping
 
-**Data Processing:**
-- NumPy 1.20+ - Numerical arrays
-- Pandas 2.0.0+ - Data frames and CSV handling
-- SciPy 1.7+ - Scientific computing utilities
-- Matplotlib 3.5+ - Plotting (dependency of other packages)
+**AI Integration:**
+- Anthropic 1.0.0+ - Claude API client for AI assistant with tool use
+- OpenAI 1.0.0+ - Legacy OpenAI integration (gpt-4o) for model suggestions
+
+**Development/Code Quality:**
+- Ruff 0.8.0+ - Linter and formatter (replaces black + isort + flake8)
 
 **Testing:**
-- Pytest 7.0+ - Test runner
-  - Config: `[tool.pytest.ini_options]` in `pyproject.toml`
-  - Test discovery: `testpaths = ["tests"]`
-  - Run: `pytest tests/ -v`
-- Pytest-Cov 4.0+ - Coverage reporting
-  - Run: `pytest tests/ --cov=. --cov-report=html --cov-report=term --cov-report=xml`
-
-**Build/Dev Tools:**
-- Ruff 0.8.0+ - Linter and formatter (unified toolchain)
-  - Config: `[tool.ruff]` section with line-length: 100, target-version: py39
-  - Lint rules: E, W, F, I, B, C4, UP, Q
-  - Run: `ruff check src/ tests/ --fix` and `ruff format src/ tests/`
-- Pre-commit 2.17+ - Git hooks framework
-  - Config file: `.pre-commit-config.yaml`
-  - Hooks: Ruff linter and formatter on python/pyi/jupyter files
-
-**AI/ML:**
-- OpenAI 1.0.0+ - OpenAI API client
-  - Location: `src/sans_webapp/openai_client.py`
-  - Model: `gpt-4o` (hardcoded in `src/sans_webapp/services/ai_chat.py` line 107)
+- pytest 7.0+ - Test runner
+- pytest-cov 4.0+ - Coverage reporting
 
 ## Key Dependencies
 
-**Critical (Scientific):**
-- sans-fitter (0.0.3+) - Custom SANS analysis package
-- sasmodels (1.0+) - Model library for scattering
-- numpy (1.20+) - Numerical computations
-- scipy (1.7+) - Scientific functions
+**Critical:**
+- `sans-fitter` - Core fitting engine; without it, no model fitting possible
+  - Wraps sasmodels, bumps, and lmfit
+- `fastmcp` - Enables Claude MCP tool integration for AI assistant
+- `streamlit` - UI framework; entire application depends on it
 
 **Infrastructure:**
-- streamlit (1.28.0+) - Web UI framework
-- plotly (5.17.0+) - Interactive visualizations
-- pandas (2.0.0+) - Data manipulation
-- openai (1.0.0+) - AI integration
-
-**Optional:**
-- mkdocs (1.5+) - Documentation generation (dev dependency)
-- mkdocs-material (9.5+) - Material theme for docs
-- mkdocstrings[python] (0.25+) - Python docstring extraction
+- `anthropic` - Claude API access for intelligent model suggestions and MCP tools
+- `openai` - Legacy support for GPT-4o fallback (when AI tools disabled)
+- `numpy`, `scipy` - Numerical computing foundation
+- `sasmodels` - Physical scattering models database (100+ models)
+- `plotly` - Real-time interactive visualization of fits
 
 ## Configuration
 
 **Environment:**
-- No `.env` file detected in repo
-- OpenAI API key: Passed via Streamlit input UI (not env-based)
-  - Location: `src/sans_webapp/components/sidebar.py` line 166-170
-  - Storage: Streamlit session state as `st.session_state.chat_api_key`
-- Environment variables: No required env vars enforced (optional OPENAI_API_KEY mentioned in README)
+- Configured via `ANTHROPIC_API_KEY` environment variable
+- Optional: Can be set in Streamlit sidebar at runtime
+- Required for: Claude AI assistant and MCP tool features (optional, app works without)
+- Environment template: `.env.template`
 
-**Build Configuration:**
-- `pyproject.toml` - Main config (setuptools-based)
-- `pixi.lock` - Reproducible environment lock
-- `.pixi/envs/` - Pixi environment directory (contains conda packages)
-- `setup.py` - Not present (using modern pyproject.toml)
+**Build:**
+- `pyproject.toml` - Project metadata, dependencies, tool configs
+- `pixi.lock` - Locked versions for reproducible environments across platforms
+- `setup.py` - Generated by setuptools from pyproject.toml
+- `.pre-commit-config.yaml` - Git hooks for code quality (ruff)
 
-**Pre-commit Hooks:**
-- File: `.pre-commit-config.yaml`
-- Hooks configured:
-  - `ruff` with `--fix` flag
-  - `ruff-format`
-  - Files matched: `^(src|tests)/`
-
-**Ruff Configuration Details:**
-- Line length: 100 characters
-- Quote style: Single quotes (`inline-quotes: "single"`)
-- Per-file ignores: `__init__.py` (F401), `tests/*` (F401, F811)
+**Development Tasks (via pixi):**
+- `pixi run test` - Run pytest
+- `pixi run test-coverage` - Generate coverage report
+- `pixi run format` - Format with ruff
+- `pixi run lint` - Lint with ruff
+- `pixi run run-dev` - Launch Streamlit dev server
 
 ## Platform Requirements
 
 **Development:**
 - Python 3.10+
-- Compiler support: GCC, G++, Gfortran (for scientific packages)
-  - Required in Dockerfile: `gcc`, `g++`, `gfortran`, `libgomp1`
-- Git (for pre-commit hooks)
-- Pixi or pip+setuptools
+- C/C++/Fortran compiler (for SasModels/SciPy wheels on some platforms)
+- pip/pixi package manager
 
 **Production:**
-- Python 3.10+
-- Deployment targets:
-  - **Streamlit Cloud** - Direct GitHub integration
-  - **Docker** - Containerized (Dockerfile present)
-    - Base image: `python:3.10-slim`
-    - Exposed port: 8501
-    - Healthcheck: `curl --fail http://localhost:8501/_stcore/health`
-  - **Heroku** - Procfile configured: `web: streamlit run src/sans_webapp/app.py --server.port=$PORT --server.address=0.0.0.0`
+- Docker: Dockerfile provided with system dependencies for scientific stack
+  - Base: `python:3.10-slim`
+  - System deps: gcc, g++, gfortran, libgomp1
+  - Port: 8501 (Streamlit)
+  - Health check: HTTP endpoint at `/_stcore/health`
 
-## System Dependencies
-
-**Required for Scientific Computing:**
-- GCC, G++, Gfortran (for NumPy, SciPy compilation)
-- OpenMP library (`libgomp1`)
+**Deployment Targets:**
+- Heroku (Procfile configured)
+- Docker containers
+- Streamlit Cloud
+- Bare metal with Python 3.10+
 
 ---
 
-*Stack analysis: 2026-02-04*
+*Stack analysis: 2026-02-05*

@@ -150,37 +150,47 @@ def apply_param_updates(fitter: SANSFitter, param_updates: dict[str, ParamUpdate
 
 def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdate]:
     """Render the parameter table and return updates to apply."""
-    param_cols = st.columns([2, 1, 1, 1, 1])
+    # Create 5 explicit columns: Parameter, Value, Min, Max, Fit?
+    # Use explicit widths to ensure alignment
+    col_widths = [2.5, 1, 1, 1, 0.5]
 
-    # Use loop as recommended in refactoring
-    for i, label in enumerate(PARAMETER_COLUMNS_LABELS):
-        param_cols[i].markdown(label)
+    # Header row
+    header_cols = st.columns(col_widths)
+    header_cols[0].markdown(PARAMETER_COLUMNS_LABELS[0])  # Parameter
+    header_cols[1].markdown(PARAMETER_COLUMNS_LABELS[1])  # Value
+    header_cols[2].markdown(PARAMETER_COLUMNS_LABELS[2])  # Min
+    header_cols[3].markdown(PARAMETER_COLUMNS_LABELS[3])  # Max
+    header_cols[4].markdown(PARAMETER_COLUMNS_LABELS[4])  # Fit?
 
     param_updates: dict[str, ParamUpdate] = {}
 
     for param_name, param_info in params.items():
-        cols = st.columns([2, 1, 1, 1, 1])
+        cols = st.columns(col_widths)
 
-        with cols[0]:
-            st.text(param_name)
-            description = param_info.get('description')
-            if description:
-                st.caption(description[:50])
-
+        # Session state keys
         value_key = f'value_{param_name}'
         min_key = f'min_{param_name}'
         max_key = f'max_{param_name}'
         vary_key = f'vary_{param_name}'
 
+        # Initialize session state if not set
+        if vary_key not in st.session_state:
+            st.session_state[vary_key] = param_info['vary']
         if value_key not in st.session_state:
             st.session_state[value_key] = clamp_for_display(float(param_info['value']))
         if min_key not in st.session_state:
             st.session_state[min_key] = clamp_for_display(float(param_info['min']))
         if max_key not in st.session_state:
             st.session_state[max_key] = clamp_for_display(float(param_info['max']))
-        if vary_key not in st.session_state:
-            st.session_state[vary_key] = param_info['vary']
 
+        # Column 0: Parameter name
+        with cols[0]:
+            st.text(param_name)
+            description = param_info.get('description')
+            if description:
+                st.caption(description[:50])
+
+        # Column 1: Value
         with cols[1]:
             value = st.number_input(
                 PARAMETER_VALUE_LABEL,
@@ -189,6 +199,7 @@ def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdat
                 label_visibility='collapsed',
             )
 
+        # Column 2: Min
         with cols[2]:
             min_val = st.number_input(
                 PARAMETER_MIN_LABEL,
@@ -197,6 +208,7 @@ def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdat
                 label_visibility='collapsed',
             )
 
+        # Column 3: Max
         with cols[3]:
             max_val = st.number_input(
                 PARAMETER_MAX_LABEL,
@@ -205,6 +217,7 @@ def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdat
                 label_visibility='collapsed',
             )
 
+        # Column 4: Fit? checkbox
         with cols[4]:
             vary = st.checkbox(
                 PARAMETER_FIT_LABEL,

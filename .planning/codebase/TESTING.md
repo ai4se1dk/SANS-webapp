@@ -1,176 +1,191 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-02-04
+**Analysis Date:** 2026-02-05
 
 ## Test Framework
 
 **Runner:**
-- pytest 7.0+ (from `pyproject.toml` dependencies)
-- Config: `pyproject.toml` contains `[tool.pytest.ini_options]`
+- pytest 7.0+
+- Config: `pyproject.toml` under `[tool.pytest.ini_options]`
 
 **Assertion Library:**
-- Python standard `assert` statements
-- No external assertion library needed (pytest provides rich comparison output)
+- Built-in pytest assertions with assert statements
 
 **Run Commands:**
 ```bash
-pixi run test                 # Run all tests (-v flag verbose)
-pixi run test-verbose        # Run tests with very verbose output (-vv)
-pixi run test-coverage       # Run with coverage report (html, term, xml)
-pixi run test-quick          # Quick run with first failure stop (-x flag)
+pixi run test              # Run all tests with verbose output
+pixi run test-verbose      # Run all tests with very verbose output
+pixi run test-coverage     # Run with coverage (HTML, terminal, XML reports)
+pixi run test-quick        # Run with early exit on first failure (-x flag)
 ```
 
-**Direct pytest invocation:**
-```bash
-pytest tests/ -v             # Verbose
-pytest tests/ --cov=.        # Coverage
-pytest tests/ -m "not slow"  # Exclude slow tests
-```
+**Test Discovery:**
+- Test paths: `tests/`
+- Test file pattern: `test_*.py`
+- Test class pattern: `Test*`
+- Test function pattern: `test_*`
 
 ## Test File Organization
 
 **Location:**
-- Tests co-located in separate `tests/` directory at project root
-- Parallel to `src/` structure
+- Co-located in `tests/` directory parallel to source
+- Pattern: `tests/test_<module_name>.py` mirrors `src/sans_webapp/<module_name>.py`
 
 **Naming:**
-- Test files: `test_*.py` (pytest discovery pattern)
-- Test classes: `Test*` (CamelCase for grouping related tests)
-- Test functions: `test_*` (snake_case, descriptive)
+- Test files: `test_ai_chat.py`, `test_app_init.py`, `test_sans_types.py`, `test_mcp_tools.py`
+- Test classes: `TestBuildContext`, `TestSuggestModelsAI`, `TestSendChatMessage`
+- Test functions: `test_build_context_includes_model`, `test_send_chat_message_returns_string`
 
 **Structure:**
 ```
 tests/
-├── __init__.py              # Empty init file
-├── test_app.py              # Main app tests (1616 lines)
-└── test_polydispersity.py   # Polydispersity feature tests (462 lines)
-```
-
-**Pytest discovery configuration (from pyproject.toml):**
-```toml
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
+├── conftest.py                 # Shared fixtures and mock classes
+├── test_ai_chat.py            # Tests for ai_chat service
+├── test_app_init.py           # Tests for app initialization
+├── test_env_config.py         # Environment configuration tests
+├── test_mcp_tools.py          # Tests for MCP server tools
+├── test_polydispersity.py     # Tests for polydispersity features
+├── test_sans_types.py         # Tests for type definitions
+├── test_sidebar_ai_chat.py    # Tests for AI chat UI component
+└── __init__.py                # Empty init file
 ```
 
 ## Test Structure
 
 **Suite Organization:**
 ```python
-# From tests/test_polydispersity.py
-class TestPolydispersityUIConstants:
-    """Test polydispersity UI constants."""
+class TestBuildContext:
+    """Test the context building for AI chat."""
 
-    def test_tab_labels_exist(self):
-        """Test that tab labels are defined."""
-        assert PARAM_TAB_BASIC is not None
-        assert PARAM_TAB_POLYDISPERSITY is not None
+    def test_build_context_includes_model(self, mock_fitter):
+        """Context should include model information."""
+        from sans_webapp.services.ai_chat import _build_context
+
+        context = _build_context(mock_fitter)
+
+        assert 'sphere' in context.lower() or 'model' in context.lower()
 ```
 
 **Patterns:**
-- **Setup/Initialization:** No explicit setup methods; fixtures instantiated directly in tests
-  ```python
-  # From tests/test_polydispersity.py
-  def test_apply_pd_updates_to_fitter(self):
-      """Test that PD updates are correctly applied to fitter."""
-      fitter = SANSFitter()
-      fitter.set_model('sphere')
-      # ... test body
-  ```
-
-- **Assertions:** Simple assertions with descriptive messages
-  ```python
-  assert len(models) > 0, 'No models found!'
-  assert 'sphere' in models, 'sphere model not found!'
-  ```
-
-- **Test isolation:** Each test creates its own instances (no shared state)
+- Class-based test organization by function or component
+- Docstrings describe test purpose (what it tests)
+- Setup via pytest fixtures (avoid setUp/tearDown methods)
+- Clear assertion messages; use simple `assert` statements
 
 ## Mocking
 
-**Framework:** `unittest.mock` (standard library)
+**Framework:** `unittest.mock` (Python standard library)
 
 **Patterns:**
+Mock classes defined in `conftest.py` for reuse:
 ```python
-# From tests/test_polydispersity.py (line 12, 87-115)
-from unittest.mock import MagicMock, patch
+class MockSessionState:
+    """Mock for Streamlit session_state."""
 
-def test_clear_parameter_state_clears_pd_keys(self):
-    """Test that clear_parameter_state removes PD-related keys."""
-    mock_session_state = {
-        'fitter': MagicMock(),
-        'data_loaded': True,
-        'value_radius': 50.0,
-        # ... other keys
-    }
+    def __init__(self):
+        self._data = {
+            'ai_tools_enabled': True,
+            'needs_rerun': False,
+            'current_model': None,
+            # ... more keys
+        }
 
-    deleted_keys = []
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            return super().__getattribute__(name)
+        return self._data.get(name)
 
-    class MockSessionState:
-        def keys(self):
-            return list(mock_session_state.keys())
+    def get(self, key, default=None):
+        return self._data.get(key, default)
 
-        def __delitem__(self, key):
-            deleted_keys.append(key)
-            del mock_session_state[key]
+    def __contains__(self, key):
+        return key in self._data
+```
 
-    with patch('sans_webapp.services.session_state.st') as mock_st:
+Mock class pattern for SANSFitter:
+```python
+class MockFitter:
+    """Mock for SANSFitter."""
+
+    def __init__(self):
+        self.model = None
+        self.data = None
+        self.params = {}
+        self.result = None
+
+    def set_model(self, model_name: str):
+        self.model = MagicMock()
+        self.model.name = model_name
+        self.params = {
+            'radius': MagicMock(value=50.0, bounds=(1, 500), vary=True),
+            # ... more params
+        }
+        return self
+```
+
+**Usage in Tests:**
+```python
+with patch('sans_webapp.services.ai_chat.get_claude_client') as mock_get_client:
+    with patch('sans_webapp.services.ai_chat.st') as mock_st:
         mock_st.session_state = MockSessionState()
-        clear_parameter_state()
-        assert 'pd_enabled' in deleted_keys
+
+        mock_client = MagicMock()
+        mock_client.simple_chat.return_value = "Response text"
+        mock_get_client.return_value = mock_client
+
+        result = send_chat_message("Hello", "api-key", mock_fitter)
+
+        assert isinstance(result, str)
 ```
 
 **What to Mock:**
-- Streamlit module (`st`) for tests that import components (no actual UI rendering)
-- Complex external services (OpenAI API calls)
-- External dependencies not core to test logic
+- External API clients: `get_claude_client()`, `create_chat_completion()`
+- Streamlit module: `st`, `st.session_state`
+- File system operations: `files()`, `Path.exists()`
+- MCP server operations: `set_fitter()`, `set_state_accessor()`
 
 **What NOT to Mock:**
-- Core business logic (`SANSFitter`, data structures)
-- Type definitions and constants
+- Business logic being tested
+- TypedDict definitions
 - Pure utility functions
+- Data structures (numpy arrays, lists, dicts)
 
 ## Fixtures and Factories
 
 **Test Data:**
 ```python
-# From tests/test_app.py (line 51-66)
-def test_utils_analyze_data():
-    """Test data analysis for AI suggestion from utils module."""
-    # Create fake data
-    q = np.logspace(-3, -1, 50)
-    i = 100 * np.exp(-q * 10) + 0.1
+@pytest.fixture
+def mock_fitter_with_model():
+    """Create a mock fitter with a model already loaded."""
+    fitter = MockFitter()
+    fitter.set_model('sphere')
+    return fitter
 
-    description = utils.analyze_data_for_ai_suggestion(q, i)
-    assert len(description) > 0, 'No description generated!'
-    assert 'Q range' in description, 'Q range not in description!'
+@pytest.fixture
+def mock_fitter_full():
+    """Create a mock fitter with both model and data."""
+    fitter = MockFitter()
+    fitter.load_data('test_data.csv')
+    fitter.set_model('sphere')
+    return fitter
 ```
 
 **Location:**
-- Fixtures inline within test functions (not in conftest.py)
-- Example data created procedurally with numpy: `np.logspace()`, `np.exp()`
-
-**Factory Pattern:** Not explicitly used; simple instantiation preferred:
-```python
-# From tests/test_polydispersity.py
-def test_apply_pd_updates_multiple_params(self):
-    fitter = SANSFitter()  # Simple factory-like creation
-    fitter.set_model('cylinder')
-```
+- Shared fixtures in `tests/conftest.py`: `mock_session_state`, `mock_fitter`, `mock_fitter_with_model`, `mock_fitter_with_data`, `mock_fitter_full`
+- Test-specific fixtures defined in test files when needed
+- Mock classes as part of fixture setup
 
 ## Coverage
 
-**Requirements:**
-- No minimum coverage threshold enforced by pytest configuration
-- Coverage reports generated but not gated on CI
+**Requirements:** No enforced minimum coverage target
 
 **View Coverage:**
 ```bash
-pixi run test-coverage       # Generates html/term/xml reports
+pixi run test-coverage
+# Generates: htmlcov/index.html, coverage.xml, terminal output
 ```
 
-**Configuration (from pyproject.toml):**
+**Configuration:**
 ```toml
 [tool.coverage.run]
 source = ["."]
@@ -196,29 +211,23 @@ exclude_lines = [
 ## Test Types
 
 **Unit Tests:**
-- **Scope:** Individual functions and classes (80% of test suite)
-- **Approach:** Direct function calls with isolated instances
-- **Example:** `test_utils_analyze_data()` tests data analysis without Streamlit
-- **Location:** Throughout `tests/test_app.py` and `tests/test_polydispersity.py`
+- Scope: Individual functions and methods in isolation
+- Approach: Mock all external dependencies (Streamlit, API clients, file system)
+- Examples: `test_build_context_includes_model`, `test_send_chat_message_returns_string`
+- Location: `tests/test_*.py` files
+- Pattern: Test private and public functions
 
 **Integration Tests:**
-- **Scope:** Component workflows (data loading → model selection → fitting)
-- **Approach:** Mocks Streamlit but uses real business logic classes
-- **Example from test_polydispersity.py:**
-  ```python
-  class TestPolydispersityWorkflow:
-      """Test complete polydispersity workflow integration."""
-      # Tests full feature workflows
-  ```
-- **Location:** Class-based tests grouping related workflows
+- Scope: Multiple components working together
+- Approach: Mock only external services (APIs, file I/O)
+- Marked with `@pytest.mark.integration` (optional)
+- Examples: Testing chat flow with mocked Claude client but real session state logic
 
 **E2E Tests:**
-- **Framework:** Not used (no Selenium, Cypress, or similar)
-- **Reason:** Streamlit apps require browser testing; manual verification used instead
+- Framework: Not used in current codebase
+- Note: Streamlit apps are better tested with Streamlit's `streamlit run --logger.level=debug` and manual testing
 
-## Test Markers
-
-**Available markers (from pyproject.toml):**
+**Markers:**
 ```toml
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -227,34 +236,68 @@ markers = [
 ]
 ```
 
-**Usage:**
-```bash
-pytest tests/ -m "not slow"      # Skip slow tests
-pytest tests/ -m "integration"   # Run only integration tests
-```
-
 ## Common Patterns
 
 **Async Testing:**
-- Not applicable (no async code in codebase)
+Not applicable; codebase uses synchronous execution with Streamlit's event loop.
 
 **Error Testing:**
 ```python
-# From tests/test_app.py - general pattern shown
-def test_utils_suggest_models_simple():
-    """Test simple model suggestion from utils module."""
-    # Test with steep decay (spherical particles)
-    q = np.logspace(-3, -1, 50)
-    i_steep = 100 * q ** (-4) + 0.1  # Porod law for spheres
-    suggestions_steep = utils.suggest_models_simple(q, i_steep)
-    assert len(suggestions_steep) > 0, 'No suggestions generated for steep decay!'
+def test_send_chat_message_handles_error(self, mock_fitter):
+    """send_chat_message should handle errors gracefully."""
+    from sans_webapp.services.ai_chat import send_chat_message
+
+    with patch('sans_webapp.services.ai_chat.get_claude_client') as mock_get_client:
+        with patch('sans_webapp.services.ai_chat.st') as mock_st:
+            mock_st.session_state = MockSessionState()
+            mock_get_client.side_effect = Exception("API error")
+
+            result = send_chat_message("Hello", "api-key", mock_fitter)
+
+            assert isinstance(result, str)
+            assert 'error' in result.lower()
 ```
 
-**Parametrized Testing:** Not detected in codebase; individual test functions used instead
+**TypedDict Testing:**
+```python
+def test_mcp_tool_result_fields():
+    sample: MCPToolResult = {
+        'tool_name': 'set-model',
+        'input': {'model_name': 'sphere'},
+        'result': "Model 'sphere' loaded",
+        'success': True,
+    }
 
-**Test Output:**
+    assert sample['tool_name'] == 'set-model'
+    assert isinstance(sample['input'], dict)
+    assert sample['success'] is True
+```
+
+**Parametrized Testing:**
+Not heavily used; individual test cases are preferred for clarity.
+
+**Mock Return Value Testing:**
+```python
+def test_returns_response_and_tools_invoked(self, mock_fitter):
+    with patch('sans_webapp.services.ai_chat.get_claude_client') as mock_get_client:
+        mock_client = MagicMock()
+        mock_client.chat.return_value = ("Response text", [{"tool_name": "set-model"}])
+        mock_get_client.return_value = mock_client
+
+        response, tools_invoked, needs_rerun = send_chat_message_with_tools(
+            "Use sphere model",
+            "api-key",
+            mock_fitter
+        )
+
+        assert isinstance(response, str)
+        assert isinstance(tools_invoked, list)
+```
+
+## Test Execution
+
+**Pytest Configuration Options:**
 ```toml
-# From pyproject.toml
 addopts = [
     "-v",                          # Verbose output
     "--tb=short",                  # Shorter traceback format
@@ -264,15 +307,13 @@ addopts = [
 ]
 ```
 
-## Testing Best Practices Observed
-
-1. **Descriptive test names:** `test_apply_pd_updates_multiple_params()` clearly states what is tested
-2. **Docstrings on all test functions:** Required for test discovery and documentation
-3. **One assertion per test when possible:** Some tests have multiple assertions for related checks
-4. **Clear mock usage:** Streamlit mocking isolated to specific test sections
-5. **No global test fixtures:** Tests are self-contained and independent
-6. **Organized by feature:** Test classes group related functionality
+**Running Specific Tests:**
+```bash
+pytest tests/test_ai_chat.py::TestSendChatMessage::test_send_chat_message_returns_string -v
+pytest tests/test_app_init.py -v
+pytest -m "not slow" --cov=src/sans_webapp tests/
+```
 
 ---
 
-*Testing analysis: 2026-02-04*
+*Testing analysis: 2026-02-05*

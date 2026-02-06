@@ -1,242 +1,236 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-02-04
+**Analysis Date:** 2026-02-05
 
 ## Directory Layout
 
 ```
-C:\Users\piotr\projects\ai\SANS-webapp/
-├── src/                                    # Main source code
-│   ├── sans_webapp/                        # Main package
-│   │   ├── __init__.py                     # Package init (re-exports for backwards compatibility)
-│   │   ├── __main__.py                     # CLI entry point
-│   │   ├── app.py                          # Main Streamlit application
-│   │   ├── openai_client.py                # OpenAI API wrapper
-│   │   ├── sans_types.py                   # TypedDict definitions
-│   │   ├── sans_analysis_utils.py          # SANS analysis utilities (no UI dependencies)
-│   │   ├── ui_constants.py                 # UI string constants and configuration
-│   │   ├── components/                     # UI rendering components
+SANS-webapp/
+├── src/
+│   ├── sans_webapp/                    # Main package
+│   │   ├── __init__.py                 # Package initialization
+│   │   ├── __main__.py                 # CLI entry point
+│   │   ├── app.py                      # Main Streamlit application
+│   │   ├── sans_types.py               # TypedDict definitions
+│   │   ├── ui_constants.py             # UI string constants
+│   │   ├── sans_analysis_utils.py      # Shared analysis functions
+│   │   ├── mcp_server.py               # MCP tool definitions
+│   │   ├── openai_client.py            # Legacy OpenAI integration
+│   │   ├── components/                 # UI component modules
 │   │   │   ├── __init__.py
-│   │   │   ├── data_preview.py             # Data visualization component
-│   │   │   ├── fit_results.py              # Fit results display component
-│   │   │   ├── parameters.py               # Parameter configuration component
-│   │   │   └── sidebar.py                  # Sidebar components (data upload, model selection, AI chat)
-│   │   ├── services/                       # Business logic services
+│   │   │   ├── sidebar.py              # Sidebar components
+│   │   │   ├── parameters.py           # Parameter configuration UI
+│   │   │   ├── data_preview.py         # Data visualization
+│   │   │   └── fit_results.py          # Fit results display
+│   │   ├── services/                   # Business logic services
 │   │   │   ├── __init__.py
-│   │   │   ├── ai_chat.py                  # AI chat and model suggestion logic
-│   │   │   └── session_state.py            # Session state initialization and helpers
-│   │   ├── data/                           # Data files
-│   │   │   └── simulated_sans_data.csv     # Example SANS data file
-│   │   └── sans_webapp.egg-info/           # Package metadata (generated)
-│   └── demo_app.py                         # Demo application (separate from main)
-├── tests/                                  # Test suite
-│   ├── __init__.py
-│   ├── test_app.py                         # Application tests
-│   └── test_polydispersity.py              # Polydispersity feature tests
-├── .planning/                              # Planning and analysis documents
-│   └── codebase/                           # Codebase documentation (this location)
-├── .github/                                # GitHub configuration
-├── .vscode/                                # VS Code settings
-├── pyproject.toml                          # Project configuration and dependencies
-├── pixi.lock                               # Pixi lock file (environment snapshots)
-├── Dockerfile                              # Container configuration
-├── Procfile                                # Heroku deployment config
-├── setup.sh                                # Setup script
-├── README.md                               # Project documentation
-├── PROJECT_STRUCTURE.md                    # Original structure documentation
-├── AGENTS.md                               # AI agent instructions
-├── MCP_SANS.md                             # MCP server documentation
-└── QUICKSTART.md                           # Quick start guide
-
+│   │   │   ├── session_state.py        # Session state management
+│   │   │   ├── ai_chat.py              # AI chat logic
+│   │   │   ├── claude_mcp_client.py    # Claude + MCP client
+│   │   │   └── mcp_state_bridge.py     # State accessor for MCP
+│   │   └── data/                       # Data resources
+│   │       └── simulated_sans_data.csv # Example data file
+│   └── demo_app.py                     # Demo/standalone script
+├── tests/
+│   ├── conftest.py                     # Pytest fixtures
+│   ├── test_app_init.py                # App initialization tests
+│   ├── test_ai_chat.py                 # AI chat service tests
+│   ├── test_app.py                     # App integration tests
+│   ├── test_env_config.py              # Environment config tests
+│   ├── test_mcp_tools.py               # MCP tool tests
+│   ├── test_sans_types.py              # Type definition tests
+│   ├── test_sidebar_ai_chat.py         # Sidebar AI chat tests
+│   ├── test_polydispersity.py          # Polydispersity feature tests
+│   └── __init__.py
+├── .planning/
+│   └── codebase/                       # Codebase analysis documents
+├── pyproject.toml                      # Python project configuration
+├── pixi.lock                           # Pixi lock file
+├── .pre-commit-config.yaml             # Pre-commit hooks
+├── Dockerfile                          # Docker configuration
+├── Procfile                            # Heroku deployment
+├── README.md                           # Project README
+├── WEBAPP_README.md                    # Webapp documentation
+├── QUICKSTART.md                       # Quick start guide
+└── example_sans_data.dat               # Example SANS data file
 ```
 
 ## Directory Purposes
 
-**src/sans_webapp/:**
-- Purpose: Main application package
-- Contains: Entry points, UI rendering, business logic, utilities
-- Key files: `app.py` (main orchestrator), `sans_types.py` (type contracts)
+**`src/sans_webapp/`:**
+- Purpose: Main application package containing all code
+- Contains: UI components, business logic, utilities, type definitions
+- Key files: `app.py` (entry point), `sans_types.py` (types), `ui_constants.py` (constants)
 
-**src/sans_webapp/components/:**
-- Purpose: Streamlit UI rendering functions
-- Contains: Four component modules for different page sections
-- Key files: `sidebar.py` (largest, ~340 lines), `parameters.py` (parameter UI management)
-- Pattern: Functions named `render_*()` that take fitter/session state, return None (side effects via st.*)
+**`src/sans_webapp/components/`:**
+- Purpose: Streamlit UI component modules
+- Contains: Sidebar, parameters, data preview, fit results rendering functions
+- Key files: `sidebar.py`, `parameters.py`, `data_preview.py`, `fit_results.py`
 
-**src/sans_webapp/services/:**
-- Purpose: Business logic separate from UI framework
-- Contains: State management and AI service integration
-- Key files: `session_state.py` (initializes all session defaults), `ai_chat.py` (OpenAI integration)
+**`src/sans_webapp/services/`:**
+- Purpose: Business logic and external service integration
+- Contains: Session state management, AI chat, MCP client, chat services
+- Key files: `session_state.py`, `ai_chat.py`, `claude_mcp_client.py`
 
-**src/sans_webapp/data/:**
-- Purpose: Package data resources (bundled with installation)
-- Contains: Example SANS data file for demo purposes
-- Referenced in: `sidebar.py` via importlib.resources
+**`src/sans_webapp/data/`:**
+- Purpose: Bundled data resources
+- Contains: Example SANS data file for demo
+- Key files: `simulated_sans_data.csv`
 
-**tests/:**
-- Purpose: Unit and integration tests
-- Contains: Test files for app logic and features
-- Pattern: pytest with markers (slow, integration, unit)
-- Run: `pytest tests/ -v` or `pixi run test`
+**`tests/`:**
+- Purpose: Test suite for all modules
+- Contains: Unit tests, integration tests, fixtures
+- Key files: `conftest.py` (shared fixtures), test_*.py modules
+
+**`.planning/codebase/`:**
+- Purpose: GSD codebase analysis documents
+- Contains: ARCHITECTURE.md, STRUCTURE.md, CONVENTIONS.md, TESTING.md, STACK.md, INTEGRATIONS.md, CONCERNS.md
+- Generated by: GSD mapping command
 
 ## Key File Locations
 
 **Entry Points:**
-- `src/sans_webapp/__main__.py`: CLI entry, delegates to Streamlit
-- `src/sans_webapp/app.py`: Main Streamlit app, orchestrates all rendering
+- `src/sans_webapp/app.py`: Main Streamlit application - run with `streamlit run src/sans_webapp/app.py`
+- `src/sans_webapp/__main__.py`: CLI entry point - run with `python -m sans_webapp`
+- `src/demo_app.py`: Standalone demo script
 
 **Configuration:**
-- `pyproject.toml`: Dependencies, build config, ruff/pytest configuration
-- `src/sans_webapp/ui_constants.py`: All UI strings and constants
-- `src/sans_webapp/sans_types.py`: Type definitions for data contracts
+- `pyproject.toml`: Python project metadata, dependencies, tool configuration
+- `.env.template`: Environment variable template
+- `Dockerfile`: Docker image definition
+- `Procfile`: Heroku deployment configuration
 
 **Core Logic:**
-- `src/sans_webapp/services/ai_chat.py`: OpenAI integration and model suggestions
-- `src/sans_webapp/services/session_state.py`: Session state initialization
-- `src/sans_webapp/sans_analysis_utils.py`: SANS data analysis (plotting, heuristics)
-
-**UI Components:**
-- `src/sans_webapp/components/sidebar.py`: Data upload, model selection, AI chat
-- `src/sans_webapp/components/parameters.py`: Parameter configuration table/widgets
-- `src/sans_webapp/components/data_preview.py`: Data visualization and statistics
-- `src/sans_webapp/components/fit_results.py`: Fit results display
-
-**External Integration:**
-- `src/sans_webapp/openai_client.py`: OpenAI API wrapper (abstraction layer)
+- `src/sans_webapp/app.py`: Orchestrates all UI and business logic (331 lines)
+- `src/sans_webapp/components/sidebar.py`: Data upload, model selection, AI chat UI
+- `src/sans_webapp/components/parameters.py`: Parameter configuration interface
+- `src/sans_webapp/services/ai_chat.py`: AI-powered suggestions and chat
+- `src/sans_webapp/mcp_server.py`: MCP tool definitions for Claude integration
+- `src/sans_webapp/services/claude_mcp_client.py`: Claude client with tool calling
 
 **Testing:**
-- `tests/test_app.py`: Main application tests
-- `tests/test_polydispersity.py`: Polydispersity feature tests
+- `tests/conftest.py`: Shared pytest fixtures
+- `tests/test_app.py`: Main app integration tests
+- `tests/test_mcp_tools.py`: MCP tool functionality tests
+- `tests/test_ai_chat.py`: AI chat service tests
+
+**Type & Constants:**
+- `src/sans_webapp/sans_types.py`: TypedDict definitions (ParamInfo, FitResult, ChatMessage, etc.)
+- `src/sans_webapp/ui_constants.py`: All UI strings and constants
+
+**Analysis Utilities:**
+- `src/sans_webapp/sans_analysis_utils.py`: Data analysis, plotting, model suggestions (framework-agnostic)
 
 ## Naming Conventions
 
 **Files:**
-- `*.py`: Standard Python modules
-- Component modules: `{feature_area}.py` (e.g., `parameters.py`, `sidebar.py`)
-- Service modules: `{service_name}.py` (e.g., `ai_chat.py`, `session_state.py`)
-- Utility modules: `{domain}_{utility}.py` (e.g., `sans_analysis_utils.py`)
+- `app.py`: Main application
+- `{feature}_*.py`: Feature-specific modules (e.g., `parameters.py`, `sidebar.py`)
+- `test_*.py`: Test modules (one test per feature)
+- Snake case: All Python filenames
 
 **Directories:**
 - `components/`: UI rendering modules
-- `services/`: Business logic services
-- `data/`: Non-code resources (data files, assets)
-- `tests/`: Test suite parallel to src
+- `services/`: Business logic and external integrations
+- `data/`: Data resources
+- `tests/`: Test suite root
+- Snake case: All directory names
 
 **Functions:**
-- `render_*()`: UI rendering functions (Streamlit side effects)
-- `apply_*()`: State mutation functions
-- `get_*()`: Getter/accessor functions
-- `suggest_*()`: Heuristic/AI functions
-- `analyze_*()`: Data analysis functions
-- `create_*()`: Factory/constructor functions
-- `init_*()`: Initialization functions
+- `render_*()`: Streamlit UI rendering functions
+- `apply_*()`: Functions that modify state/fitter
+- `get_*()`: Accessor functions
+- `_private_*()`: Private helper functions (leading underscore)
+- Snake case: All function names
 
-**Variables:**
-- `st.session_state.{var_name}`: Session state keys use snake_case
-- `{param_name}`: Parameter names come from sans-fitter model
-- `param_updates`: Dictionary of ParamUpdate TypedDicts
-- `fit_result`: FitResult TypedDict from fitting
+**Variables & Types:**
+- Session state keys use prefixes: `value_`, `min_`, `max_`, `vary_`, `pd_width_`, `pd_n_`, `pd_type_`, `pd_vary_`
+- TypedDict classes: PascalCase
+- Regular variables: snake_case
+- Constants in `ui_constants.py`: UPPER_SNAKE_CASE
 
-**Types:**
-- TypedDicts: PascalCase (e.g., ParamInfo, FitResult, ParamUpdate)
-- Imports: from typing import TypedDict, Optional, cast (modern type hints)
+**CSS/JavaScript:**
+- Inline CSS/JavaScript in `app.py` uses kebab-case for CSS classes and IDs
 
 ## Where to Add New Code
 
-**New Feature (e.g., new UI section):**
-- Primary code: `src/sans_webapp/components/{feature}.py` (new component module)
-- Service logic: `src/sans_webapp/services/{feature}.py` (if complex)
-- Constants: Add to `src/sans_webapp/ui_constants.py`
-- Types: Add to `src/sans_webapp/sans_types.py` if TypedDict needed
-- Orchestration: Update `src/sans_webapp/app.py` to call new `render_*()` function
-
-**New Component/Module:**
-- Pure Streamlit rendering: `src/sans_webapp/components/{name}.py`
-- Business logic: `src/sans_webapp/services/{name}.py`
-- Domain logic (no UI): `src/sans_webapp/{domain}_{utility}.py`
-- External API wrapper: `src/sans_webapp/{api}_client.py`
-
-**Utilities/Helpers:**
-- SANS analysis: Add to `src/sans_webapp/sans_analysis_utils.py`
-- Session management: Add to `src/sans_webapp/services/session_state.py`
+**New UI Component (e.g., new sidebar section):**
+- Primary code: `src/sans_webapp/components/{feature}.py`
+- Rendering function: `render_{feature}()` that takes `fitter: SANSFitter` and returns None
 - UI constants: Add to `src/sans_webapp/ui_constants.py`
-- Type definitions: Add to `src/sans_webapp/sans_types.py`
+- Tests: `tests/test_{feature}.py`
+- Integration: Import and call `render_{feature}()` from `app.py`
 
-**Tests:**
-- New feature tests: `tests/test_{feature}.py`
-- Test helpers: `tests/conftest.py` (pytest fixtures, if needed)
-- Naming: `test_*.py` files, `test_*()` functions, `Test*` classes
+**New Service/Business Logic (e.g., new AI feature):**
+- Implementation: `src/sans_webapp/services/{service}.py`
+- Type definitions: Add TypedDicts to `src/sans_webapp/sans_types.py`
+- Tests: `tests/test_{service}.py`
+- Integration: Import and use in components/app.py
 
-**Adding to Sidebar:**
-- Add `render_*()` function in `src/sans_webapp/components/sidebar.py`
-- Call from `main()` in `src/sans_webapp/app.py`
-- Add strings to `src/sans_webapp/ui_constants.py`
+**New MCP Tool (e.g., Claude capability):**
+- Tool definition: Add function to `src/sans_webapp/mcp_server.py`
+- Tool schema: Add to `get_mcp_tool_schemas()` in `src/sans_webapp/services/claude_mcp_client.py`
+- Tool handler mapping: Add to `_build_tool_handlers()` in `claude_mcp_client.py`
+- Tests: Add to `tests/test_mcp_tools.py`
 
-**Adding to Main Content Area:**
-- Create new component in `src/sans_webapp/components/{name}.py`
-- Add `render_*()` function
-- Call from `main()` in `src/sans_webapp/app.py` in appropriate column
-- Add strings to `src/sans_webapp/ui_constants.py`
+**Shared Analysis Utilities:**
+- Location: `src/sans_webapp/sans_analysis_utils.py`
+- Used by: UI components, services, can be imported by external tools
+- No Streamlit imports: Framework-agnostic for reusability
+
+**Type Definitions:**
+- Location: `src/sans_webapp/sans_types.py`
+- Pattern: TypedDict with clear field names and optional total=False where appropriate
+- Document with docstrings for IDE support
 
 ## Special Directories
 
-**src/sans_webapp.egg-info/:**
-- Purpose: Package metadata (generated by setuptools)
-- Generated: Yes
+**`htmlcov/`:**
+- Purpose: Generated test coverage reports
+- Generated: Yes (by pytest-cov)
 - Committed: No (in .gitignore)
 
-**tests/__pycache__/, src/sans_webapp/__pycache__/:**
-- Purpose: Python bytecode cache
-- Generated: Yes
+**`sans_webapp.egg-info/`:**
+- Purpose: Package metadata for editable installs
+- Generated: Yes (by setuptools)
 - Committed: No (in .gitignore)
 
-**.ruff_cache/, .pytest_cache/:**
-- Purpose: Tool caches (ruff linter, pytest)
-- Generated: Yes
+**`.pytest_cache/`:**
+- Purpose: Pytest cache for test discovery optimization
+- Generated: Yes (by pytest)
 - Committed: No (in .gitignore)
 
-**C:\Users\piotr\projects\ai\SANS-webapp\.planning/**
-- Purpose: GSD planning and analysis documents
-- Generated: By GSD agent
-- Committed: Yes
+**`.ruff_cache/`:**
+- Purpose: Ruff linter cache
+- Generated: Yes (by ruff)
+- Committed: No (in .gitignore)
 
-## Import Structure
+**`.claude/`:**
+- Purpose: Claude IDE metadata
+- Generated: Yes
+- Committed: No
 
-**Session State Access Pattern:**
-```python
-# From any component or service
-import streamlit as st
-fitter = st.session_state.fitter
-data_loaded = st.session_state.data_loaded
-```
+**`.github/workflows/`:**
+- Purpose: GitHub Actions CI/CD workflows
+- Contains: Automated testing, linting, deployment configs
 
-**Component Import Pattern (from app.py):**
-```python
-from sans_webapp.components.sidebar import render_data_upload_sidebar
-from sans_webapp.components.parameters import render_parameter_configuration
-from sans_webapp.services.session_state import init_session_state
-```
+## Import Organization Pattern
 
-**Constants Import Pattern:**
-```python
-from sans_webapp.ui_constants import APP_TITLE, UPLOAD_LABEL, etc
-```
+**Order in all Python files:**
 
-**Type Imports Pattern:**
-```python
-from sans_webapp.sans_types import FitResult, ParamInfo, ParamUpdate
-```
+1. Built-in imports: `import os`, `from typing import ...`
+2. Third-party imports: `import numpy`, `import streamlit as st`, `from sans_fitter import ...`
+3. Local imports: `from sans_webapp.services import ...`, `from sans_webapp.components import ...`
 
-## Module Re-exports
+**Path Aliases:**
+- None currently used (direct relative imports)
+- All local imports use absolute paths from package root
 
-**In src/sans_webapp/__init__.py:**
-- Exports for backwards compatibility: `get_all_models`, `analyze_data_for_ai_suggestion`, `suggest_models_ai`, etc.
-- Allows: `from sans_webapp import get_all_models` instead of internal path
-
-**In src/sans_webapp/app.py:**
-- Re-exports for backwards compatibility from sans_analysis_utils and services
-- Allows: `from sans_webapp.app import suggest_models_ai`
+**Special Handling:**
+- Module docstring at top of every file
+- `__all__` list in utility modules for clear public API (e.g., `sans_analysis_utils.py`)
+- Unused imports in `__init__.py` allowed via ruff config (`"__init__.py" = ["F401"]`)
 
 ---
 
-*Structure analysis: 2026-02-04*
+*Structure analysis: 2026-02-05*

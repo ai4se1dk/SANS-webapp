@@ -1,184 +1,185 @@
 # Architecture
 
-**Analysis Date:** 2026-02-04
+**Analysis Date:** 2026-02-05
 
 ## Pattern Overview
 
-**Overall:** Layered MVC-style architecture with separation of concerns between UI rendering, business logic, and data management.
+**Overall:** Streamlit-based layered MVC with AI-powered assistant capabilities
 
 **Key Characteristics:**
-- Streamlit-based reactive frontend with stateful session management
-- Domain service layer (ai_chat, session_state) for business logic
-- UI component layer with rendering functions
-- Utility/helper functions isolated from UI framework
-- Type-safe data contracts via TypedDicts
-- SANSFitter from external sans-fitter package as core data model
+- Streamlit framework for interactive web UI
+- Clear separation between UI components, business logic, and services
+- MCP (Model Context Protocol) server for AI tool integration
+- Session state management for stateful UI interactions
+- Pluggable AI backends (OpenAI fallback, Anthropic Claude primary)
 
 ## Layers
 
-**UI Layer (Components):**
-- Purpose: Render Streamlit UI elements and handle user interactions
+**Presentation Layer (UI Components):**
+- Purpose: Render interactive UI elements and handle user input
 - Location: `src/sans_webapp/components/`
-- Contains: `sidebar.py`, `data_preview.py`, `fit_results.py`, `parameters.py`
-- Depends on: services layer, sans_types, ui_constants
-- Used by: `app.py` (main orchestrator)
-- Pattern: Pure rendering functions that accept data and return void (side effects via st.* calls)
+- Contains: `sidebar.py`, `parameters.py`, `data_preview.py`, `fit_results.py`
+- Depends on: Services layer, UI constants, Streamlit
+- Used by: Main app orchestration in `app.py`
 
 **Services Layer (Business Logic):**
-- Purpose: Handle application logic, AI integration, state management
+- Purpose: Implement application logic independent of UI framework
 - Location: `src/sans_webapp/services/`
-- Contains: `ai_chat.py`, `session_state.py`
-- Depends on: sans_types, sans_analysis_utils, openai_client, sans-fitter
-- Used by: components, app.py
-- Pattern: Pure functions with side effects limited to session state mutations and API calls
+- Contains: `session_state.py`, `ai_chat.py`, `claude_mcp_client.py`, `mcp_state_bridge.py`
+- Depends on: SANSFitter, AI client libraries, sans_analysis_utils
+- Used by: Components and main app
 
-**Utilities Layer (Domain Logic):**
-- Purpose: SANS-specific analysis and data processing without UI dependencies
-- Location: `src/sans_webapp/`
-- Contains: `sans_analysis_utils.py`, `openai_client.py`
-- Depends on: numpy, scipy, plotly, sans-fitter
-- Used by: services, components
-- Pattern: Pure functions that can be used independently of Streamlit
+**MCP Integration Layer:**
+- Purpose: Provide AI tool interface for Claude to interact with fitter
+- Location: `src/sans_webapp/mcp_server.py`, `src/sans_webapp/services/claude_mcp_client.py`
+- Contains: FastMCP tool definitions, tool handler mappings, MCP client
+- Depends on: SANSFitter, fastmcp, Anthropic SDK
+- Used by: AI chat service for Claude tool invocation
 
-**Data/Configuration Layer:**
-- Purpose: Type definitions and UI constants
-- Location: `src/sans_webapp/sans_types.py`, `src/sans_webapp/ui_constants.py`
-- Contains: TypedDicts for type safety, string constants for UI text
-- Depends on: none (only typing module)
-- Used by: all other layers
+**Analysis Utilities:**
+- Purpose: Shared, framework-agnostic analysis functions
+- Location: `src/sans_webapp/sans_analysis_utils.py`
+- Contains: Data analysis, model suggestions, plotting functions
+- Depends on: NumPy, Plotly, SANSFitter
+- Used by: Components, services, and can be used by CLI tools
 
-**Entry Point:**
-- Location: `src/sans_webapp/app.py` (main Streamlit app)
-- Location: `src/sans_webapp/__main__.py` (CLI entry point)
+**Type Definitions:**
+- Purpose: Centralized type hints via TypedDict
+- Location: `src/sans_webapp/sans_types.py`
+- Contains: `ParamInfo`, `FitResult`, `ChatMessage`, `MCPToolResult`, `ParamUpdate`, `PDUpdate`
+- Used by: All layers for type safety and IDE support
+
+**Constants:**
+- Purpose: Centralize all UI string constants
+- Location: `src/sans_webapp/ui_constants.py`
+- Contains: Labels, headers, help text, configuration values
+- Used by: All UI components
 
 ## Data Flow
 
-**1. Data Upload & Model Loading Flow:**
+**Data Upload & Model Selection Flow:**
 
-1. User selects file via `render_data_upload_sidebar()` (components/sidebar.py)
-2. File written to temporary location
-3. SANSFitter instance loads data via `fitter.load_data(path)`
-4. `session_state.data_loaded` set to True
-5. Sidebar UI expands model selection section
-6. User selects model (Manual or AI-Assisted)
-7. If AI-assisted: `suggest_models_ai()` calls OpenAI API
-8. User loads model: `fitter.set_model(name)` + `session_state.model_selected = True`
+1. User uploads SANS data file via `render_data_upload_sidebar()` in `src/sans_webapp/components/sidebar.py`
+2. File is loaded into `SANSFitter` instance stored in `st.session_state.fitter`
+3. `data_loaded` flag set to True in session state
+4. User selects model manually or via AI suggestions in `render_model_selection_sidebar()`
+5. Model is loaded into fitter via `fitter.set_model(model_name)`
+6. `model_selected` flag set to True
 
-**2. Parameter Configuration & Fitting Flow:**
+**Parameter Configuration Flow:**
 
-1. User modifies parameters in `render_parameter_configuration()` (components/parameters.py)
-2. Parameter changes stored in session state (value_*, min_*, max_*, vary_* keys)
-3. User clicks "Run Fit" button
-4. `render_fitting_sidebar()` applies current parameters via `apply_param_updates(fitter, updates)`
-5. Fitting engine selected (bumps/lmfit) with method
-6. `fitter.fit(engine=engine, method=method)` executed
-7. Results stored in `session_state.fit_result`
-8. `render_fit_results()` displays chi-squared and fitted parameters
+1. `render_parameter_configuration()` in `src/sans_webapp/components/parameters.py` renders parameter widgets
+2. User adjusts values via sliders/text inputs, stored with keys like `value_{param_name}`, `min_{param_name}`, `vary_{param_name}`
+3. `render_parameter_configuration()` returns `param_updates: dict[str, ParamUpdate]`
+4. Presets can be applied via `apply_pending_preset()`
+5. Updates persist in session state for use during fitting
 
-**3. AI Chat Flow:**
+**Fitting Flow:**
 
-1. User sends message via `render_ai_chat_column()` (components/sidebar.py)
-2. Message added to `session_state.chat_history`
-3. `send_chat_message(user_message, api_key, fitter)` called (services/ai_chat.py)
-4. System message built with current data/model/fit context
-5. OpenAI API called via `create_chat_completion()` (openai_client.py)
-6. Response added to chat_history
-7. Streamlit reruns and displays updated chat
+1. User clicks "Run Fit" button in `render_fitting_sidebar()` in `app.py`
+2. `apply_param_updates()` syncs UI state back to fitter
+3. Polydispersity settings applied if enabled via `apply_pd_updates()`
+4. `fitter.fit(engine, method)` executes fitting algorithm
+5. Result stored in `st.session_state.fit_result` as `FitResult` TypedDict
+6. `fit_completed` flag set to True
+7. Fit results displayed by `render_fit_results()` in `src/sans_webapp/components/fit_results.py`
+
+**AI Chat & MCP Tool Invocation Flow:**
+
+1. User enters message in chat input in `render_ai_chat_column()` in `src/sans_webapp/components/sidebar.py`
+2. Message sent to Claude via `send_chat_message()` in `src/sans_webapp/services/ai_chat.py`
+3. Claude client created via `get_claude_client()` in `src/sans_webapp/services/claude_mcp_client.py`
+4. If Claude requests tool use, message returned with tool_use blocks
+5. Tool name mapped to handler in `_tool_handlers` dict from `mcp_server.py`
+6. Tool handler executes (e.g., `set_model()`, `run_fit()`, `get_fit_results()`)
+7. Tool result returned to Claude for continuation
+8. Final response displayed in chat history in UI
+9. MCP tools have access to fitter via `get_fitter()` and session state via `_state_accessor`
 
 **State Management:**
 
-- Session state initialized in `init_session_state()` (services/session_state.py)
-- Core state: `fitter`, `data_loaded`, `model_selected`, `fit_completed`
-- UI state: `expand_data_upload`, `expand_model_selection`, `expand_fitting`
-- Parameter state: `value_{param}`, `min_{param}`, `max_{param}`, `vary_{param}`
-- Chat state: `chat_history`, `chat_api_key`
-- Expander states control which sections are visible on page load
-- Parameter updates collected during render, applied on button click
+- **Session State**: Streamlit's `st.session_state` serves as single source of truth
+- **Initialization**: `init_session_state()` in `src/sans_webapp/services/session_state.py` sets defaults
+- **Fitter**: Persistent `SANSFitter` instance across reruns (callable default instantiates on first run)
+- **UI State**: Parameter values, visibility flags, expander states stored with prefixed keys
+- **Fit Results**: Cached until new fit is run
+- **Chat History**: Maintained in session state across reruns
 
 ## Key Abstractions
 
 **SANSFitter:**
-- Purpose: Encapsulates SANS data and fitting model from sans-fitter package
-- Examples: Created in session_state, accessed via `st.session_state.fitter` throughout
-- Pattern: Central stateful object updated via `set_model()`, `load_data()`, `fit()`, `set_param()`
-- Responsible for: data loading, model management, parameter management, fitting execution
+- Purpose: Encapsulates all SANS data fitting logic
+- Examples: `st.session_state.fitter`
+- Pattern: Dependency injection - passed to components/services that need it
+- Methods: `load_data()`, `set_model()`, `set_param()`, `fit()`, `get_polydisperse_parameters()`
 
-**ParamUpdate (TypedDict):**
-- Purpose: Type-safe representation of parameter changes
-- Pattern: Used to collect UI inputs and pass to `apply_param_updates()` in components/parameters.py
-- Structure: value, min, max, vary (all required)
+**TypedDict Structures:**
+- Purpose: Type-safe dictionaries with IDE support
+- Examples: `ParamInfo`, `FitResult`, `ChatMessage`, `ParamUpdate`
+- Pattern: Used throughout for data contracts between layers
 
-**FitResult (TypedDict):**
-- Purpose: Type-safe representation of fitting output
-- Pattern: Returned from `fitter.fit()`, stored in session_state, passed to components
-- Structure: chisq (goodness of fit), parameters dict with values and standard errors
+**Streamlit Session State:**
+- Purpose: Persistent state across app reruns without database
+- Pattern: Centralized initialization via `init_session_state()`
+- Keys use consistent prefixes for organization (e.g., `value_`, `min_`, `vary_`, `pd_`)
 
-**Component Rendering Functions:**
-- Purpose: Pure functions that render UI without business logic
-- Pattern: All named `render_*`, accept fitter or session state, return None
-- Examples: `render_data_preview()`, `render_parameter_configuration()`, `render_fit_results()`
+**MCP Tool System:**
+- Purpose: Standardized interface for AI to invoke backend actions
+- Pattern: Tool name → function mapping in `claude_mcp_client._tool_handlers`
+- Tools: `list-sans-models`, `get-model-parameters`, `set-model`, `set-parameter`, `run-fit`, etc.
+- Abstraction: Claude sees tools as capabilities, not implementation details
 
 ## Entry Points
 
-**Web Application Entry:**
+**Web Application:**
+- Location: `src/sans_webapp/app.py` - `main()` function
+- Triggers: `streamlit run src/sans_webapp/app.py` or via `sans-webapp` command
+- Responsibilities: Page configuration, layout orchestration, sidebar rendering, main content rendering, MCP/AI initialization
+
+**Command-Line:**
 - Location: `src/sans_webapp/__main__.py`
-- Triggers: `sans-webapp` command or `python -m sans_webapp`
-- Responsibilities: Locates app.py, delegates to Streamlit CLI
+- Triggers: `python -m sans_webapp`
+- Responsibilities: Entry point delegation to Streamlit runner
 
-**Main Streamlit App:**
-- Location: `src/sans_webapp/app.py`
-- Triggers: Streamlit server startup
-- Responsibilities:
-  - Initialize session state
-  - Render sidebar (data upload, model selection, fitting)
-  - Render two-column layout (main content + AI chat)
-  - Orchestrate component rendering based on state
-  - Inject custom CSS/JS for resizable columns
-
-**Component Rendering Chain (from app.py):**
-- `init_session_state()` → initialize
-- `render_data_upload_sidebar()` → file upload
-- `render_model_selection_sidebar()` → model choice
-- `render_ai_chat_column()` → AI assistant (right column)
-- `render_data_preview()` → plot + statistics
-- `render_parameter_configuration()` → parameter inputs
-- `render_fitting_sidebar()` → fitting controls + Run button
-- `render_fit_results()` → results display
+**MCP Server:**
+- Location: `src/sans_webapp/mcp_server.py` - FastMCP instance
+- Triggers: Loaded by `claude_mcp_client.py` when Claude makes tool calls
+- Responsibilities: Define available tools, handle tool invocation, provide fitter/state access
 
 ## Error Handling
 
-**Strategy:** Try-except blocks at service boundaries with user-facing error messages
+**Strategy:** Try-catch with user-facing feedback via Streamlit messages
 
 **Patterns:**
-- File upload errors caught in `render_data_upload_sidebar()`, shown via `st.error()`
-- Model loading errors caught in `render_model_selection_sidebar()`, shown via `st.error()`
-- Fitting errors caught in `render_fitting_sidebar()`, shown via `st.sidebar.error()`
-- AI API errors caught in `send_chat_message()` and `suggest_models_ai()`, shown via `st.warning()` or return error message
-- Parameter validation: warnings if no parameters marked as "vary" before fitting
 
-**API Error Handling:**
-- OpenAI API calls wrapped in try-except in `openai_client.py`
-- Fallback to simple heuristic if AI suggestion fails (suggest_models_simple)
-- Missing API key returns warning message instead of crashing
+- **File Upload**: `render_data_upload_sidebar()` catches file parsing errors, displays `st.error()`
+- **Model Selection**: `set_model()` MCP tool validates model exists, returns error string
+- **Fitting**: `render_fitting_sidebar()` catches fit exceptions, displays `st.sidebar.error()`
+- **AI Client**: `init_mcp_and_ai()` in `app.py` catches client creation errors, stores in `st.session_state.ai_client_error`, allows UI to continue
+- **MCP Tools**: Tools return error strings for Claude to interpret
+- **Chat**: `send_chat_message()` returns error message if API key missing or API fails
+- **Parameter Validation**: `apply_param_updates()` validates bounds before applying
 
 ## Cross-Cutting Concerns
 
-**Logging:** Console output via `print()` for startup, errors handled via st.error/st.warning
+**Logging:** Uses Python `print()` statements and Streamlit's built-in logging for debugging; no structured logging framework
 
 **Validation:**
-- File upload: check for .csv/.dat extension
-- Parameters: check that at least one parameter has vary=True before fitting
-- API key: validate presence before calling OpenAI
+- Parameter bounds checked before fitting
+- Model names validated against available models from `get_all_models()`
+- Data file format validated during upload (CSV/DAT with Q, I, dI columns)
+- API keys checked before attempting AI operations
 
 **Authentication:**
-- OpenAI API key: user-provided via text input, stored in session_state.chat_api_key
-- No persistent auth; key cleared on session reset
+- Optional Anthropic API key stored in session state
+- Claude MCP tools check `_check_tools_enabled()` to respect user intent
+- No persistent authentication; per-session only
 
-**Session Persistence:**
-- Session state lost on page refresh or new browser session
-- Data files written to temp directory, cleaned up after load
-- No database persistence (single-session analysis tool)
+**UI Responsiveness:**
+- Spinners displayed during long operations (fitting, AI suggestions)
+- Parameter widgets use session state keys to persist across reruns
+- Sidebar expanders use session state flags to maintain expansion state
 
 ---
 
-*Architecture analysis: 2026-02-04*
+*Architecture analysis: 2026-02-05*
