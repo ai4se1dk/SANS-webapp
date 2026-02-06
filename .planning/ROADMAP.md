@@ -41,7 +41,7 @@ Plans:
   2. When Claude calls `set-parameter`, the corresponding value/min/max/vary widgets reflect the change
   3. When Claude calls `set-multiple-parameters`, all affected widgets update atomically
   4. No stale values visible after any parameter tool call
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
 - [x] 02-01-PLAN.md — Integration tests for SYNC requirements
@@ -55,10 +55,12 @@ Plans:
   2. When Claude calls `run-fit`, the plot refreshes with the fitted curve
   3. When Claude calls `enable-polydispersity`, PD configuration widgets appear with correct values
   4. When Claude calls `set-structure-factor` or `remove-structure-factor`, model configuration UI updates
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: [TBD - defined during plan-phase]
+- [ ] 03-01-PLAN.md — PD infrastructure and enable-polydispersity sync (SYNC-05)
+- [ ] 03-02-PLAN.md — run-fit parameter sync and SF widget clearing (SYNC-04, SYNC-06)
+- [ ] 03-03-PLAN.md — Integration tests for advanced sync requirements
 
 ## Progress
 
@@ -69,8 +71,9 @@ Phases execute in numeric order: 1 -> 2 -> 3
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 1/1 | Complete | 2026-02-05 |
 | 2. Core Sync | 1/1 | Complete | 2026-02-06 |
-| 3. Advanced Sync | 0/? | Not started | - |
+| 3. Advanced Sync | 0/3 | Planned | - |
 
 ---
 *Roadmap created: 2026-02-05*
 *Phase 1 planned: 2026-02-05*
+*Phase 3 planned: 2026-02-06*
