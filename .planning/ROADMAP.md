@@ -13,7 +13,7 @@ This roadmap delivers bidirectional state synchronization between Claude's MCP t
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Infrastructure** - Extend SessionStateBridge and wire up auto-rerun
-- [ ] **Phase 2: Core Sync** - Model and parameter tools update UI widgets
+- [x] **Phase 2: Core Sync** - Model and parameter tools update UI widgets
 - [ ] **Phase 3: Advanced Sync** - Fit, polydispersity, and structure factor tools
 
 ## Phase Details
@@ -44,7 +44,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 02-01: [TBD - defined during plan-phase]
+- [x] 02-01-PLAN.md — Integration tests for SYNC requirements
 
 ### Phase 3: Advanced Sync
 **Goal**: Fit results, polydispersity, and structure factor tools sync to UI
@@ -68,7 +68,7 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 1/1 | Complete | 2026-02-05 |
-| 2. Core Sync | 0/? | Not started | - |
+| 2. Core Sync | 1/1 | Complete | 2026-02-06 |
 | 3. Advanced Sync | 0/? | Not started | - |
 
 ---

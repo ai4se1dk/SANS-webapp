@@ -9,18 +9,18 @@ Requirements for completing MCP state synchronization. Each maps to roadmap phas
 
 ### State Synchronization
 
-- [ ] **SYNC-01**: `set-model` tool clears old parameter widgets and updates model flags
-- [ ] **SYNC-02**: `set-parameter` tool updates corresponding UI widget state (`value_`, `min_`, `max_`, `vary_` keys)
-- [ ] **SYNC-03**: `set-multiple-parameters` tool updates all affected UI widgets atomically
+- [x] **SYNC-01**: `set-model` tool clears old parameter widgets and updates model flags
+- [x] **SYNC-02**: `set-parameter` tool updates corresponding UI widget state (`value_`, `min_`, `max_`, `vary_` keys)
+- [x] **SYNC-03**: `set-multiple-parameters` tool updates all affected UI widgets atomically
 - [ ] **SYNC-04**: `run-fit` tool updates fit result display and triggers plot refresh
 - [ ] **SYNC-05**: `enable-polydispersity` tool updates PD widget state
 - [ ] **SYNC-06**: Structure factor tools (`set-structure-factor`, `remove-structure-factor`) update model configuration
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Extend SessionStateBridge with parameter widget setters
-- [ ] **INFRA-02**: All state-modifying tools use bridge methods instead of direct state access
-- [ ] **INFRA-03**: Automatic UI rerun after tool execution completes
+- [x] **INFRA-01**: Extend SessionStateBridge with parameter widget setters
+- [x] **INFRA-02**: All state-modifying tools use bridge methods instead of direct state access
+- [x] **INFRA-03**: Automatic UI rerun after tool execution completes
 
 ## v2 Requirements
 
@@ -50,12 +50,12 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| SYNC-01 | Phase 2 | Pending |
-| SYNC-02 | Phase 2 | Pending |
-| SYNC-03 | Phase 2 | Pending |
+| INFRA-01 | Phase 1 | Complete |
+| INFRA-02 | Phase 1 | Complete |
+| INFRA-03 | Phase 1 | Complete |
+| SYNC-01 | Phase 2 | Complete |
+| SYNC-02 | Phase 2 | Complete |
+| SYNC-03 | Phase 2 | Complete |
 | SYNC-04 | Phase 3 | Pending |
 | SYNC-05 | Phase 3 | Pending |
 | SYNC-06 | Phase 3 | Pending |
@@ -67,4 +67,4 @@ Deferred to future release. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-02-05*
-*Last updated: 2026-02-05 after roadmap creation*
+*Last updated: 2026-02-06 after Phase 2 completion*
