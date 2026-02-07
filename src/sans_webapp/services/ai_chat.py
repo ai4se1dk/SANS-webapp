@@ -4,7 +4,7 @@ AI Chat service for SANS webapp.
 Contains functions for AI-powered model suggestion and chat functionality.
 """
 
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 import numpy as np
 import streamlit as st
@@ -152,19 +152,36 @@ def _build_context(fitter: SANSFitter) -> str:
 
     # Determine the active model from fitter OR from session state
     fitter_model_name = (
-        fitter.model.name
-        if hasattr(fitter, 'model') and fitter.model is not None and hasattr(fitter.model, 'name')
-        else None
+        fitter.model_name if fitter is not None and fitter.kernel is not None else None
     )
     session_model = st.session_state.get('current_model', None)
     model_selected = st.session_state.get('model_selected', False)
     active_model = fitter_model_name or (session_model if model_selected else None)
 
     # If fitter lost its model but session state still knows about it,
-    # try to re-sync the fitter so downstream tools also see the model.
+    # try to re-sync the fitter so downstream tools also see the model,
+    # then restore user-customised parameter values from widget keys.
     if active_model and not fitter_model_name:
         try:
             fitter.set_model(active_model)
+            # Restore parameter values from session state widget keys
+            if hasattr(fitter, 'params') and fitter.params:
+                for pname in fitter.params:
+                    kwargs: dict[str, Any] = {}
+                    v = st.session_state.get(f'value_{pname}')
+                    if v is not None:
+                        kwargs['value'] = v
+                    mn = st.session_state.get(f'min_{pname}')
+                    if mn is not None:
+                        kwargs['min'] = mn
+                    mx = st.session_state.get(f'max_{pname}')
+                    if mx is not None:
+                        kwargs['max'] = mx
+                    vy = st.session_state.get(f'vary_{pname}')
+                    if vy is not None:
+                        kwargs['vary'] = vy
+                    if kwargs:
+                        fitter.set_param(pname, **kwargs)
         except Exception:
             pass
 

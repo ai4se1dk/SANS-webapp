@@ -43,8 +43,8 @@ class MockFitter:
     """Mock for SANSFitter."""
 
     def __init__(self):
-        self.model = MagicMock()
-        self.model.name = 'sphere'
+        self.kernel = MagicMock()
+        self.model_name = 'sphere'
         self.data = MagicMock()
 
 

@@ -82,25 +82,60 @@ def get_fitter() -> SANSFitter:
 def _ensure_fitter_model_synced() -> None:
     """Re-load the model on the fitter if session state says one should be active.
 
-    Between Streamlit reruns the ``fitter.model`` attribute can become ``None``
-    (e.g. due to serialisation round-trips) while ``st.session_state`` still
-    records which model was loaded.  This helper detects the mismatch and
-    transparently re-applies ``set_model`` so that every tool sees the correct
-    fitter state.
+    Between Streamlit reruns the fitter's ``kernel`` attribute can become ``None``
+    while ``st.session_state`` still records which model was loaded.  This helper
+    detects the mismatch and transparently re-applies ``set_model`` so that every
+    tool sees the correct fitter state.
+
+    After re-loading the model (which resets all params to defaults) we
+    restore user-customised values from session-state widget keys
+    (``value_<name>``, ``min_<name>``, ``max_<name>``, ``vary_<name>``).
     """
     try:
         import streamlit as st
 
         fitter = get_fitter()
-        fitter_has_model = hasattr(fitter, 'model') and fitter.model is not None
+        fitter_has_model = fitter.kernel is not None
         session_model = st.session_state.get('current_model', None)
         model_selected = st.session_state.get('model_selected', False)
 
         if not fitter_has_model and model_selected and session_model:
             fitter.set_model(session_model)
+            _restore_params_from_session(fitter, st.session_state)
     except Exception:
         # Best-effort; never let sync failures break a tool call.
         pass
+
+
+def _restore_params_from_session(fitter: SANSFitter, session_state: Any) -> None:
+    """Restore parameter values from session-state widget keys after a model reload.
+
+    Widget keys follow the pattern ``value_<name>``, ``min_<name>``,
+    ``max_<name>``, ``vary_<name>``.  Only keys that are actually present
+    in session state are applied, so default values are preserved for
+    any parameter the user hasn't touched.
+    """
+    if not hasattr(fitter, 'params') or not fitter.params:
+        return
+    for name in fitter.params:
+        kwargs: dict[str, Any] = {}
+        val = session_state.get(f'value_{name}')
+        if val is not None:
+            kwargs['value'] = val
+        min_val = session_state.get(f'min_{name}')
+        if min_val is not None:
+            kwargs['min'] = min_val
+        max_val = session_state.get(f'max_{name}')
+        if max_val is not None:
+            kwargs['max'] = max_val
+        vary_val = session_state.get(f'vary_{name}')
+        if vary_val is not None:
+            kwargs['vary'] = vary_val
+        if kwargs:
+            try:
+                fitter.set_param(name, **kwargs)
+            except Exception:
+                pass
 
 
 def _check_tools_enabled() -> bool:
@@ -174,10 +209,8 @@ def get_current_state() -> str:
             lines.append('  Data: Not loaded')
 
         # Model info
-        if hasattr(fitter, 'model') and fitter.model is not None:
-            lines.append(
-                f'  Model: {fitter.model.name if hasattr(fitter.model, "name") else "Unknown"}'
-            )
+        if fitter.kernel is not None:
+            lines.append(f'  Model: {fitter.model_name or "Unknown"}')
 
             # Parameters
             if hasattr(fitter, 'params') and fitter.params:
@@ -255,13 +288,7 @@ def set_model(model_name: str) -> str:
         # If the requested model is already loaded, skip the reload to
         # preserve any parameter customisations the user has made.
         # Check both the fitter object AND session state for robustness.
-        current_model_name = (
-            fitter.model.name
-            if hasattr(fitter, 'model')
-            and fitter.model is not None
-            and hasattr(fitter.model, 'name')
-            else None
-        )
+        current_model_name = fitter.model_name if fitter.kernel is not None else None
         session_model = st.session_state.get('current_model', None)
         if (current_model_name and current_model_name == model_name) or (
             session_model
@@ -543,7 +570,7 @@ def run_fit() -> str:
             return 'No data loaded. Load data before running a fit.'
 
         _ensure_fitter_model_synced()
-        if not hasattr(fitter, 'model') or fitter.model is None:
+        if fitter.kernel is None:
             return 'No model selected. Set a model before running a fit.'
 
         # Run the fit

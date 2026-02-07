@@ -65,7 +65,7 @@ class SessionStateBridge:
         if not self.has_fitter():
             return False
         fitter = st.session_state.fitter
-        return hasattr(fitter, 'model') and fitter.model is not None
+        return fitter.kernel is not None
 
     def get_current_model_name(self) -> Optional[str]:
         """Get the name of the current model, or None if not set."""

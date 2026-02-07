@@ -66,14 +66,15 @@ class MockFitter:
     """
 
     def __init__(self):
-        self.model = None
+        self.kernel = None
+        self.model_name = None
         self.data = None
         self.params: dict[str, dict] = {}
         self.result = None
 
     def set_model(self, model_name: str):
-        self.model = MagicMock()
-        self.model.name = model_name
+        self.kernel = MagicMock()
+        self.model_name = model_name
         self.params = {
             'radius': {'value': 50.0, 'min': 1, 'max': 500, 'vary': True, 'description': ''},
             'sld': {'value': 1e-6, 'min': 0, 'max': 1e-5, 'vary': True, 'description': ''},
