@@ -373,6 +373,20 @@ def render_ai_chat_column(api_key: Optional[str], fitter: SANSFitter) -> None:
     st.markdown(AI_CHAT_SIDEBAR_HEADER)
     st.caption(AI_CHAT_DESCRIPTION)
 
+    # AI Tools Enabled Toggle
+    ai_tools_enabled = st.toggle(
+        '🔧 Enable AI Tools',
+        value=st.session_state.get('ai_tools_enabled', False),
+        help='When enabled, the AI can directly modify model settings, run fits, and update plots.',
+        key='ai_tools_toggle_col',
+    )
+    st.session_state.ai_tools_enabled = ai_tools_enabled
+
+    if ai_tools_enabled:
+        st.caption('✅ AI can modify model parameters and run fits')
+    else:
+        st.caption('🔒 AI is in read-only mode (chat only)')
+
     # Initialize chat history in session state
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []

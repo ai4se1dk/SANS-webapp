@@ -54,8 +54,8 @@ class MockFitter:
         self.data.x = np.array([0.01, 0.02, 0.03])
         self.data.y = np.array([100.0, 50.0, 25.0])
         self.params = {
-            'radius': MagicMock(value=50.0),
-            'sld': MagicMock(value=1e-6),
+            'radius': {'value': 50.0, 'min': 1, 'max': 500, 'vary': True, 'description': ''},
+            'sld': {'value': 1e-6, 'min': 0, 'max': 1e-5, 'vary': True, 'description': ''},
         }
 
 

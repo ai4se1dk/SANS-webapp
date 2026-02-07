@@ -64,23 +64,34 @@ class MockSessionState:
 
 
 class MockFitter:
-    """Mock for SANSFitter."""
+    """Mock for SANSFitter.
+
+    Params are plain dicts with keys 'value', 'min', 'max', 'vary',
+    'description' — matching the real SANSFitter API.
+    """
 
     def __init__(self):
         self.model = None
         self.data = None
-        self.params = {}
+        self.params: dict[str, dict] = {}
         self.result = None
 
     def set_model(self, model_name: str):
         self.model = MagicMock()
         self.model.name = model_name
         self.params = {
-            'radius': MagicMock(value=50.0, bounds=(1, 500), vary=True),
-            'sld': MagicMock(value=1e-6, bounds=(0, 1e-5), vary=True),
-            'sld_solvent': MagicMock(value=6e-6, bounds=(0, 1e-5), vary=False),
-            'background': MagicMock(value=0.001, bounds=(0, 1), vary=True),
+            'radius': {'value': 50.0, 'min': 1, 'max': 500, 'vary': True, 'description': ''},
+            'sld': {'value': 1e-6, 'min': 0, 'max': 1e-5, 'vary': True, 'description': ''},
+            'sld_solvent': {'value': 6e-6, 'min': 0, 'max': 1e-5, 'vary': False, 'description': ''},
+            'background': {'value': 0.001, 'min': 0, 'max': 1, 'vary': True, 'description': ''},
         }
+
+    def set_param(self, name: str, **kwargs):
+        if name not in self.params:
+            raise KeyError(f'Unknown parameter: {name}')
+        for key in ('value', 'min', 'max', 'vary'):
+            if key in kwargs:
+                self.params[name][key] = kwargs[key]
 
     def fit(self):
         result = MagicMock()

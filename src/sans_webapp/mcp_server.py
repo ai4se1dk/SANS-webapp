@@ -79,6 +79,30 @@ def get_fitter() -> SANSFitter:
     return _fitter
 
 
+def _ensure_fitter_model_synced() -> None:
+    """Re-load the model on the fitter if session state says one should be active.
+
+    Between Streamlit reruns the ``fitter.model`` attribute can become ``None``
+    (e.g. due to serialisation round-trips) while ``st.session_state`` still
+    records which model was loaded.  This helper detects the mismatch and
+    transparently re-applies ``set_model`` so that every tool sees the correct
+    fitter state.
+    """
+    try:
+        import streamlit as st
+
+        fitter = get_fitter()
+        fitter_has_model = hasattr(fitter, 'model') and fitter.model is not None
+        session_model = st.session_state.get('current_model', None)
+        model_selected = st.session_state.get('model_selected', False)
+
+        if not fitter_has_model and model_selected and session_model:
+            fitter.set_model(session_model)
+    except Exception:
+        # Best-effort; never let sync failures break a tool call.
+        pass
+
+
 def _check_tools_enabled() -> bool:
     """Check if AI tools are enabled in session state."""
     from sans_webapp.services.mcp_state_bridge import get_state_bridge
@@ -118,10 +142,11 @@ def get_model_parameters(model_name: str) -> str:
 
         lines = [f"Parameters for '{model_name}':"]
         for name, param in params.items():
-            value = getattr(param, 'value', 'N/A')
-            bounds = getattr(param, 'bounds', (None, None))
-            vary = getattr(param, 'vary', True)
-            lines.append(f'  - {name}: {value} (bounds: {bounds}, vary: {vary})')
+            value = param.get('value', 'N/A')
+            p_min = param.get('min', None)
+            p_max = param.get('max', None)
+            vary = param.get('vary', True)
+            lines.append(f'  - {name}: {value} (bounds: ({p_min}, {p_max}), vary: {vary})')
 
         return '\n'.join(lines)
     except Exception as e:
@@ -134,6 +159,7 @@ def get_current_state() -> str:
     Shows loaded data info, current model, and parameter values.
     """
     try:
+        _ensure_fitter_model_synced()
         fitter = get_fitter()
 
         lines = ['Current SANS Fitter State:']
@@ -157,8 +183,8 @@ def get_current_state() -> str:
             if hasattr(fitter, 'params') and fitter.params:
                 lines.append('  Parameters:')
                 for name, param in fitter.params.items():
-                    value = getattr(param, 'value', 'N/A')
-                    vary = getattr(param, 'vary', True)
+                    value = param.get('value', 'N/A')
+                    vary = param.get('vary', True)
                     lines.append(f'    - {name}: {value} (vary: {vary})')
         else:
             lines.append('  Model: Not selected')
@@ -174,6 +200,7 @@ def get_fit_results() -> str:
     Shows optimized parameter values, uncertainties, and fit statistics.
     """
     try:
+        _ensure_fitter_model_synced()
         fitter = get_fitter()
 
         if not hasattr(fitter, 'result') or fitter.result is None:
@@ -190,8 +217,8 @@ def get_fit_results() -> str:
         if hasattr(fitter, 'params') and fitter.params:
             lines.append('  Optimized parameters:')
             for name, param in fitter.params.items():
-                value = getattr(param, 'value', 'N/A')
-                stderr = getattr(param, 'stderr', None)
+                value = param.get('value', 'N/A')
+                stderr = param.get('stderr', None)
                 if stderr:
                     lines.append(f'    - {name}: {value:.4g} ± {stderr:.4g}')
                 else:
@@ -218,9 +245,38 @@ def set_model(model_name: str) -> str:
         return 'AI tools are disabled. Enable them in the sidebar to allow model changes.'
 
     try:
+        import streamlit as st
+
         from sans_webapp.services.mcp_state_bridge import get_state_bridge
 
+        _ensure_fitter_model_synced()
         fitter = get_fitter()
+
+        # If the requested model is already loaded, skip the reload to
+        # preserve any parameter customisations the user has made.
+        # Check both the fitter object AND session state for robustness.
+        current_model_name = (
+            fitter.model.name
+            if hasattr(fitter, 'model')
+            and fitter.model is not None
+            and hasattr(fitter.model, 'name')
+            else None
+        )
+        session_model = st.session_state.get('current_model', None)
+        if (current_model_name and current_model_name == model_name) or (
+            session_model
+            and session_model == model_name
+            and st.session_state.get('model_selected', False)
+        ):
+            # Re-sync fitter if needed (session says model is loaded but fitter lost it)
+            if not current_model_name:
+                fitter.set_model(model_name)
+            param_names = list(fitter.params.keys()) if hasattr(fitter, 'params') else []
+            return (
+                f"Model '{model_name}' is already loaded – keeping current parameter values.\n"
+                f'Parameters: {", ".join(param_names)}'
+            )
+
         fitter.set_model(model_name)
 
         # Update session state via bridge
@@ -260,28 +316,32 @@ def set_parameter(
     try:
         from sans_webapp.services.mcp_state_bridge import get_state_bridge
 
+        _ensure_fitter_model_synced()
         fitter = get_fitter()
 
         if not hasattr(fitter, 'params') or name not in fitter.params:
             return f"Parameter '{name}' not found. Available: {list(fitter.params.keys())}"
 
-        param = fitter.params[name]
         changes = []
 
+        # Use fitter.set_param() — the canonical API that correctly
+        # updates the internal dict-of-dicts parameter store.
+        kwargs: dict[str, Any] = {}
         if value is not None:
-            param.value = value
+            kwargs['value'] = value
             changes.append(f'value={value}')
-
-        if min_bound is not None or max_bound is not None:
-            current_bounds = getattr(param, 'bounds', (None, None))
-            new_min = min_bound if min_bound is not None else current_bounds[0]
-            new_max = max_bound if max_bound is not None else current_bounds[1]
-            param.bounds = (new_min, new_max)
-            changes.append(f'bounds=({new_min}, {new_max})')
-
+        if min_bound is not None:
+            kwargs['min'] = min_bound
+            changes.append(f'min={min_bound}')
+        if max_bound is not None:
+            kwargs['max'] = max_bound
+            changes.append(f'max={max_bound}')
         if vary is not None:
-            param.vary = vary
+            kwargs['vary'] = vary
             changes.append(f'vary={vary}')
+
+        if kwargs:
+            fitter.set_param(name, **kwargs)
 
         # Update UI widgets via bridge
         bridge = get_state_bridge()
@@ -310,6 +370,7 @@ def set_multiple_parameters(parameters: dict[str, dict]) -> str:
     try:
         from sans_webapp.services.mcp_state_bridge import get_state_bridge
 
+        _ensure_fitter_model_synced()
         fitter = get_fitter()
         bridge = get_state_bridge()
         results = []
@@ -319,23 +380,25 @@ def set_multiple_parameters(parameters: dict[str, dict]) -> str:
                 results.append(f'  - {name}: NOT FOUND')
                 continue
 
-            param = fitter.params[name]
             changes = []
 
+            # Build kwargs for fitter.set_param()
+            kwargs: dict[str, Any] = {}
             if 'value' in settings:
-                param.value = settings['value']
+                kwargs['value'] = settings['value']
                 changes.append(f'value={settings["value"]}')
-
-            if 'min' in settings or 'max' in settings:
-                current = getattr(param, 'bounds', (None, None))
-                new_min = settings.get('min', current[0])
-                new_max = settings.get('max', current[1])
-                param.bounds = (new_min, new_max)
-                changes.append(f'bounds=({new_min}, {new_max})')
-
+            if 'min' in settings:
+                kwargs['min'] = settings['min']
+                changes.append(f'min={settings["min"]}')
+            if 'max' in settings:
+                kwargs['max'] = settings['max']
+                changes.append(f'max={settings["max"]}')
             if 'vary' in settings:
-                param.vary = settings['vary']
+                kwargs['vary'] = settings['vary']
                 changes.append(f'vary={settings["vary"]}')
+
+            if kwargs:
+                fitter.set_param(name, **kwargs)
 
             # Update UI widget via bridge
             bridge.set_parameter_widget(
@@ -361,6 +424,9 @@ def enable_polydispersity(
     """
     Enable polydispersity for a size parameter.
 
+    Enables PD on the fitter and syncs all PD widget state so the UI
+    immediately shows the polydispersity tab with correct values.
+
     Args:
         parameter_name: Name of the parameter to make polydisperse (e.g., 'radius')
         pd_type: Distribution type ('gaussian', 'lognormal', 'schulz')
@@ -373,14 +439,28 @@ def enable_polydispersity(
         from sans_webapp.services.mcp_state_bridge import get_state_bridge
 
         fitter = get_fitter()
+        bridge = get_state_bridge()
 
         # Check if model supports polydispersity for this parameter
         pd_param_name = f'{parameter_name}_pd'
         if hasattr(fitter, 'params') and pd_param_name in fitter.params:
-            fitter.params[pd_param_name].value = pd_value
-            fitter.params[pd_param_name].vary = True
+            fitter.set_param(pd_param_name, value=pd_value, vary=True)
 
-            bridge = get_state_bridge()
+            # Determine pd_n from fitter if available, else default to 35
+            pd_n = 35
+            pd_n_param = f'{parameter_name}_pd_n'
+            if pd_n_param in fitter.params:
+                pd_n = int(fitter.params[pd_n_param].get('value', 35))
+
+            # Sync PD widget state so the UI shows the polydispersity tab
+            bridge.set_pd_enabled(True)
+            bridge.set_pd_widget(
+                parameter_name,
+                pd_width=pd_value,
+                pd_n=pd_n,
+                pd_type=pd_type,
+                vary=True,
+            )
             bridge.set_needs_rerun(True)
 
             return f"Polydispersity enabled for '{parameter_name}': {pd_type} distribution, width={pd_value}"
@@ -408,9 +488,9 @@ def set_structure_factor(sf_name: str) -> str:
         fitter = get_fitter()
 
         if hasattr(fitter, 'set_structure_factor'):
-            fitter.set_structure_factor(sf_name)
-
             bridge = get_state_bridge()
+            bridge.clear_parameter_widgets()  # Clear old params; SF adds new ones
+            fitter.set_structure_factor(sf_name)
             bridge.set_needs_rerun(True)
 
             return f"Structure factor '{sf_name}' added. Additional parameters are now available for the interaction potential."
@@ -433,9 +513,9 @@ def remove_structure_factor() -> str:
         fitter = get_fitter()
 
         if hasattr(fitter, 'remove_structure_factor'):
-            fitter.remove_structure_factor()
-
             bridge = get_state_bridge()
+            bridge.clear_parameter_widgets()  # Clear SF params before removal
+            fitter.remove_structure_factor()
             bridge.set_needs_rerun(True)
 
             return 'Structure factor removed.'
@@ -462,6 +542,7 @@ def run_fit() -> str:
         if not hasattr(fitter, 'data') or fitter.data is None:
             return 'No data loaded. Load data before running a fit.'
 
+        _ensure_fitter_model_synced()
         if not hasattr(fitter, 'model') or fitter.model is None:
             return 'No model selected. Set a model before running a fit.'
 
@@ -472,6 +553,18 @@ def run_fit() -> str:
         bridge = get_state_bridge()
         bridge.set_fit_completed(True)
         bridge.set_fit_result(result)
+
+        # Sync fitted parameter values to widget state (SYNC-04)
+        for name, param in fitter.params.items():
+            if param.get('vary', False):
+                fitted_value = param.get('value', 0)
+                bridge.set_parameter_value(name, fitted_value)
+
+                # If this is a PD parameter (e.g. radius_pd), sync to PD widget too
+                if name.endswith('_pd'):
+                    base_param = name[:-3]  # Remove '_pd' suffix
+                    bridge.set_pd_widget(base_param, pd_width=fitted_value)
+
         bridge.set_needs_rerun(True)
 
         # Format results
@@ -482,9 +575,9 @@ def run_fit() -> str:
 
         lines.append('Optimized parameters:')
         for name, param in fitter.params.items():
-            if getattr(param, 'vary', False):
-                value = getattr(param, 'value', 'N/A')
-                stderr = getattr(param, 'stderr', None)
+            if param.get('vary', False):
+                value = param.get('value', 'N/A')
+                stderr = param.get('stderr', None)
                 if stderr:
                     lines.append(f'  - {name}: {value:.4g} ± {stderr:.4g}')
                 else:

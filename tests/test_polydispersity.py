@@ -367,7 +367,9 @@ class TestPolydispersityMultipleModels:
         mock_session_state = {
             'fitter': fitter,
             'pd_enabled': True,
-            'pd_updates': {'radius': {'pd_width': 0.1, 'pd_n': 35, 'pd_type': 'gaussian', 'vary': True}},
+            'pd_updates': {
+                'radius': {'pd_width': 0.1, 'pd_n': 35, 'pd_type': 'gaussian', 'vary': True}
+            },
         }
 
         with patch('sans_webapp.components.parameters.st') as mock_st:
@@ -375,7 +377,9 @@ class TestPolydispersityMultipleModels:
             mock_st.session_state = MagicMock()
             mock_st.session_state.__contains__ = lambda self, key: key in mock_session_state
             mock_st.session_state.__getitem__ = lambda self, key: mock_session_state[key]
-            mock_st.session_state.__setitem__ = lambda self, key, val: mock_session_state.__setitem__(key, val)
+            mock_st.session_state.__setitem__ = (
+                lambda self, key, val: mock_session_state.__setitem__(key, val)
+            )
 
             deleted_keys = []
 
@@ -394,11 +398,12 @@ class TestPolydispersityMultipleModels:
 
             # Import and call render function - this should trigger validation
             from sans_webapp.components.parameters import render_polydispersity_tab
+
             render_polydispersity_tab(fitter)
 
             # Verify that stale session state was cleared
-            assert 'pd_updates' in deleted_keys, "pd_updates should be deleted when model changes"
-            assert 'pd_enabled' in deleted_keys, "pd_enabled should be deleted when model changes"
+            assert 'pd_updates' in deleted_keys, 'pd_updates should be deleted when model changes'
+            assert 'pd_enabled' in deleted_keys, 'pd_enabled should be deleted when model changes'
 
 
 class TestPolydispersityDistributionTypes:

@@ -133,7 +133,12 @@ core_shell_cylinder, gaussian_peak, power_law, fractal, etc."""
 
 
 def _build_context(fitter: SANSFitter) -> str:
-    """Build context string from the current fitter state."""
+    """Build context string from the current fitter state.
+
+    Checks both the fitter object and ``st.session_state`` so that the
+    context is accurate even when the fitter's ``.model`` attribute is
+    transiently ``None`` between Streamlit reruns.
+    """
     context_parts = []
 
     # Data info
@@ -145,17 +150,34 @@ def _build_context(fitter: SANSFitter) -> str:
     else:
         context_parts.append('No data loaded')
 
+    # Determine the active model from fitter OR from session state
+    fitter_model_name = (
+        fitter.model.name
+        if hasattr(fitter, 'model') and fitter.model is not None and hasattr(fitter.model, 'name')
+        else None
+    )
+    session_model = st.session_state.get('current_model', None)
+    model_selected = st.session_state.get('model_selected', False)
+    active_model = fitter_model_name or (session_model if model_selected else None)
+
+    # If fitter lost its model but session state still knows about it,
+    # try to re-sync the fitter so downstream tools also see the model.
+    if active_model and not fitter_model_name:
+        try:
+            fitter.set_model(active_model)
+        except Exception:
+            pass
+
     # Model info
-    if hasattr(fitter, 'model') and fitter.model is not None:
-        model_name = fitter.model.name if hasattr(fitter.model, 'name') else 'Unknown'
-        context_parts.append(f'Current model: {model_name}')
+    if active_model:
+        context_parts.append(f'Current model: {active_model}')
 
         # Parameters
         if hasattr(fitter, 'params') and fitter.params:
             param_info = []
             for name, param in fitter.params.items():
-                value = getattr(param, 'value', 'N/A')
-                vary = getattr(param, 'vary', True)
+                value = param.get('value', 'N/A')
+                vary = param.get('vary', True)
                 param_info.append(f'  {name}: {value} (vary: {vary})')
             context_parts.append('Parameters:\n' + '\n'.join(param_info))
     else:

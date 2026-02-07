@@ -225,6 +225,49 @@ class SessionStateBridge:
         if vary is not None:
             st.session_state[f'vary_{param_name}'] = vary
 
+    # Polydispersity widget state management
+
+    def set_pd_enabled(self, enabled: bool) -> None:
+        """Set the master polydispersity enable flag."""
+        st.session_state.pd_enabled = enabled
+
+    def set_pd_widget(
+        self,
+        param_name: str,
+        pd_width: float | None = None,
+        pd_n: int | None = None,
+        pd_type: str | None = None,
+        vary: bool | None = None,
+    ) -> None:
+        """
+        Set polydispersity widget state for a parameter.
+
+        Only sets provided values (non-None arguments).
+        Keys follow the convention in components/parameters.py.
+        """
+        if pd_width is not None:
+            st.session_state[f'pd_width_{param_name}'] = float(pd_width)
+        if pd_n is not None:
+            st.session_state[f'pd_n_{param_name}'] = int(pd_n)
+        if pd_type is not None:
+            st.session_state[f'pd_type_{param_name}'] = pd_type
+        if vary is not None:
+            st.session_state[f'pd_vary_{param_name}'] = vary
+
+    def clear_pd_widgets(self) -> None:
+        """Clear all PD widget state (for model changes)."""
+        keys_to_remove = [
+            k
+            for k in st.session_state.keys()
+            if k.startswith('pd_width_')
+            or k.startswith('pd_n_')
+            or k.startswith('pd_type_')
+            or k.startswith('pd_vary_')
+        ]
+        for key in keys_to_remove:
+            del st.session_state[key]
+        st.session_state.pd_enabled = False
+
 
 # Singleton instance
 _bridge: Optional[SessionStateBridge] = None

@@ -212,6 +212,21 @@ def main() -> None:
         .resize-handle:hover, .resize-handle.dragging {
             background: rgba(31, 119, 180, 0.3);
         }
+        /* Compact parameter table so it doesn't wrap with narrow viewport */
+        [data-testid="stForm"] [data-testid="stHorizontalBlock"] {
+            gap: 0.25rem !important;
+        }
+        [data-testid="stForm"] [data-testid="stHorizontalBlock"] > div {
+            min-width: 0 !important;
+        }
+        [data-testid="stForm"] [data-testid="stNumberInput"] {
+            min-width: 0 !important;
+        }
+        [data-testid="stForm"] [data-testid="stNumberInput"] input {
+            min-width: 0 !important;
+            padding-left: 0.25rem !important;
+            padding-right: 0.25rem !important;
+        }
         </style>
         <script>
         (function() {

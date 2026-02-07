@@ -13,6 +13,25 @@ from anthropic import Anthropic
 # Tool name to function mapping - built from MCP server
 _tool_handlers: dict[str, callable] = {}
 
+# Execution priority for tools: lower number = executed first.
+# This ensures that model-loading always precedes parameter-setting
+# when Claude emits multiple tool_use blocks in a single response.
+_TOOL_PRIORITY: dict[str, int] = {
+    # Writes – executed first, in dependency order
+    'set-model': 1,  # must run before parameter tools
+    'set-structure-factor': 2,
+    'remove-structure-factor': 2,
+    'set-parameter': 3,
+    'set-multiple-parameters': 3,
+    'enable-polydispersity': 4,
+    'run-fit': 5,  # run after all param changes
+    # Reads – executed AFTER writes so they see up-to-date state
+    'list-sans-models': 10,
+    'get-model-parameters': 10,
+    'get-current-state': 10,
+    'get-fit-results': 10,
+}
+
 
 def _build_tool_handlers() -> dict[str, callable]:
     """Build mapping from tool names to handler functions."""
@@ -270,11 +289,17 @@ class ClaudeMCPClient:
         Args:
             api_key: Anthropic API key. If None, reads from ANTHROPIC_API_KEY env var.
         """
-        self.api_key = api_key or os.environ.get('ANTHROPIC_API_KEY')
+        self.api_key = (api_key or os.environ.get('ANTHROPIC_API_KEY') or '').strip()
         if not self.api_key:
             raise ValueError(
                 'Anthropic API key required. Set ANTHROPIC_API_KEY or pass api_key parameter.'
             )
+
+        # Diagnostic: show key prefix to help debug auth issues
+        prefix = self.api_key[:12] if len(self.api_key) > 12 else '***'
+        print(
+            f'[Claude client] Creating client with key prefix: {prefix}... (len={len(self.api_key)})'
+        )
 
         self.client = Anthropic(api_key=self.api_key)
         self.model = 'claude-sonnet-4-20250514'
@@ -297,6 +322,16 @@ When helping users:
 5. Suggest refinements if fit quality is poor
 
 Always explain your actions clearly. Use the tools to perform actions rather than just describing what could be done.
+
+IMPORTANT tool-use rules:
+1. Do NOT call set-model if the model shown in [Current State] is already the one
+   the user wants. Calling set-model reloads the model and RESETS all parameters
+   to their defaults, discarding any customisations.
+2. To modify parameters on an already-loaded model, call set-parameter or
+   set-multiple-parameters directly — do NOT call set-model first.
+3. Only call set-model when the user explicitly asks to switch to a DIFFERENT model.
+4. When loading a genuinely new model, call set-model FIRST in its own turn before
+   setting any parameters (parameters don't exist until the model is loaded).
 
 The application shows plots and parameter tables that update when you use tools - the user can see changes immediately."""
 
@@ -357,31 +392,43 @@ The application shows plots and parameter tables that update when you use tools 
 
             # Check if we need to handle tool use
             if response.stop_reason == 'tool_use':
-                # Process each tool use block
-                tool_results = []
+                # Collect all tool_use blocks first, then sort by
+                # execution priority so that e.g. set-model always
+                # runs before set-parameter / set-multiple-parameters.
+                tool_use_blocks = [block for block in response.content if block.type == 'tool_use']
+                tool_use_blocks.sort(key=lambda b: _TOOL_PRIORITY.get(b.name, 10))
 
+                tool_results_map: dict[str, str] = {}  # tool_use_id -> result
+
+                for block in tool_use_blocks:
+                    tool_name = block.name
+                    tool_input = block.input
+                    tool_use_id = block.id
+
+                    # Execute the tool
+                    result = execute_tool(tool_name, tool_input)
+
+                    tool_invocations.append(
+                        {
+                            'tool_name': tool_name,
+                            'input': tool_input,
+                            'result': result,
+                        }
+                    )
+
+                    tool_results_map[tool_use_id] = result
+
+                # Build tool_results in the ORIGINAL response order
+                # (Anthropic API requires results to match the order of
+                # the tool_use blocks in the assistant message).
+                tool_results = []
                 for block in response.content:
                     if block.type == 'tool_use':
-                        tool_name = block.name
-                        tool_input = block.input
-                        tool_use_id = block.id
-
-                        # Execute the tool
-                        result = execute_tool(tool_name, tool_input)
-
-                        tool_invocations.append(
-                            {
-                                'tool_name': tool_name,
-                                'input': tool_input,
-                                'result': result,
-                            }
-                        )
-
                         tool_results.append(
                             {
                                 'type': 'tool_result',
-                                'tool_use_id': tool_use_id,
-                                'content': result,
+                                'tool_use_id': block.id,
+                                'content': tool_results_map[block.id],
                             }
                         )
 
@@ -433,13 +480,19 @@ def get_claude_client(api_key: str | None = None) -> ClaudeMCPClient:
     """
     Get or create the Claude MCP client singleton.
 
+    If `api_key` is provided and differs from the current client's key,
+    the client is recreated so that key changes take effect immediately.
+
     Args:
-        api_key: Anthropic API key (only used on first call)
+        api_key: Anthropic API key
 
     Returns:
         ClaudeMCPClient instance
     """
     global _client
+    if _client is not None and api_key and _client.api_key != api_key:
+        # API key changed — recreate client
+        _client = None
     if _client is None:
         _client = ClaudeMCPClient(api_key=api_key)
     return _client
