@@ -22,7 +22,6 @@ from sans_webapp.sans_types import FitResult, ParamUpdate
 from sans_webapp.ui_constants import (
     ADJUST_PARAMETER_HEADER,
     CHI_SQUARED_LABEL,
-    DOWNLOAD_RESULTS_LABEL,
     EXPORT_RESULTS_HEADER,
     FIT_RESULTS_HEADER,
     FITTED_PARAMETERS_HEADER,
@@ -242,54 +241,60 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
         st.rerun()
 
 
+def _build_results_csv(fitter: SANSFitter) -> str:
+    """Build CSV string from fitter parameters."""
+    results_data = []
+    for name, info in fitter.params.items():
+        results_data.append(
+            {
+                'Parameter': name,
+                'Value': info['value'],
+                'Min': info['min'],
+                'Max': info['max'],
+                'Fitted': info['vary'],
+            }
+        )
+
+    # Add polydispersity parameters if enabled
+    if fitter.supports_polydispersity() and fitter.is_polydispersity_enabled():
+        for pd_param in fitter.get_polydisperse_parameters():
+            pd_config = fitter.get_pd_param(pd_param)
+            results_data.append(
+                {
+                    'Parameter': f'{pd_param}_pd',
+                    'Value': pd_config['pd'],
+                    'Min': 0.0,
+                    'Max': 1.0,
+                    'Fitted': pd_config.get('vary', False),
+                }
+            )
+            results_data.append(
+                {
+                    'Parameter': f'{pd_param}_pd_type',
+                    'Value': pd_config['pd_type'],
+                    'Min': 'N/A',
+                    'Max': 'N/A',
+                    'Fitted': False,
+                }
+            )
+
+    df_results = pd.DataFrame(results_data)
+    return df_results.to_csv(index=False)
+
+
 def _render_export_section(fitter: SANSFitter) -> None:
     """Render the export results section."""
     st.markdown(EXPORT_RESULTS_HEADER)
-    if st.button(SAVE_RESULTS_BUTTON):
-        try:
-            results_data = []
-            for name, info in fitter.params.items():
-                results_data.append(
-                    {
-                        'Parameter': name,
-                        'Value': info['value'],
-                        'Min': info['min'],
-                        'Max': info['max'],
-                        'Fitted': info['vary'],
-                    }
-                )
 
-            # Add polydispersity parameters if enabled
-            if fitter.supports_polydispersity() and fitter.is_polydispersity_enabled():
-                for pd_param in fitter.get_polydisperse_parameters():
-                    pd_config = fitter.get_pd_param(pd_param)
-                    results_data.append(
-                        {
-                            'Parameter': f'{pd_param}_pd',
-                            'Value': pd_config['pd'],
-                            'Min': 0.0,
-                            'Max': 1.0,
-                            'Fitted': pd_config.get('vary', False),
-                        }
-                    )
-                    results_data.append(
-                        {
-                            'Parameter': f'{pd_param}_pd_type',
-                            'Value': pd_config['pd_type'],
-                            'Min': 'N/A',
-                            'Max': 'N/A',
-                            'Fitted': False,
-                        }
-                    )
+    try:
+        csv_data = _build_results_csv(fitter)
+    except Exception as e:
+        st.error(f'Error preparing results: {str(e)}')
+        csv_data = 'Error generating CSV'
 
-            df_results = pd.DataFrame(results_data)
-            csv = df_results.to_csv(index=False)
-
-            st.download_button(
-                label=DOWNLOAD_RESULTS_LABEL,
-                data=csv,
-                file_name=RESULTS_CSV_NAME,
-                mime='text/csv',
-            )
-        except Exception as e:
-            st.error(f'Error saving results: {str(e)}')
+    st.download_button(
+        label=SAVE_RESULTS_BUTTON,
+        data=csv_data,
+        file_name=RESULTS_CSV_NAME,
+        mime='text/csv',
+    )
