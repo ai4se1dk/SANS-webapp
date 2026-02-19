@@ -1373,20 +1373,50 @@ def test_data_preview_imports():
 
 
 def test_data_preview_uses_expander():
-    """Test that render_data_preview uses st.expander with expanded=True."""
-    print('\nTesting data_preview uses st.expander(expanded=True)...')
+    """Test that render_data_preview uses st.expander with expanded state from session."""
+    print('\nTesting data_preview uses st.expander...')
     import inspect
 
     from sans_webapp.components.data_preview import render_data_preview
 
     source = inspect.getsource(render_data_preview)
     assert 'st.expander(' in source, 'render_data_preview should use st.expander!'
-    assert 'expanded=True' in source, 'Data Preview expander should default to expanded=True!'
+    assert 'expand_data_preview' in source, 'Data Preview expander should read state from session!'
     # Should NOT use st.subheader for the section header
     assert 'st.subheader(DATA_PREVIEW_HEADER)' not in source, (
         'render_data_preview should not use st.subheader for the header!'
     )
-    print('✓ Data Preview section is collapsible and expanded by default')
+    print('✓ Data Preview section is collapsible with session-controlled state')
+
+    return True
+
+
+def test_data_preview_collapses_on_model_load():
+    """Test that Data Preview defaults to expanded and collapses on model load."""
+    print('\nTesting Data Preview collapse on model load...')
+
+    # 1. Verify session state default is True (expanded)
+    import inspect
+
+    from sans_webapp.services.session_state import init_session_state
+
+    source = inspect.getsource(init_session_state)
+    assert "'expand_data_preview': True" in source, (
+        'expand_data_preview should default to True in session state!'
+    )
+    print('✓ expand_data_preview defaults to True')
+
+    # 2. Verify sidebar sets expand_data_preview=False on model load
+    from sans_webapp.components.sidebar import render_model_selection_sidebar
+
+    sidebar_source = inspect.getsource(render_model_selection_sidebar)
+    assert 'expand_data_preview' in sidebar_source, (
+        'Model load should set expand_data_preview in session state!'
+    )
+    assert 'st.session_state.expand_data_preview = False' in sidebar_source, (
+        'Model load should collapse Data Preview (set expand_data_preview to False)!'
+    )
+    print('✓ Model load sets expand_data_preview to False')
 
     return True
 
@@ -1400,9 +1430,7 @@ def test_parameters_uses_expander():
 
     source = inspect.getsource(render_parameter_configuration)
     assert 'st.expander(' in source, 'render_parameter_configuration should use st.expander!'
-    assert 'expanded=True' in source, (
-        'Model Parameters expander should default to expanded=True!'
-    )
+    assert 'expanded=True' in source, 'Model Parameters expander should default to expanded=True!'
     # Should NOT use st.subheader for the section header
     assert 'st.subheader(' not in source, (
         'render_parameter_configuration should not use st.subheader for the header!'
@@ -1582,6 +1610,7 @@ if __name__ == '__main__':
         results['fit_results_residuals_integration'] = test_fit_results_with_residuals_integration()
         results['data_preview_imports'] = test_data_preview_imports()
         results['data_preview_expander'] = test_data_preview_uses_expander()
+        results['data_preview_collapse_on_model'] = test_data_preview_collapses_on_model_load()
         results['parameters_expander'] = test_parameters_uses_expander()
         results['fit_results_expander'] = test_fit_results_uses_expander()
         results['sidebar_imports'] = test_sidebar_imports()

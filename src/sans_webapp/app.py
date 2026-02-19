@@ -178,11 +178,13 @@ def main() -> None:
     st.markdown(
         """
         <style>
-        /* Make the right column (AI chat) sticky and resizable */
-        div[data-testid="stHorizontalBlock"] {
+        /* Make the right column (AI chat) sticky and resizable.
+           Target only the FIRST (top-level) stHorizontalBlock via :scope > to
+           avoid affecting inner column layouts (fit results, data preview, etc.). */
+        div[data-testid="stMainBlockContainer"] > div > div > div > div[data-testid="stHorizontalBlock"] {
             position: relative;
         }
-        div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+        div[data-testid="stMainBlockContainer"] > div > div > div > div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
             position: sticky;
             top: 3.5rem;
             height: fit-content;
@@ -195,7 +197,7 @@ def main() -> None:
             padding-left: 10px;
             transition: none;
         }
-        div[data-testid="stHorizontalBlock"] > div:nth-child(2):hover {
+        div[data-testid="stMainBlockContainer"] > div > div > div > div[data-testid="stHorizontalBlock"] > div:nth-child(2):hover {
             border-left-color: #1f77b4;
         }
         /* Resize handle */
@@ -230,9 +232,14 @@ def main() -> None:
         </style>
         <script>
         (function() {
-            // Wait for Streamlit to render
+            // Wait for Streamlit to render - target only the top-level column block
             const initResizable = () => {
-                const container = document.querySelector('[data-testid="stHorizontalBlock"]');
+                const mainBlock = document.querySelector('[data-testid="stMainBlockContainer"]');
+                if (!mainBlock) {
+                    setTimeout(initResizable, 100);
+                    return;
+                }
+                const container = mainBlock.querySelector('[data-testid="stHorizontalBlock"]');
                 if (!container) {
                     setTimeout(initResizable, 100);
                     return;
@@ -283,11 +290,13 @@ def main() -> None:
             // Initialize after a short delay
             setTimeout(initResizable, 500);
 
-            // Re-initialize on Streamlit reruns
+            // Re-initialize on Streamlit reruns — use debounce to avoid rapid firing
+            let debounceTimer = null;
             const observer = new MutationObserver(() => {
-                setTimeout(initResizable, 100);
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(initResizable, 300);
             });
-            observer.observe(document.body, { childList: true, subtree: true });
+            observer.observe(document.body, { childList: true, subtree: false });
         })();
         </script>
         """,

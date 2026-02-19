@@ -503,9 +503,7 @@ def render_parameter_configuration(fitter: SANSFitter) -> dict[str, ParamUpdate]
     apply_pending_preset(fitter, params)
     apply_fit_results_to_params(fitter, params)
 
-    with st.expander(
-        f'{PARAMETERS_HEADER_PREFIX}{st.session_state.current_model}', expanded=True
-    ):
+    with st.expander(f'{PARAMETERS_HEADER_PREFIX}{st.session_state.current_model}', expanded=True):
         # Create tabbed interface
         # Only show polydispersity tab if model supports it
         if fitter.supports_polydispersity():

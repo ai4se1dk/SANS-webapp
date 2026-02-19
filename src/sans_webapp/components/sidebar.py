@@ -221,8 +221,9 @@ def render_model_selection_sidebar() -> None:
                     st.session_state.model_selected = True
                     st.session_state.current_model = selected_model
                     st.session_state.fit_completed = False
-                    # Collapse model selection (do NOT expand fitting)
+                    # Collapse model selection and data preview (do NOT expand fitting)
                     st.session_state.expand_model_selection = False
+                    st.session_state.expand_data_preview = False
                     st.success(
                         f'{SUCCESS_MODEL_LOADED_PREFIX}{selected_model}{SUCCESS_MODEL_LOADED_SUFFIX}'
                     )

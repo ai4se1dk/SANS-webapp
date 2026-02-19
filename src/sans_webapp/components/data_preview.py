@@ -27,7 +27,8 @@ def render_data_preview(fitter: SANSFitter) -> None:
     Args:
         fitter: The SANSFitter instance with loaded data
     """
-    with st.expander(DATA_PREVIEW_HEADER, expanded=True):
+    expanded = st.session_state.get('expand_data_preview', True)
+    with st.expander(DATA_PREVIEW_HEADER, expanded=expanded):
         col1, col2 = st.columns([2, 1])
 
         with col1:

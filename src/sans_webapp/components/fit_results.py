@@ -22,7 +22,6 @@ from sans_webapp.sans_types import FitResult, ParamUpdate
 from sans_webapp.ui_constants import (
     ADJUST_PARAMETER_HEADER,
     CHI_SQUARED_LABEL,
-    EXPORT_RESULTS_HEADER,
     FIT_RESULTS_HEADER,
     FITTED_PARAMETERS_HEADER,
     RESULTS_CSV_NAME,
@@ -48,6 +47,9 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
     st.markdown('---')
 
     with st.expander(FIT_RESULTS_HEADER, expanded=True):
+        # Checkbox to toggle residuals display (placed before columns for stable layout)
+        show_residuals = st.checkbox(SHOW_RESIDUALS_LABEL, value=True)
+
         col1, col2 = st.columns([2, 1])
 
         with col1:
@@ -56,9 +58,6 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
                 calculator = DirectModel(fitter.data, fitter.kernel)
                 fit_i = calculator(**param_values)
                 q_plot = fitter.data.x
-
-                # Checkbox to toggle residuals display
-                show_residuals = st.checkbox(SHOW_RESIDUALS_LABEL, value=True)
 
                 if show_residuals:
                     fig = plot_data_fit_and_residuals(fitter, fit_q=q_plot, fit_i=fit_i)
@@ -74,7 +73,8 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
             _render_fit_statistics(fitter)
             _render_fitted_parameters_table(fitter)
             _render_parameter_slider(fitter)
-            _render_export_section(fitter)
+
+        _render_export_section(fitter)
 
 
 def _render_fit_statistics(fitter: SANSFitter) -> None:
@@ -285,8 +285,6 @@ def _build_results_csv(fitter: SANSFitter) -> str:
 
 def _render_export_section(fitter: SANSFitter) -> None:
     """Render the export results section."""
-    st.markdown(EXPORT_RESULTS_HEADER)
-
     try:
         csv_data = _build_results_csv(fitter)
     except Exception as e:
