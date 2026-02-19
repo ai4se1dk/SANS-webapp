@@ -45,35 +45,36 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
         fitter: The SANSFitter instance
         param_updates: Current parameter updates
     """
-    st.subheader(FIT_RESULTS_HEADER)
+    st.markdown('---')
 
-    col1, col2 = st.columns([2, 1])
+    with st.expander(FIT_RESULTS_HEADER, expanded=True):
+        col1, col2 = st.columns([2, 1])
 
-    with col1:
-        try:
-            param_values = {name: info['value'] for name, info in fitter.params.items()}
-            calculator = DirectModel(fitter.data, fitter.kernel)
-            fit_i = calculator(**param_values)
-            q_plot = fitter.data.x
+        with col1:
+            try:
+                param_values = {name: info['value'] for name, info in fitter.params.items()}
+                calculator = DirectModel(fitter.data, fitter.kernel)
+                fit_i = calculator(**param_values)
+                q_plot = fitter.data.x
 
-            # Checkbox to toggle residuals display
-            show_residuals = st.checkbox(SHOW_RESIDUALS_LABEL, value=True)
+                # Checkbox to toggle residuals display
+                show_residuals = st.checkbox(SHOW_RESIDUALS_LABEL, value=True)
 
-            if show_residuals:
-                fig = plot_data_fit_and_residuals(fitter, fit_q=q_plot, fit_i=fit_i)
-            else:
-                fig = plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
+                if show_residuals:
+                    fig = plot_data_fit_and_residuals(fitter, fit_q=q_plot, fit_i=fit_i)
+                else:
+                    fig = plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
 
-            st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, width='stretch')
 
-        except Exception as e:
-            st.error(f'Error plotting results: {str(e)}')
+            except Exception as e:
+                st.error(f'Error plotting results: {str(e)}')
 
-    with col2:
-        _render_fit_statistics(fitter)
-        _render_fitted_parameters_table(fitter)
-        _render_parameter_slider(fitter)
-        _render_export_section(fitter)
+        with col2:
+            _render_fit_statistics(fitter)
+            _render_fitted_parameters_table(fitter)
+            _render_parameter_slider(fitter)
+            _render_export_section(fitter)
 
 
 def _render_fit_statistics(fitter: SANSFitter) -> None:

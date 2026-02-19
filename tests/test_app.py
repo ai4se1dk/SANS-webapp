@@ -1372,6 +1372,65 @@ def test_data_preview_imports():
     return True
 
 
+def test_data_preview_uses_expander():
+    """Test that render_data_preview uses st.expander with expanded=True."""
+    print('\nTesting data_preview uses st.expander(expanded=True)...')
+    import inspect
+
+    from sans_webapp.components.data_preview import render_data_preview
+
+    source = inspect.getsource(render_data_preview)
+    assert 'st.expander(' in source, 'render_data_preview should use st.expander!'
+    assert 'expanded=True' in source, 'Data Preview expander should default to expanded=True!'
+    # Should NOT use st.subheader for the section header
+    assert 'st.subheader(DATA_PREVIEW_HEADER)' not in source, (
+        'render_data_preview should not use st.subheader for the header!'
+    )
+    print('✓ Data Preview section is collapsible and expanded by default')
+
+    return True
+
+
+def test_parameters_uses_expander():
+    """Test that render_parameter_configuration uses st.expander with expanded=True."""
+    print('\nTesting render_parameter_configuration uses st.expander(expanded=True)...')
+    import inspect
+
+    from sans_webapp.components.parameters import render_parameter_configuration
+
+    source = inspect.getsource(render_parameter_configuration)
+    assert 'st.expander(' in source, 'render_parameter_configuration should use st.expander!'
+    assert 'expanded=True' in source, (
+        'Model Parameters expander should default to expanded=True!'
+    )
+    # Should NOT use st.subheader for the section header
+    assert 'st.subheader(' not in source, (
+        'render_parameter_configuration should not use st.subheader for the header!'
+    )
+    print('✓ Model Parameters section is collapsible and expanded by default')
+
+    return True
+
+
+def test_fit_results_uses_expander():
+    """Test that render_fit_results uses st.expander with expanded=True."""
+    print('\nTesting render_fit_results uses st.expander(expanded=True)...')
+    import inspect
+
+    from sans_webapp.components.fit_results import render_fit_results
+
+    source = inspect.getsource(render_fit_results)
+    assert 'st.expander(' in source, 'render_fit_results should use st.expander!'
+    assert 'expanded=True' in source, 'Fit Results expander should default to expanded=True!'
+    # Should NOT use st.subheader for the section header
+    assert 'st.subheader(FIT_RESULTS_HEADER)' not in source, (
+        'render_fit_results should not use st.subheader for the header!'
+    )
+    print('✓ Fit Results section is collapsible and expanded by default')
+
+    return True
+
+
 # =============================================================================
 # Sidebar Component Tests (components/sidebar.py)
 # =============================================================================
@@ -1522,6 +1581,9 @@ if __name__ == '__main__':
         results['fit_results_residual_stats'] = test_fit_results_residual_statistics_calculation()
         results['fit_results_residuals_integration'] = test_fit_results_with_residuals_integration()
         results['data_preview_imports'] = test_data_preview_imports()
+        results['data_preview_expander'] = test_data_preview_uses_expander()
+        results['parameters_expander'] = test_parameters_uses_expander()
+        results['fit_results_expander'] = test_fit_results_uses_expander()
         results['sidebar_imports'] = test_sidebar_imports()
     except Exception as e:
         print(f'\n✗ Components tests failed with exception: {e}')

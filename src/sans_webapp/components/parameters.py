@@ -497,26 +497,27 @@ def render_parameter_configuration(fitter: SANSFitter) -> dict[str, ParamUpdate]
     Returns:
         The current parameter updates
     """
-    st.subheader(f'{PARAMETERS_HEADER_PREFIX}{st.session_state.current_model}')
-
     params = cast(dict[str, ParamInfo], fitter.params)
 
     # Apply pending updates before widgets are rendered
     apply_pending_preset(fitter, params)
     apply_fit_results_to_params(fitter, params)
 
-    # Create tabbed interface
-    # Only show polydispersity tab if model supports it
-    if fitter.supports_polydispersity():
-        basic_tab, pd_tab = st.tabs([PARAM_TAB_BASIC, PARAM_TAB_POLYDISPERSITY])
+    with st.expander(
+        f'{PARAMETERS_HEADER_PREFIX}{st.session_state.current_model}', expanded=True
+    ):
+        # Create tabbed interface
+        # Only show polydispersity tab if model supports it
+        if fitter.supports_polydispersity():
+            basic_tab, pd_tab = st.tabs([PARAM_TAB_BASIC, PARAM_TAB_POLYDISPERSITY])
 
-        with basic_tab:
+            with basic_tab:
+                param_updates = render_basic_parameters_tab(fitter, params)
+
+            with pd_tab:
+                render_polydispersity_tab(fitter)
+        else:
+            # No polydispersity support - just render basic parameters
             param_updates = render_basic_parameters_tab(fitter, params)
-
-        with pd_tab:
-            render_polydispersity_tab(fitter)
-    else:
-        # No polydispersity support - just render basic parameters
-        param_updates = render_basic_parameters_tab(fitter, params)
 
     return param_updates
