@@ -62,7 +62,6 @@ from sans_webapp.ui_constants import (
     INFO_NO_DATA,
     SIDEBAR_CONTROLS_HEADER,
     SIDEBAR_FITTING_HEADER,
-    SUCCESS_FIT_COMPLETED,
     WARNING_NO_VARY,
 )
 
