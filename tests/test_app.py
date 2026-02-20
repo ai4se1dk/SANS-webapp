@@ -1422,20 +1422,22 @@ def test_data_preview_collapses_on_model_load():
 
 
 def test_parameters_uses_expander():
-    """Test that render_parameter_configuration uses st.expander with expanded=True."""
-    print('\nTesting render_parameter_configuration uses st.expander(expanded=True)...')
+    """Test that render_parameter_configuration uses st.expander with dynamic expanded state."""
+    print('\nTesting render_parameter_configuration uses st.expander...')
     import inspect
 
     from sans_webapp.components.parameters import render_parameter_configuration
 
     source = inspect.getsource(render_parameter_configuration)
     assert 'st.expander(' in source, 'render_parameter_configuration should use st.expander!'
-    assert 'expanded=True' in source, 'Model Parameters expander should default to expanded=True!'
+    assert 'expand_parameters' in source, (
+        'Model Parameters expander should use expand_parameters session state!'
+    )
     # Should NOT use st.subheader for the section header
     assert 'st.subheader(' not in source, (
         'render_parameter_configuration should not use st.subheader for the header!'
     )
-    print('✓ Model Parameters section is collapsible and expanded by default')
+    print('✓ Model Parameters section is collapsible with dynamic expanded state')
 
     return True
 

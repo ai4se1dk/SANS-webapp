@@ -157,7 +157,8 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
                     result = fitter.fit(engine=engine, method=method)
                     st.session_state.fit_completed = True
                     st.session_state.fit_result = cast(FitResult, result)
-                    st.sidebar.success(SUCCESS_FIT_COMPLETED)
+                    st.session_state.expand_parameters = False
+                    st.rerun()
             except Exception as e:
                 st.sidebar.error(f'Fitting error: {str(e)}')
 
