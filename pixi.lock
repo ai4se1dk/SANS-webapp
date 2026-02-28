@@ -10674,7 +10674,7 @@ packages:
 - pypi: ./
   name: sans-webapp
   version: 0.0.3
-  sha256: 160ae42965d2cf2631d1d7a4deba3a8a400176a06bdb1a9314032a0d31ce7665
+  sha256: 78ad5a9ce017e7b8f1cd360c4939b296c2b76225ecd6b77afb48c789afb653c7
   requires_dist:
   - fastmcp
   - anthropic
