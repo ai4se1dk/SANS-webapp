@@ -5,8 +5,6 @@ environments:
     - url: https://conda.anaconda.org/conda-forge/
     indexes:
     - https://pypi.org/simple
-    options:
-      pypi-prerelease-mode: if-necessary-or-explicit
     packages:
       linux-64:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/_libgcc_mutex-0.1-conda_forge.tar.bz2
@@ -10675,8 +10673,8 @@ packages:
   requires_python: '>=3.10'
 - pypi: ./
   name: sans-webapp
-  version: 0.0.2
-  sha256: 81254f5b272504e86eb376811ed878f08a282e7d41394325bb975711f68f98d4
+  version: 0.0.3
+  sha256: 160ae42965d2cf2631d1d7a4deba3a8a400176a06bdb1a9314032a0d31ce7665
   requires_dist:
   - fastmcp
   - anthropic
@@ -10699,6 +10697,7 @@ packages:
   - mkdocs-material>=9.5 ; extra == 'docs'
   - mkdocstrings[python]>=0.25 ; extra == 'docs'
   requires_python: '>=3.10'
+  editable: true
 - pypi: https://files.pythonhosted.org/packages/cc/0b/8a98ee6196ccf99add9521ce9572092580d609c3b93a5464cc06825f62dd/sasdata-0.11.0-py3-none-any.whl
   name: sasdata
   version: 0.11.0
