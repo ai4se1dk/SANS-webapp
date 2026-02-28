@@ -42,6 +42,12 @@ class MockSessionState:
         else:
             self._data[name] = value
 
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, value):
+        self._data[key] = value
+
     def get(self, key, default=None):
         return self._data.get(key, default)
 
@@ -74,6 +80,7 @@ class MockFitter:
             'sld': {'value': 1e-6, 'min': 0, 'max': 1e-5, 'vary': True, 'description': ''},
             'sld_solvent': {'value': 6e-6, 'min': 0, 'max': 1e-5, 'vary': False, 'description': ''},
             'background': {'value': 0.001, 'min': 0, 'max': 1, 'vary': True, 'description': ''},
+            'scale': {'value': 1.0, 'min': 0.001, 'max': 10, 'vary': True, 'description': ''},
         }
         return self
 

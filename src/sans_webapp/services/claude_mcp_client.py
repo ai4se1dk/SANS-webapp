@@ -388,9 +388,10 @@ The application shows plots and parameter tables that update when you use tools 
         )
 
         tool_invocations = []
+        MAX_TOOL_ROUNDS = 15
 
         # Conversation loop - handle tool use
-        while True:
+        for _round in range(MAX_TOOL_ROUNDS):
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=4096,
@@ -465,6 +466,13 @@ The application shows plots and parameter tables that update when you use tools 
                         final_response += block.text
 
                 return final_response, tool_invocations
+
+        # Safety: exceeded max tool-use round-trips
+        return (
+            'I reached the maximum number of tool-use round trips (15). '
+            'Please try a simpler request or break it into smaller steps.',
+            tool_invocations,
+        )
 
     def simple_chat(self, user_message: str, context: str | None = None) -> str:
         """

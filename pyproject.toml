@@ -117,6 +117,7 @@ quote-style = "single"
 
 # Test discovery
 testpaths = ["tests"]
+pythonpath = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
