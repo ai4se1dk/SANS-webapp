@@ -98,7 +98,7 @@ pytest tests/ -v
 
 **AI-Assisted Mode:**
 - Click "Get AI Suggestions"
-- Optional: Enter OpenAI API key for enhanced suggestions
+- Optional: Enter Anthropic (Claude) API key for enhanced suggestions and MCP tool access
 - Select from suggested models
 - Click "Load Model"
 
@@ -164,9 +164,9 @@ git push heroku main
 
 ## API Key (Optional)
 
-For enhanced AI model suggestions, get an API key from [OpenAI](https://platform.openai.com):
+For enhanced AI model suggestions and MCP tool access, get an API key from Anthropic (Claude):
 
-1. Create account at platform.openai.com
+1. Create an account at https://console.anthropic.com/
 2. Generate API key
 3. Enter in sidebar when using AI-Assisted mode
 

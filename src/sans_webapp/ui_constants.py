@@ -39,10 +39,10 @@ SELECTION_METHOD_HELP = 'Choose how to select the fitting model'
 MODEL_SELECT_LABEL = 'Select Model'
 MODEL_SELECT_HELP = 'Choose a model from the sasmodels library'
 AI_ASSISTED_HEADER = '**AI-Assisted Model Suggestion**'
-AI_KEY_LABEL = 'OpenAI API Key (optional)'
+AI_KEY_LABEL = 'Anthropic API Key (optional)'
 AI_KEY_HELP = (
-    'Enter your OpenAI API key for AI-powered suggestions. '
-    'Leave empty for heuristic-based suggestions.'
+    'Enter your Anthropic (Claude) API key for AI-powered suggestions and MCP tool access. '
+    'Leave empty to use heuristic suggestions or the legacy OpenAI fallback.'
 )
 AI_SUGGESTIONS_BUTTON = 'Get AI Suggestions'
 AI_SUGGESTIONS_HEADER = '**Suggested Models:**'
@@ -181,7 +181,7 @@ ERROR_EXAMPLE_NOT_FOUND = 'Example data file not found!'
 
 INFO_NO_DATA = '👆 Please upload a SANS data file or load example data from the sidebar.'
 WARNING_NO_API_KEY = (
-    '⚠️ No API key provided. Please enter your OpenAI API key in the sidebar under '
+    '⚠️ No API key provided. Please enter your Anthropic API key in the sidebar under '
     "'AI-Assisted' model selection."
 )
 WARNING_NO_VARY = '⚠️ No parameters are set to vary. Please enable at least one parameter to fit.'

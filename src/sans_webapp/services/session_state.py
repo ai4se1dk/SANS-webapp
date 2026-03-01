@@ -27,6 +27,11 @@ def init_session_state() -> None:
         'expand_data_upload': True,
         'expand_model_selection': False,
         'expand_fitting': False,
+        # Main content expander states
+        'expand_data_preview': True,
+        'expand_parameters': True,
+        # AI tools
+        'ai_tools_enabled': False,
     }
 
     for key, default in defaults.items():

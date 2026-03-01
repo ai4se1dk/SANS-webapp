@@ -1372,6 +1372,95 @@ def test_data_preview_imports():
     return True
 
 
+def test_data_preview_uses_expander():
+    """Test that render_data_preview uses st.expander with expanded state from session."""
+    print('\nTesting data_preview uses st.expander...')
+    import inspect
+
+    from sans_webapp.components.data_preview import render_data_preview
+
+    source = inspect.getsource(render_data_preview)
+    assert 'st.expander(' in source, 'render_data_preview should use st.expander!'
+    assert 'expand_data_preview' in source, 'Data Preview expander should read state from session!'
+    # Should NOT use st.subheader for the section header
+    assert 'st.subheader(DATA_PREVIEW_HEADER)' not in source, (
+        'render_data_preview should not use st.subheader for the header!'
+    )
+    print('✓ Data Preview section is collapsible with session-controlled state')
+
+    return True
+
+
+def test_data_preview_collapses_on_model_load():
+    """Test that Data Preview defaults to expanded and collapses on model load."""
+    print('\nTesting Data Preview collapse on model load...')
+
+    # 1. Verify session state default is True (expanded)
+    import inspect
+
+    from sans_webapp.services.session_state import init_session_state
+
+    source = inspect.getsource(init_session_state)
+    assert "'expand_data_preview': True" in source, (
+        'expand_data_preview should default to True in session state!'
+    )
+    print('✓ expand_data_preview defaults to True')
+
+    # 2. Verify sidebar sets expand_data_preview=False on model load
+    from sans_webapp.components.sidebar import render_model_selection_sidebar
+
+    sidebar_source = inspect.getsource(render_model_selection_sidebar)
+    assert 'expand_data_preview' in sidebar_source, (
+        'Model load should set expand_data_preview in session state!'
+    )
+    assert 'st.session_state.expand_data_preview = False' in sidebar_source, (
+        'Model load should collapse Data Preview (set expand_data_preview to False)!'
+    )
+    print('✓ Model load sets expand_data_preview to False')
+
+    return True
+
+
+def test_parameters_uses_expander():
+    """Test that render_parameter_configuration uses st.expander with dynamic expanded state."""
+    print('\nTesting render_parameter_configuration uses st.expander...')
+    import inspect
+
+    from sans_webapp.components.parameters import render_parameter_configuration
+
+    source = inspect.getsource(render_parameter_configuration)
+    assert 'st.expander(' in source, 'render_parameter_configuration should use st.expander!'
+    assert 'expand_parameters' in source, (
+        'Model Parameters expander should use expand_parameters session state!'
+    )
+    # Should NOT use st.subheader for the section header
+    assert 'st.subheader(' not in source, (
+        'render_parameter_configuration should not use st.subheader for the header!'
+    )
+    print('✓ Model Parameters section is collapsible with dynamic expanded state')
+
+    return True
+
+
+def test_fit_results_uses_expander():
+    """Test that render_fit_results uses st.expander with expanded=True."""
+    print('\nTesting render_fit_results uses st.expander(expanded=True)...')
+    import inspect
+
+    from sans_webapp.components.fit_results import render_fit_results
+
+    source = inspect.getsource(render_fit_results)
+    assert 'st.expander(' in source, 'render_fit_results should use st.expander!'
+    assert 'expanded=True' in source, 'Fit Results expander should default to expanded=True!'
+    # Should NOT use st.subheader for the section header
+    assert 'st.subheader(FIT_RESULTS_HEADER)' not in source, (
+        'render_fit_results should not use st.subheader for the header!'
+    )
+    print('✓ Fit Results section is collapsible and expanded by default')
+
+    return True
+
+
 # =============================================================================
 # Sidebar Component Tests (components/sidebar.py)
 # =============================================================================
@@ -1522,6 +1611,10 @@ if __name__ == '__main__':
         results['fit_results_residual_stats'] = test_fit_results_residual_statistics_calculation()
         results['fit_results_residuals_integration'] = test_fit_results_with_residuals_integration()
         results['data_preview_imports'] = test_data_preview_imports()
+        results['data_preview_expander'] = test_data_preview_uses_expander()
+        results['data_preview_collapse_on_model'] = test_data_preview_collapses_on_model_load()
+        results['parameters_expander'] = test_parameters_uses_expander()
+        results['fit_results_expander'] = test_fit_results_uses_expander()
         results['sidebar_imports'] = test_sidebar_imports()
     except Exception as e:
         print(f'\n✗ Components tests failed with exception: {e}')

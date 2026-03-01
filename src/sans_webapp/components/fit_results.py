@@ -22,8 +22,6 @@ from sans_webapp.sans_types import FitResult, ParamUpdate
 from sans_webapp.ui_constants import (
     ADJUST_PARAMETER_HEADER,
     CHI_SQUARED_LABEL,
-    DOWNLOAD_RESULTS_LABEL,
-    EXPORT_RESULTS_HEADER,
     FIT_RESULTS_HEADER,
     FITTED_PARAMETERS_HEADER,
     RESULTS_CSV_NAME,
@@ -46,34 +44,36 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
         fitter: The SANSFitter instance
         param_updates: Current parameter updates
     """
-    st.subheader(FIT_RESULTS_HEADER)
+    st.markdown('---')
 
-    col1, col2 = st.columns([2, 1])
+    with st.expander(FIT_RESULTS_HEADER, expanded=True):
+        # Checkbox to toggle residuals display (placed before columns for stable layout)
+        show_residuals = st.checkbox(SHOW_RESIDUALS_LABEL, value=True)
 
-    with col1:
-        try:
-            param_values = {name: info['value'] for name, info in fitter.params.items()}
-            calculator = DirectModel(fitter.data, fitter.kernel)
-            fit_i = calculator(**param_values)
-            q_plot = fitter.data.x
+        col1, col2 = st.columns([2, 1])
 
-            # Checkbox to toggle residuals display
-            show_residuals = st.checkbox(SHOW_RESIDUALS_LABEL, value=True)
+        with col1:
+            try:
+                param_values = {name: info['value'] for name, info in fitter.params.items()}
+                calculator = DirectModel(fitter.data, fitter.kernel)
+                fit_i = calculator(**param_values)
+                q_plot = fitter.data.x
 
-            if show_residuals:
-                fig = plot_data_fit_and_residuals(fitter, fit_q=q_plot, fit_i=fit_i)
-            else:
-                fig = plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
+                if show_residuals:
+                    fig = plot_data_fit_and_residuals(fitter, fit_q=q_plot, fit_i=fit_i)
+                else:
+                    fig = plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
 
-            st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, width='stretch')
 
-        except Exception as e:
-            st.error(f'Error plotting results: {str(e)}')
+            except Exception as e:
+                st.error(f'Error plotting results: {str(e)}')
 
-    with col2:
-        _render_fit_statistics(fitter)
-        _render_fitted_parameters_table(fitter)
-        _render_parameter_slider(fitter)
+        with col2:
+            _render_fit_statistics(fitter)
+            _render_fitted_parameters_table(fitter)
+            _render_parameter_slider(fitter)
+
         _render_export_section(fitter)
 
 
@@ -242,54 +242,58 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
         st.rerun()
 
 
+def _build_results_csv(fitter: SANSFitter) -> str:
+    """Build CSV string from fitter parameters."""
+    results_data = []
+    for name, info in fitter.params.items():
+        results_data.append(
+            {
+                'Parameter': name,
+                'Value': info['value'],
+                'Min': info['min'],
+                'Max': info['max'],
+                'Fitted': info['vary'],
+            }
+        )
+
+    # Add polydispersity parameters if enabled
+    if fitter.supports_polydispersity() and fitter.is_polydispersity_enabled():
+        for pd_param in fitter.get_polydisperse_parameters():
+            pd_config = fitter.get_pd_param(pd_param)
+            results_data.append(
+                {
+                    'Parameter': f'{pd_param}_pd',
+                    'Value': pd_config['pd'],
+                    'Min': 0.0,
+                    'Max': 1.0,
+                    'Fitted': pd_config.get('vary', False),
+                }
+            )
+            results_data.append(
+                {
+                    'Parameter': f'{pd_param}_pd_type',
+                    'Value': pd_config['pd_type'],
+                    'Min': 'N/A',
+                    'Max': 'N/A',
+                    'Fitted': False,
+                }
+            )
+
+    df_results = pd.DataFrame(results_data)
+    return df_results.to_csv(index=False)
+
+
 def _render_export_section(fitter: SANSFitter) -> None:
     """Render the export results section."""
-    st.markdown(EXPORT_RESULTS_HEADER)
-    if st.button(SAVE_RESULTS_BUTTON):
-        try:
-            results_data = []
-            for name, info in fitter.params.items():
-                results_data.append(
-                    {
-                        'Parameter': name,
-                        'Value': info['value'],
-                        'Min': info['min'],
-                        'Max': info['max'],
-                        'Fitted': info['vary'],
-                    }
-                )
+    try:
+        csv_data = _build_results_csv(fitter)
+    except Exception as e:
+        st.error(f'Error preparing results: {str(e)}')
+        csv_data = 'Error generating CSV'
 
-            # Add polydispersity parameters if enabled
-            if fitter.supports_polydispersity() and fitter.is_polydispersity_enabled():
-                for pd_param in fitter.get_polydisperse_parameters():
-                    pd_config = fitter.get_pd_param(pd_param)
-                    results_data.append(
-                        {
-                            'Parameter': f'{pd_param}_pd',
-                            'Value': pd_config['pd'],
-                            'Min': 0.0,
-                            'Max': 1.0,
-                            'Fitted': pd_config.get('vary', False),
-                        }
-                    )
-                    results_data.append(
-                        {
-                            'Parameter': f'{pd_param}_pd_type',
-                            'Value': pd_config['pd_type'],
-                            'Min': 'N/A',
-                            'Max': 'N/A',
-                            'Fitted': False,
-                        }
-                    )
-
-            df_results = pd.DataFrame(results_data)
-            csv = df_results.to_csv(index=False)
-
-            st.download_button(
-                label=DOWNLOAD_RESULTS_LABEL,
-                data=csv,
-                file_name=RESULTS_CSV_NAME,
-                mime='text/csv',
-            )
-        except Exception as e:
-            st.error(f'Error saving results: {str(e)}')
+    st.download_button(
+        label=SAVE_RESULTS_BUTTON,
+        data=csv_data,
+        file_name=RESULTS_CSV_NAME,
+        mime='text/csv',
+    )

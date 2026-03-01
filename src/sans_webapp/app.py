@@ -25,7 +25,7 @@ from sans_webapp.components.parameters import (
     render_parameter_configuration,
 )
 from sans_webapp.components.sidebar import (
-    render_ai_chat_sidebar,
+    render_ai_chat_column,
     render_data_upload_sidebar,
     render_model_selection_sidebar,
 )
@@ -62,9 +62,39 @@ from sans_webapp.ui_constants import (
     INFO_NO_DATA,
     SIDEBAR_CONTROLS_HEADER,
     SIDEBAR_FITTING_HEADER,
-    SUCCESS_FIT_COMPLETED,
     WARNING_NO_VARY,
 )
+
+
+def init_mcp_and_ai() -> None:
+    """Initialize MCP references and pre-warm Claude client if an API key exists.
+
+    Calls into `sans_webapp.mcp_server` to set the current fitter reference.
+    Attempts to create the Claude client singleton if an API key is configured in
+    `st.session_state.chat_api_key` or in the `ANTHROPIC_API_KEY` environment variable.
+    Errors are captured in `st.session_state.ai_client_error` to avoid breaking UI startup.
+    """
+    try:
+        from sans_webapp.mcp_server import set_fitter
+        from sans_webapp.services.claude_mcp_client import get_claude_client
+
+        # Provide the MCP server with direct access to the current fitter
+        set_fitter(st.session_state.fitter)
+
+        # Attempt to initialize the Claude client if API key is configured
+        api_key = st.session_state.get('chat_api_key') or __import__('os').environ.get(
+            'ANTHROPIC_API_KEY'
+        )
+        if api_key:
+            try:
+                # Create the singleton client (may raise if key invalid)
+                get_claude_client(api_key)
+            except Exception as e:  # pragma: no cover - defensive logging
+                # Store error for debugging in session state but do not interrupt UI
+                st.session_state.ai_client_error = str(e)
+    except Exception as e:  # pragma: no cover - defensive logging
+        # Non-fatal: continue running the app even if MCP initialization fails
+        print(f'Warning: failed to initialize MCP/AI client: {e}')
 
 
 def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
@@ -126,7 +156,8 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
                     result = fitter.fit(engine=engine, method=method)
                     st.session_state.fit_completed = True
                     st.session_state.fit_result = cast(FitResult, result)
-                    st.sidebar.success(SUCCESS_FIT_COMPLETED)
+                    st.session_state.expand_parameters = False
+                    st.rerun()
             except Exception as e:
                 st.sidebar.error(f'Fitting error: {str(e)}')
 
@@ -143,8 +174,144 @@ def main() -> None:
     st.title(APP_TITLE)
     st.markdown(APP_SUBTITLE)
 
+    # Inject custom CSS and JS for resizable AI chat column
+    st.markdown(
+        """
+        <style>
+        /* Make the right column (AI chat) sticky and resizable.
+           Target only the FIRST (top-level) stHorizontalBlock via :scope > to
+           avoid affecting inner column layouts (fit results, data preview, etc.). */
+        div[data-testid="stMainBlockContainer"] > div > div > div > div[data-testid="stHorizontalBlock"] {
+            position: relative;
+        }
+        div[data-testid="stMainBlockContainer"] > div > div > div > div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+            position: sticky;
+            top: 3.5rem;
+            height: fit-content;
+            max-height: calc(100vh - 4rem);
+            overflow-y: auto;
+            align-self: flex-start;
+            min-width: 250px;
+            max-width: 50%;
+            border-left: 3px solid #e0e0e0;
+            padding-left: 10px;
+            transition: none;
+        }
+        div[data-testid="stMainBlockContainer"] > div > div > div > div[data-testid="stHorizontalBlock"] > div:nth-child(2):hover {
+            border-left-color: #1f77b4;
+        }
+        /* Resize handle */
+        .resize-handle {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            z-index: 1000;
+        }
+        .resize-handle:hover, .resize-handle.dragging {
+            background: rgba(31, 119, 180, 0.3);
+        }
+        /* Compact parameter table so it doesn't wrap with narrow viewport */
+        [data-testid="stForm"] [data-testid="stHorizontalBlock"] {
+            gap: 0.25rem !important;
+        }
+        [data-testid="stForm"] [data-testid="stHorizontalBlock"] > div {
+            min-width: 0 !important;
+        }
+        [data-testid="stForm"] [data-testid="stNumberInput"] {
+            min-width: 0 !important;
+        }
+        [data-testid="stForm"] [data-testid="stNumberInput"] input {
+            min-width: 0 !important;
+            padding-left: 0.25rem !important;
+            padding-right: 0.25rem !important;
+        }
+        </style>
+        <script>
+        (function() {
+            // Wait for Streamlit to render - target only the top-level column block
+            const initResizable = () => {
+                const mainBlock = document.querySelector('[data-testid="stMainBlockContainer"]');
+                if (!mainBlock) {
+                    setTimeout(initResizable, 100);
+                    return;
+                }
+                const container = mainBlock.querySelector('[data-testid="stHorizontalBlock"]');
+                if (!container) {
+                    setTimeout(initResizable, 100);
+                    return;
+                }
+
+                const leftCol = container.children[0];
+                const rightCol = container.children[1];
+
+                if (!leftCol || !rightCol || rightCol.querySelector('.resize-handle')) return;
+
+                // Create resize handle
+                const handle = document.createElement('div');
+                handle.className = 'resize-handle';
+                rightCol.style.position = 'relative';
+                rightCol.insertBefore(handle, rightCol.firstChild);
+
+                let startX, startWidth, containerWidth;
+
+                handle.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    startX = e.clientX;
+                    startWidth = rightCol.offsetWidth;
+                    containerWidth = container.offsetWidth;
+                    handle.classList.add('dragging');
+
+                    const onMouseMove = (e) => {
+                        const delta = startX - e.clientX;
+                        const newWidth = Math.min(Math.max(startWidth + delta, 250), containerWidth * 0.5);
+                        const newLeftWidth = containerWidth - newWidth - 20;
+
+                        rightCol.style.flex = 'none';
+                        rightCol.style.width = newWidth + 'px';
+                        leftCol.style.flex = 'none';
+                        leftCol.style.width = newLeftWidth + 'px';
+                    };
+
+                    const onMouseUp = () => {
+                        handle.classList.remove('dragging');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            };
+
+            // Initialize after a short delay
+            setTimeout(initResizable, 500);
+
+            // Re-initialize on Streamlit reruns — use debounce to avoid rapid firing
+            let debounceTimer = null;
+            const observer = new MutationObserver(() => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(initResizable, 300);
+            });
+            observer.observe(document.body, { childList: true, subtree: false });
+        })();
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # Initialize session state
     init_session_state()
+
+    # Initialize MCP server references and AI client if available
+    # Call module-level helper
+    init_mcp_and_ai()
+
+    # Call initialization helper (kept inline for deterministic startup)
+    init_mcp_and_ai()
 
     # Sidebar for controls
     st.sidebar.header(SIDEBAR_CONTROLS_HEADER)
@@ -152,29 +319,34 @@ def main() -> None:
     render_data_upload_sidebar()
     render_model_selection_sidebar()
 
-    # Main content area - handle case when data is not loaded
-    if not st.session_state.data_loaded:
-        st.info(INFO_NO_DATA)
-        st.markdown(DATA_FORMAT_HELP)
-        render_ai_chat_sidebar(st.session_state.chat_api_key, st.session_state.fitter)
-        return
+    # Create two-column layout: main content (70%) and AI chat (30%)
+    col1, col2 = st.columns([0.7, 0.3])
 
-    # Data is loaded - render data preview
-    render_data_preview(st.session_state.fitter)
+    # AI Chat in the right column
+    with col2:
+        render_ai_chat_column(st.session_state.chat_api_key, st.session_state.fitter)
 
-    # Parameter Configuration
-    if st.session_state.model_selected:
-        param_updates = render_parameter_configuration(st.session_state.fitter)
+    # Main content in the left column
+    with col1:
+        # Main content area - handle case when data is not loaded
+        if not st.session_state.data_loaded:
+            st.info(INFO_NO_DATA)
+            st.markdown(DATA_FORMAT_HELP)
+            return
 
-        # Fitting Section (in sidebar)
-        render_fitting_sidebar(param_updates)
+        # Data is loaded - render data preview
+        render_data_preview(st.session_state.fitter)
 
-        # Display fit results
-        if st.session_state.fit_completed:
-            render_fit_results(st.session_state.fitter, param_updates)
+        # Parameter Configuration
+        if st.session_state.model_selected:
+            param_updates = render_parameter_configuration(st.session_state.fitter)
 
-    # Render AI Chat in left sidebar (at the bottom)
-    render_ai_chat_sidebar(st.session_state.chat_api_key, st.session_state.fitter)
+            # Fitting Section (in sidebar)
+            render_fitting_sidebar(param_updates)
+
+            # Display fit results
+            if st.session_state.fit_completed:
+                render_fit_results(st.session_state.fitter, param_updates)
 
 
 if __name__ == '__main__':

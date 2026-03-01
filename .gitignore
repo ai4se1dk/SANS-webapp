@@ -48,6 +48,12 @@ htmlcov/
 # Streamlit
 .streamlit/
 
+# Windows reserved device name artifact
+nul
+
+# Claude
+.claude/
+
 # Temporary files
 *.log
 *.tmp
@@ -63,3 +69,4 @@ docs/_build/
 
 # Pixi
 .pixi/
+
