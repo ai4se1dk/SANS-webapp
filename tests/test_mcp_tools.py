@@ -25,7 +25,7 @@ class TestMCPToolSchemas:
 
         schemas = get_mcp_tool_schemas()
         assert isinstance(schemas, list)
-        assert len(schemas) == 11  # 11 tools defined
+        assert len(schemas) == 16  # 16 tools defined
 
     def test_all_tools_have_required_fields(self):
         """Each tool schema should have name, description, and input_schema."""
@@ -46,6 +46,10 @@ class TestMCPToolSchemas:
         expected_tools = [
             'list-sans-models',
             'get-model-parameters',
+            'list-structure-factors',
+            'get-structure-factor-parameters',
+            'get-polydisperse-parameters',
+            'get-polydispersity-options',
             'get-current-state',
             'get-fit-results',
             'set-model',
@@ -55,6 +59,7 @@ class TestMCPToolSchemas:
             'set-structure-factor',
             'remove-structure-factor',
             'run-fit',
+            'load-sasview-params',
         ]
 
         schemas = get_mcp_tool_schemas()
@@ -406,6 +411,97 @@ class TestCheckPreconditions:
 
             assert success is True
             assert message == ''
+
+
+# =============================================================================
+# Test load-sasview-params tool
+# =============================================================================
+
+
+class TestLoadSasviewParamsTool:
+    """Test the load-sasview-params MCP tool."""
+
+    def test_load_sasview_params_disabled(self):
+        """Should refuse when AI tools are disabled."""
+        from sans_webapp.mcp_server import load_sasview_params
+
+        with patch('sans_webapp.mcp_server._check_tools_enabled', return_value=False):
+            result = load_sasview_params('dummy.txt')
+            assert 'disabled' in result.lower()
+
+    def test_load_sasview_params_success(self, tmp_path):
+        """Should load a valid SasView param file and sync session state."""
+        from sans_webapp.mcp_server import load_sasview_params
+
+        # Write a minimal valid file
+        param_file = tmp_path / 'params.txt'
+        param_file.write_text(
+            "sasview_parameter_values\n"
+            "model_name,sphere\n"
+            "scale,False,1.0,None,0.0,inf,()\n"
+            "background,False,0.001,None,-inf,inf,()\n"
+            "sld,False,1.0,None,-inf,inf,()\n"
+            "sld_solvent,False,1.0,None,-inf,inf,()\n"
+            "radius,True,50.0,None,0.0,inf,()\n",
+            encoding='utf-8',
+        )
+
+        mock_fitter = MockFitter()
+        mock_ss = MockSessionState()
+        mock_ss['ai_tools_enabled'] = True
+
+        with (
+            patch('sans_webapp.mcp_server._check_tools_enabled', return_value=True),
+            patch('sans_webapp.mcp_server.get_fitter', return_value=mock_fitter),
+            patch('streamlit.session_state', mock_ss),
+        ):
+            result = load_sasview_params(str(param_file))
+
+        assert 'sphere' in result
+        assert mock_ss.get('current_model') == 'sphere'
+        assert mock_ss.get('model_selected') is True
+
+    def test_load_sasview_params_product_model_rejected(self, tmp_path):
+        """Should reject product models with a clear message."""
+        from sans_webapp.mcp_server import load_sasview_params
+
+        param_file = tmp_path / 'params.txt'
+        param_file.write_text(
+            "sasview_parameter_values\n"
+            "model_name,sphere@hardsphere\n"
+            "scale,False,1.0,None,0.0,inf,()\n",
+            encoding='utf-8',
+        )
+
+        mock_fitter = MockFitter()
+
+        with (
+            patch('sans_webapp.mcp_server._check_tools_enabled', return_value=True),
+            patch('sans_webapp.mcp_server.get_fitter', return_value=mock_fitter),
+            patch('streamlit.session_state', MockSessionState()),
+        ):
+            result = load_sasview_params(str(param_file))
+
+        assert 'unsupported' in result.lower() or 'not supported' in result.lower()
+
+    def test_load_sasview_params_in_tool_handlers(self):
+        """load-sasview-params should be registered in handlers and schemas."""
+        from sans_webapp.services.claude_mcp_client import (
+            get_mcp_tool_schemas,
+        )
+
+        schemas = get_mcp_tool_schemas()
+        tool_names = [s['name'] for s in schemas]
+        assert 'load-sasview-params' in tool_names
+
+    def test_load_sasview_params_schema_has_filepath(self):
+        """Tool schema should require a filepath argument."""
+        from sans_webapp.services.claude_mcp_client import get_mcp_tool_schemas
+
+        schemas = get_mcp_tool_schemas()
+        schema = next(s for s in schemas if s['name'] == 'load-sasview-params')
+        assert 'filepath' in schema['input_schema']['properties']
+        assert 'filepath' in schema['input_schema']['required']
 
 
 # =============================================================================

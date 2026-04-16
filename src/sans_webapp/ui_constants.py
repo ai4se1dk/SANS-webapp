@@ -91,6 +91,7 @@ PRESET_HEADER = '**Quick Presets:**'
 PRESET_FIT_SCALE_BACKGROUND = 'Fit Scale & Background'
 PRESET_FIT_ALL = 'Fit All Parameters'
 PRESET_FIX_ALL = 'Fix All Parameters'
+IMPORT_SASVIEW_BUTTON = 'Import SasView parameters'
 
 # Parameter Tabs
 PARAM_TAB_BASIC = '📊 Basic Parameters'

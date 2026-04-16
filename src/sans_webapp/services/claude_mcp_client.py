@@ -24,10 +24,15 @@ _TOOL_PRIORITY: dict[str, int] = {
     'set-parameter': 3,
     'set-multiple-parameters': 3,
     'enable-polydispersity': 4,
+    'load-sasview-params': 1,  # sets model + params, same priority as set-model
     'run-fit': 5,  # run after all param changes
     # Reads – executed AFTER writes so they see up-to-date state
     'list-sans-models': 10,
     'get-model-parameters': 10,
+    'list-structure-factors': 10,
+    'get-structure-factor-parameters': 10,
+    'get-polydisperse-parameters': 10,
+    'get-polydispersity-options': 10,
     'get-current-state': 10,
     'get-fit-results': 10,
 }
@@ -45,7 +50,12 @@ def _build_tool_handlers() -> dict[str, callable]:
         get_current_state,
         get_fit_results,
         get_model_parameters,
+        get_polydisperse_parameters,
+        get_polydispersity_options_tool,
+        get_structure_factor_parameters,
         list_sans_models,
+        list_structure_factors,
+        load_sasview_params,
         remove_structure_factor,
         run_fit,
         set_model,
@@ -57,6 +67,10 @@ def _build_tool_handlers() -> dict[str, callable]:
     _tool_handlers = {
         'list-sans-models': list_sans_models,
         'get-model-parameters': get_model_parameters,
+        'list-structure-factors': list_structure_factors,
+        'get-structure-factor-parameters': get_structure_factor_parameters,
+        'get-polydisperse-parameters': get_polydisperse_parameters,
+        'get-polydispersity-options': get_polydispersity_options_tool,
         'get-current-state': get_current_state,
         'get-fit-results': get_fit_results,
         'set-model': set_model,
@@ -66,6 +80,7 @@ def _build_tool_handlers() -> dict[str, callable]:
         'set-structure-factor': set_structure_factor,
         'remove-structure-factor': remove_structure_factor,
         'run-fit': run_fit,
+        'load-sasview-params': load_sasview_params,
     }
     return _tool_handlers
 
@@ -99,6 +114,56 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
                     }
                 },
                 'required': ['model_name'],
+            },
+        },
+        {
+            'name': 'list-structure-factors',
+            'description': 'List available structure factors for modeling inter-particle interactions. Essential for concentrated systems.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
+            },
+        },
+        {
+            'name': 'get-structure-factor-parameters',
+            'description': 'Get parameters for a form_factor@structure_factor product model. Returns combined parameters from both form factor and structure factor.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'form_factor': {
+                        'type': 'string',
+                        'description': "Name of the form factor model (e.g., 'sphere')",
+                    },
+                    'structure_factor': {
+                        'type': 'string',
+                        'description': "Name of the structure factor (e.g., 'hardsphere')",
+                    },
+                },
+                'required': ['form_factor', 'structure_factor'],
+            },
+        },
+        {
+            'name': 'get-polydisperse-parameters',
+            'description': 'Get parameters that support polydispersity for a SANS model. Shows which parameters can have size distributions applied.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'model_name': {
+                        'type': 'string',
+                        'description': "Name of the model (e.g., 'sphere', 'cylinder')",
+                    }
+                },
+                'required': ['model_name'],
+            },
+        },
+        {
+            'name': 'get-polydispersity-options',
+            'description': 'Get available polydispersity distribution types and default values. Use to understand PD configuration options before enabling polydispersity.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {},
+                'required': [],
             },
         },
         {
@@ -240,6 +305,20 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
                 'type': 'object',
                 'properties': {},
                 'required': [],
+            },
+        },
+        {
+            'name': 'load-sasview-params',
+            'description': 'Load a SasView parameter export file into the fitter. Phase 1 supports plain form-factor models only. Product models (form@structure) and polydispersity parameters are not applied.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'filepath': {
+                        'type': 'string',
+                        'description': 'Path to the SasView parameter export file.',
+                    }
+                },
+                'required': ['filepath'],
             },
         },
     ]

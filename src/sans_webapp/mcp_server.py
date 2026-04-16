@@ -9,6 +9,14 @@ set parameters, run fits, and query results.
 from typing import Any
 
 from sans_fitter import SANSFitter, get_all_models
+from sans_fitter.capabilities import (
+    get_model_parameter_specs,
+    get_model_polydispersity_support,
+    get_polydispersity_options,
+    get_product_model_parameters,
+    get_supported_structure_factors,
+)
+from sans_fitter.sasview_params import SasViewParamFile
 
 # Try to instantiate FastMCP, but be resilient in test environments where
 # FastMCP's pydantic-based Settings may raise due to version mismatches.
@@ -170,10 +178,7 @@ def get_model_parameters(model_name: str) -> str:
         model_name: Name of the model (e.g., 'sphere', 'cylinder')
     """
     try:
-        # Create a temporary fitter to inspect model parameters
-        temp_fitter = SANSFitter()
-        temp_fitter.set_model(model_name)
-        params = temp_fitter.params
+        params = get_model_parameter_specs(model_name)
 
         lines = [f"Parameters for '{model_name}':"]
         for name, param in params.items():
@@ -186,6 +191,78 @@ def get_model_parameters(model_name: str) -> str:
         return '\n'.join(lines)
     except Exception as e:
         return f"Error getting parameters for '{model_name}': {str(e)}"
+
+
+def list_structure_factors() -> str:
+    """
+    List available structure factors for modeling inter-particle interactions.
+    Structure factors are essential for concentrated systems where particle
+    interactions affect scattering.
+    """
+    sf = get_supported_structure_factors()
+    lines = [f'Available structure factors ({len(sf)}):']
+    for name, desc in sf.items():
+        lines.append(f'  - {name}: {desc}')
+    return '\n'.join(lines)
+
+
+def get_structure_factor_parameters(form_factor: str, structure_factor: str) -> str:
+    """
+    Get parameters for a form_factor@structure_factor product model.
+    Returns combined parameters from both form factor and structure factor.
+
+    Args:
+        form_factor: Name of the form factor model (e.g., 'sphere')
+        structure_factor: Name of the structure factor (e.g., 'hardsphere')
+    """
+    try:
+        params = get_product_model_parameters(form_factor, structure_factor)
+        lines = [f"Parameters for '{form_factor}@{structure_factor}':"]
+        for name, param in params.items():
+            value = param.get('value', 'N/A')
+            p_min = param.get('min', None)
+            p_max = param.get('max', None)
+            vary = param.get('vary', True)
+            lines.append(f'  - {name}: {value} (bounds: ({p_min}, {p_max}), vary: {vary})')
+        return '\n'.join(lines)
+    except Exception as e:
+        return f"Error getting product model parameters: {str(e)}"
+
+
+def get_polydisperse_parameters(model_name: str) -> str:
+    """
+    Get parameters that support polydispersity for a SANS model.
+    Returns list of parameter names that can have size distributions applied.
+
+    Args:
+        model_name: Name of the model (e.g., 'sphere', 'cylinder')
+    """
+    try:
+        info = get_model_polydispersity_support(model_name)
+        if info['supports_polydispersity']:
+            params = ', '.join(info['polydisperse_parameters'])
+            return f"Model '{model_name}' supports polydispersity.\nPolydisperse parameters: {params}"
+        else:
+            return f"Model '{model_name}' does not support polydispersity."
+    except Exception as e:
+        return f"Error checking polydispersity for '{model_name}': {str(e)}"
+
+
+def get_polydispersity_options_tool() -> str:
+    """
+    Get available polydispersity distribution types and default values.
+    Use this to understand PD configuration options before enabling polydispersity.
+    """
+    opts = get_polydispersity_options()
+    lines = ['Polydispersity options:']
+    lines.append(f'  Distribution types: {", ".join(opts["distribution_types"])}')
+    lines.append('  Defaults:')
+    for k, v in opts['defaults'].items():
+        lines.append(f'    {k}: {v}')
+    lines.append('  Field descriptions:')
+    for k, v in opts['description'].items():
+        lines.append(f'    {k}: {v}')
+    return '\n'.join(lines)
 
 
 def get_current_state() -> str:
@@ -615,12 +692,84 @@ def run_fit() -> str:
         return f'Fit failed: {str(e)}'
 
 
+def load_sasview_params(filepath: str) -> str:
+    """
+    Load a SasView parameter export file into the fitter.
+
+    Phase 1 supports plain form-factor models only. Product models
+    (form@structure) and polydispersity parameters are not applied.
+
+    Args:
+        filepath: Path to the SasView parameter export file.
+    """
+    if not _check_tools_enabled():
+        return 'AI tools are disabled. Enable them in the sidebar to load SasView parameters.'
+
+    try:
+        import warnings
+
+        import streamlit as st
+
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
+        fitter = get_fitter()
+
+        # Capture warnings from the fitter (skipped params, etc.)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            parsed: SasViewParamFile = fitter.load_sasview_params(filepath)
+
+        # Sync session state like set_model does
+        bridge = get_state_bridge()
+        bridge.clear_parameter_widgets()
+        bridge.set_current_model(parsed.model_name)
+        bridge.set_model_selected(True)
+        bridge.set_fit_completed(False)
+
+        # Sync each applied parameter to widget state
+        for name, param in fitter.params.items():
+            bridge.set_parameter_widget(
+                name,
+                value=param.get('value'),
+                min_val=param.get('min'),
+                max_val=param.get('max'),
+                vary=param.get('vary'),
+            )
+
+        bridge.set_needs_rerun(True)
+
+        # Build summary
+        lines = [
+            f"Loaded SasView parameters for model '{parsed.model_name}'.",
+            f"Applied {len(fitter.params)} parameters.",
+        ]
+
+        if caught:
+            for w in caught:
+                lines.append(f"Warning: {w.message}")
+
+        lines.append(
+            "Note: Phase 1 does not support product models, "
+            "polydispersity restoration, or constraint expressions."
+        )
+
+        return '\n'.join(lines)
+    except NotImplementedError as e:
+        return f'Unsupported file: {e}'
+    except Exception as e:
+        return f'Error loading SasView parameters: {e}'
+
+
 # =============================================================================
 # Tool registration
 # =============================================================================
 
 mcp.tool(name='list-sans-models')(list_sans_models)
 mcp.tool(name='get-model-parameters')(get_model_parameters)
+mcp.tool(name='list-structure-factors')(list_structure_factors)
+mcp.tool(name='get-structure-factor-parameters')(get_structure_factor_parameters)
+mcp.tool(name='get-polydisperse-parameters')(get_polydisperse_parameters)
+mcp.tool(name='get-polydispersity-options')(get_polydispersity_options_tool)
 mcp.tool(name='get-current-state')(get_current_state)
 mcp.tool(name='get-fit-results')(get_fit_results)
 mcp.tool(name='set-model')(set_model)
@@ -630,6 +779,7 @@ mcp.tool(name='enable-polydispersity')(enable_polydispersity)
 mcp.tool(name='set-structure-factor')(set_structure_factor)
 mcp.tool(name='remove-structure-factor')(remove_structure_factor)
 mcp.tool(name='run-fit')(run_fit)
+mcp.tool(name='load-sasview-params')(load_sasview_params)
 
 
 # =============================================================================

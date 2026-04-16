@@ -16,7 +16,10 @@ from sans_fitter import SANSFitter
 
 from sans_webapp.sans_types import FitResult, ParamInfo, ParamUpdate, PDUpdate
 from sans_webapp.services.session_state import clamp_for_display
+from streamlit.runtime.uploaded_file_manager import UploadedFile
+
 from sans_webapp.ui_constants import (
+    IMPORT_SASVIEW_BUTTON,
     PARAM_TAB_BASIC,
     PARAM_TAB_POLYDISPERSITY,
     PARAMETER_COLUMNS_LABELS,
@@ -360,6 +363,17 @@ def apply_pd_updates(fitter: SANSFitter, pd_updates: dict[str, PDUpdate]) -> Non
         )
 
 
+def process_sasview_params_file(uploaded_file: UploadedFile) -> None:
+    """
+    Process an uploaded SasView parameters file.
+
+    Args:
+        uploaded_file: The uploaded .txt file from SasView
+    """
+    # TODO: Implement SasView parameter file parsing
+    pass
+
+
 def render_polydispersity_tab(fitter: SANSFitter) -> None:
     """
     Render the polydispersity configuration tab.
@@ -483,6 +497,15 @@ def render_basic_parameters_tab(
         if st.button(PRESET_FIX_ALL):
             st.session_state.pending_preset = 'fix_all'
             st.rerun()
+
+    # Import SasView parameters
+    uploaded_file = st.file_uploader(
+        IMPORT_SASVIEW_BUTTON,
+        type=['txt'],
+        key='sasview_params_file',
+    )
+    if uploaded_file is not None:
+        process_sasview_params_file(uploaded_file)
 
     return param_updates
 

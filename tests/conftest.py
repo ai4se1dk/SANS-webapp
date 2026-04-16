@@ -114,6 +114,19 @@ class MockFitter:
     def remove_structure_factor(self):
         return self
 
+    def load_sasview_params(self, filepath):
+        from sans_fitter.sasview_params import parse_sasview_params
+
+        parsed = parse_sasview_params(filepath)
+        if "@" in parsed.model_name:
+            raise NotImplementedError(f"Product-model import not supported: {parsed.model_name!r}")
+        self.set_model(parsed.model_name)
+        # MockFitter.set_model only knows sphere params; just apply what we can
+        for p in parsed.params:
+            if p.name in self.params:
+                self.set_param(p.name, value=p.value, min=p.min, max=p.max, vary=p.vary)
+        return parsed
+
 
 @pytest.fixture
 def mock_session_state():

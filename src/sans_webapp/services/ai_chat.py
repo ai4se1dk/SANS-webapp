@@ -189,14 +189,54 @@ def _build_context(fitter: SANSFitter) -> str:
     if active_model:
         context_parts.append(f'Current model: {active_model}')
 
-        # Parameters
+        # Parameters (value, bounds, vary)
         if hasattr(fitter, 'params') and fitter.params:
             param_info = []
             for name, param in fitter.params.items():
                 value = param.get('value', 'N/A')
+                min_val = param.get('min', 'N/A')
+                max_val = param.get('max', 'N/A')
                 vary = param.get('vary', True)
-                param_info.append(f'  {name}: {value} (vary: {vary})')
+                param_info.append(
+                    f'  {name}: {value} (min={min_val}, max={max_val}, vary={vary})'
+                )
             context_parts.append('Parameters:\n' + '\n'.join(param_info))
+
+        # Structure factor
+        sf_name = None
+        if hasattr(fitter, 'get_structure_factor_name'):
+            try:
+                sf_name = fitter.get_structure_factor_name()
+            except Exception:
+                pass
+        context_parts.append(f'Structure factor: {sf_name if sf_name else "none"}')
+
+        # Polydispersity
+        pd_enabled = False
+        if hasattr(fitter, 'is_polydispersity_enabled'):
+            try:
+                pd_enabled = fitter.is_polydispersity_enabled()
+            except Exception:
+                pd_enabled = st.session_state.get('pd_enabled', False)
+        context_parts.append(f'Polydispersity enabled: {pd_enabled}')
+
+        if pd_enabled and hasattr(fitter, 'get_polydisperse_parameters'):
+            try:
+                pd_params = fitter.get_polydisperse_parameters()
+                if pd_params:
+                    pd_info = []
+                    for pname in pd_params:
+                        try:
+                            cfg = fitter.get_pd_param(pname)
+                            pd_info.append(
+                                f'  {pname}: width={cfg["pd"]:.4f}, npts={cfg["pd_n"]}, '
+                                f'type={cfg["pd_type"]}, vary={cfg.get("vary", False)}'
+                            )
+                        except Exception:
+                            pd_info.append(f'  {pname}: (config unavailable)')
+                    context_parts.append('Polydispersity parameters:\n' + '\n'.join(pd_info))
+            except Exception:
+                pass
     else:
         context_parts.append('No model selected')
 
