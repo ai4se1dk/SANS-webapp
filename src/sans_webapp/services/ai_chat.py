@@ -197,9 +197,7 @@ def _build_context(fitter: SANSFitter) -> str:
                 min_val = param.get('min', 'N/A')
                 max_val = param.get('max', 'N/A')
                 vary = param.get('vary', True)
-                param_info.append(
-                    f'  {name}: {value} (min={min_val}, max={max_val}, vary={vary})'
-                )
+                param_info.append(f'  {name}: {value} (min={min_val}, max={max_val}, vary={vary})')
             context_parts.append('Parameters:\n' + '\n'.join(param_info))
 
         # Structure factor

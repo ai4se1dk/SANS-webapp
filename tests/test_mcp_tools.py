@@ -436,13 +436,13 @@ class TestLoadSasviewParamsTool:
         # Write a minimal valid file
         param_file = tmp_path / 'params.txt'
         param_file.write_text(
-            "sasview_parameter_values\n"
-            "model_name,sphere\n"
-            "scale,False,1.0,None,0.0,inf,()\n"
-            "background,False,0.001,None,-inf,inf,()\n"
-            "sld,False,1.0,None,-inf,inf,()\n"
-            "sld_solvent,False,1.0,None,-inf,inf,()\n"
-            "radius,True,50.0,None,0.0,inf,()\n",
+            'sasview_parameter_values\n'
+            'model_name,sphere\n'
+            'scale,False,1.0,None,0.0,inf,()\n'
+            'background,False,0.001,None,-inf,inf,()\n'
+            'sld,False,1.0,None,-inf,inf,()\n'
+            'sld_solvent,False,1.0,None,-inf,inf,()\n'
+            'radius,True,50.0,None,0.0,inf,()\n',
             encoding='utf-8',
         )
 
@@ -467,9 +467,9 @@ class TestLoadSasviewParamsTool:
 
         param_file = tmp_path / 'params.txt'
         param_file.write_text(
-            "sasview_parameter_values\n"
-            "model_name,sphere@hardsphere\n"
-            "scale,False,1.0,None,0.0,inf,()\n",
+            'sasview_parameter_values\n'
+            'model_name,sphere@hardsphere\n'
+            'scale,False,1.0,None,0.0,inf,()\n',
             encoding='utf-8',
         )
 

@@ -118,8 +118,8 @@ class MockFitter:
         from sans_fitter.sasview_params import parse_sasview_params
 
         parsed = parse_sasview_params(filepath)
-        if "@" in parsed.model_name:
-            raise NotImplementedError(f"Product-model import not supported: {parsed.model_name!r}")
+        if '@' in parsed.model_name:
+            raise NotImplementedError(f'Product-model import not supported: {parsed.model_name!r}')
         self.set_model(parsed.model_name)
         # MockFitter.set_model only knows sphere params; just apply what we can
         for p in parsed.params:

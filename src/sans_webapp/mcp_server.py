@@ -226,7 +226,7 @@ def get_structure_factor_parameters(form_factor: str, structure_factor: str) -> 
             lines.append(f'  - {name}: {value} (bounds: ({p_min}, {p_max}), vary: {vary})')
         return '\n'.join(lines)
     except Exception as e:
-        return f"Error getting product model parameters: {str(e)}"
+        return f'Error getting product model parameters: {str(e)}'
 
 
 def get_polydisperse_parameters(model_name: str) -> str:
@@ -241,7 +241,9 @@ def get_polydisperse_parameters(model_name: str) -> str:
         info = get_model_polydispersity_support(model_name)
         if info['supports_polydispersity']:
             params = ', '.join(info['polydisperse_parameters'])
-            return f"Model '{model_name}' supports polydispersity.\nPolydisperse parameters: {params}"
+            return (
+                f"Model '{model_name}' supports polydispersity.\nPolydisperse parameters: {params}"
+            )
         else:
             return f"Model '{model_name}' does not support polydispersity."
     except Exception as e:
@@ -716,7 +718,7 @@ def load_sasview_params(filepath: str) -> str:
 
         # Capture warnings from the fitter (skipped params, etc.)
         with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+            warnings.simplefilter('always')
             parsed: SasViewParamFile = fitter.load_sasview_params(filepath)
 
         # Sync session state like set_model does
@@ -741,16 +743,16 @@ def load_sasview_params(filepath: str) -> str:
         # Build summary
         lines = [
             f"Loaded SasView parameters for model '{parsed.model_name}'.",
-            f"Applied {len(fitter.params)} parameters.",
+            f'Applied {len(fitter.params)} parameters.',
         ]
 
         if caught:
             for w in caught:
-                lines.append(f"Warning: {w.message}")
+                lines.append(f'Warning: {w.message}')
 
         lines.append(
-            "Note: Phase 1 does not support product models, "
-            "polydispersity restoration, or constraint expressions."
+            'Note: Phase 1 does not support product models, '
+            'polydispersity restoration, or constraint expressions.'
         )
 
         return '\n'.join(lines)
