@@ -710,8 +710,6 @@ def load_sasview_params(filepath: str) -> str:
     try:
         import warnings
 
-        import streamlit as st
-
         from sans_webapp.services.mcp_state_bridge import get_state_bridge
 
         fitter = get_fitter()

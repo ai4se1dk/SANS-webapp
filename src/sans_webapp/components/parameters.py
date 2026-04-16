@@ -13,11 +13,10 @@ from typing import cast
 
 import streamlit as st
 from sans_fitter import SANSFitter
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from sans_webapp.sans_types import FitResult, ParamInfo, ParamUpdate, PDUpdate
 from sans_webapp.services.session_state import clamp_for_display
-from streamlit.runtime.uploaded_file_manager import UploadedFile
-
 from sans_webapp.ui_constants import (
     IMPORT_SASVIEW_BUTTON,
     PARAM_TAB_BASIC,
