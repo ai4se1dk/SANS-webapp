@@ -5,16 +5,18 @@ Contains rendering functions for displaying fit results,
 parameter adjustments, and export functionality.
 """
 
-from typing import cast
+import os
+import tempfile
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 from sans_fitter import SANSFitter
-from sasmodels.direct_model import DirectModel
 
 from sans_webapp.sans_analysis_utils import (
     calculate_residuals,
+    evaluate_model,
     plot_data_and_fit,
     plot_data_fit_and_residuals,
 )
@@ -22,9 +24,17 @@ from sans_webapp.sans_types import FitResult, ParamUpdate
 from sans_webapp.ui_constants import (
     ADJUST_PARAMETER_HEADER,
     CHI_SQUARED_LABEL,
+    FIT_CURVE_CSV_NAME,
+    FIT_ENGINE_CAPTION,
+    FIT_NOT_CONVERGED_WARNING,
+    FIT_ON_BOUNDS_WARNING,
+    FIT_REPORT_HEADER,
     FIT_RESULTS_HEADER,
+    FIT_STATS_CAPTION,
+    FIT_WARNINGS_HEADER,
     FITTED_PARAMETERS_HEADER,
     RESULTS_CSV_NAME,
+    SAVE_FIT_CURVE_BUTTON,
     SAVE_RESULTS_BUTTON,
     SELECT_PARAMETER_LABEL,
     SHOW_RESIDUALS_LABEL,
@@ -34,6 +44,16 @@ from sans_webapp.ui_constants import (
     SLIDER_SCALE_MIN,
     UPDATE_FROM_FIT_BUTTON,
 )
+
+
+def _get_fit_result() -> FitResult | None:
+    """Return the fit result stored in session state, if it is a result dictionary."""
+    if 'fit_result' not in st.session_state:
+        return None
+    fit_result = st.session_state.fit_result
+    if not isinstance(fit_result, dict):
+        return None
+    return cast(FitResult, fit_result)
 
 
 def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]) -> None:
@@ -47,6 +67,8 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
     st.markdown('---')
 
     with st.expander(FIT_RESULTS_HEADER, expanded=True):
+        _render_fit_warnings()
+
         # Checkbox to toggle residuals display (placed before columns for stable layout)
         show_residuals = st.checkbox(SHOW_RESIDUALS_LABEL, value=True)
 
@@ -54,9 +76,10 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
 
         with col1:
             try:
-                param_values = {name: info['value'] for name, info in fitter.params.items()}
-                calculator = DirectModel(fitter.data, fitter.kernel)
-                fit_i = calculator(**param_values)
+                # SANSFitter.calculate() evaluates the model exactly as the fit did
+                # (polydispersity, links, structure factor, resolution) and returns
+                # NaN outside the fit Q range so the curve aligns with data.x.
+                fit_i = evaluate_model(fitter)
                 q_plot = fitter.data.x
 
                 if show_residuals:
@@ -74,37 +97,101 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
             _render_fitted_parameters_table(fitter)
             _render_parameter_slider(fitter)
 
+        _render_fit_report(fitter)
         _render_export_section(fitter)
 
 
+def _render_fit_warnings() -> None:
+    """Show the warnings sans-fitter raised during the last fit (bounds, convergence, ...)."""
+    if 'fit_warnings' not in st.session_state:
+        return
+    fit_warnings = st.session_state.fit_warnings
+    if not fit_warnings:
+        return
+    st.markdown(FIT_WARNINGS_HEADER)
+    for message in fit_warnings:
+        st.warning(message)
+
+
 def _render_fit_statistics(fitter: SANSFitter) -> None:
-    """Render chi-squared and residual statistics."""
-    if 'fit_result' in st.session_state and 'chisq' in st.session_state.fit_result:
-        chi_squared = cast(FitResult, st.session_state.fit_result).get('chisq')
-        if chi_squared is not None:
-            st.markdown(f'{CHI_SQUARED_LABEL}{chi_squared:.4f}')
+    """Render chi-squared, fit diagnostics and residual statistics."""
+    fit_result = _get_fit_result()
+    if fit_result is None:
+        return
 
-            # Calculate and display residual statistics
-            try:
-                param_values = {name: info['value'] for name, info in fitter.params.items()}
-                calculator = DirectModel(fitter.data, fitter.kernel)
-                fit_i = calculator(**param_values)
-                residuals = calculate_residuals(fitter.data.y, fit_i, fitter.data.dy)
-                _render_residual_statistics(residuals)
-            except Exception:
-                pass  # Silently skip residual stats if calculation fails
+    # sans-fitter >= 0.4 separates the raw chi-squared from chi-squared/dof.
+    # Display the reduced value, which is what the bumps engine used to report.
+    reduced_chisq = fit_result.get('reduced_chisq', fit_result.get('chisq'))
+    if reduced_chisq is None:
+        return
 
-            st.markdown('---')
+    st.markdown(f'{CHI_SQUARED_LABEL}{_format_stat(reduced_chisq)}')
+
+    if 'n_points' in fit_result:
+        st.caption(
+            FIT_STATS_CAPTION.format(
+                n_points=fit_result.get('n_points'),
+                n_free=fit_result.get('n_free'),
+                dof=fit_result.get('dof'),
+            )
+        )
+    if fit_result.get('engine'):
+        st.caption(
+            FIT_ENGINE_CAPTION.format(engine=fit_result['engine'], method=fit_result.get('method'))
+        )
+
+    converged = fit_result.get('converged')
+    if converged is False:
+        st.warning(FIT_NOT_CONVERGED_WARNING.format(message=fit_result.get('message') or ''))
+
+    on_bounds = fit_result.get('on_bounds') or []
+    if on_bounds:
+        hits = ', '.join(f'{name} ({side})' for name, side in on_bounds)
+        st.warning(FIT_ON_BOUNDS_WARNING.format(hits=hits))
+
+    # Calculate and display residual statistics
+    try:
+        fit_i = evaluate_model(fitter)
+        residuals = calculate_residuals(fitter.data.y, fit_i, fitter.data.dy)
+        _render_residual_statistics(residuals)
+    except Exception:
+        pass  # Silently skip residual stats if calculation fails
+
+    st.markdown('---')
+
+
+def _format_stat(value: Any) -> str:
+    """Format a goodness-of-fit number, showing 'n/a' when it is not finite."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 'n/a'
+    return f'{number:.4f}' if np.isfinite(number) else 'n/a'
 
 
 def _render_residual_statistics(residuals: np.ndarray) -> None:
-    """Render residual statistics."""
+    """Render residual statistics (NaN entries, i.e. unfitted points, are ignored)."""
+    finite = np.asarray(residuals, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if finite.size == 0:
+        return
     st.markdown('**Residual Statistics**')
     col1, col2 = st.columns(2)
     with col1:
-        st.metric('Mean', f'{np.mean(residuals):.3f}')
+        st.metric('Mean', f'{np.mean(finite):.3f}')
     with col2:
-        st.metric('Std Dev', f'{np.std(residuals):.3f}')
+        st.metric('Std Dev', f'{np.std(finite):.3f}')
+
+
+def _was_varied(name: str, param_info: dict[str, Any], fitter: SANSFitter) -> bool:
+    """Whether a fit-result entry belongs to a parameter the optimizer varied."""
+    if 'fixed' in param_info:
+        # sans-fitter >= 0.4 reports every parameter and flags the fixed ones.
+        return not param_info['fixed']
+    # Legacy result shape: infer from the fitter's vary flags.
+    is_regular_varied = name in fitter.params and fitter.params[name]['vary']
+    is_pd_param = name.endswith('_pd')
+    return is_regular_varied or is_pd_param
 
 
 def _render_fitted_parameters_table(fitter: SANSFitter) -> list[dict]:
@@ -112,32 +199,28 @@ def _render_fitted_parameters_table(fitter: SANSFitter) -> list[dict]:
     st.markdown(FITTED_PARAMETERS_HEADER)
 
     fitted_params = []
-    if 'fit_result' in st.session_state and 'parameters' in st.session_state.fit_result:
-        fit_result = cast(FitResult, st.session_state.fit_result)
+    fit_result = _get_fit_result()
+    if fit_result is not None and 'parameters' in fit_result:
         for name, param_info in fit_result.get('parameters', {}).items():
-            # Check if it's a regular parameter that was varied
-            is_regular_varied = name in fitter.params and fitter.params[name]['vary']
-            # Check if it's a PD parameter (ends with _pd)
-            is_pd_param = name.endswith('_pd')
-
-            if is_regular_varied or is_pd_param:
-                value = param_info.get('value')
-                stderr = param_info.get('stderr')
-                if value is None:
-                    continue
-                if isinstance(stderr, (int, float)):
-                    error_text = f'{stderr:.4g}'
-                elif stderr is None:
-                    error_text = 'N/A'
-                else:
-                    error_text = f'{stderr}'
-                fitted_params.append(
-                    {
-                        'Parameter': name,
-                        'Value': f'{value:.4g}',
-                        'Error': error_text,
-                    }
-                )
+            if not _was_varied(name, param_info, fitter):
+                continue
+            value = param_info.get('value')
+            stderr = param_info.get('stderr')
+            if value is None:
+                continue
+            if isinstance(stderr, (int, float)):
+                error_text = f'{stderr:.4g}'
+            elif stderr is None:
+                error_text = 'N/A'
+            else:
+                error_text = f'{stderr}'
+            fitted_params.append(
+                {
+                    'Parameter': name,
+                    'Value': f'{value:.4g}',
+                    'Error': error_text,
+                }
+            )
     else:
         for name, info in fitter.params.items():
             if info['vary']:
@@ -169,8 +252,8 @@ def _render_fitted_parameters_table(fitter: SANSFitter) -> list[dict]:
 def _render_parameter_slider(fitter: SANSFitter) -> None:
     """Render the parameter adjustment slider."""
     fitted_params = []
-    if 'fit_result' in st.session_state and 'parameters' in st.session_state.fit_result:
-        fit_result = cast(FitResult, st.session_state.fit_result)
+    fit_result = _get_fit_result()
+    if fit_result is not None and 'parameters' in fit_result:
         for name, param_info in fit_result.get('parameters', {}).items():
             if name in fitter.params and fitter.params[name]['vary']:
                 value = param_info.get('value')
@@ -242,6 +325,18 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
         st.rerun()
 
 
+def _render_fit_report(fitter: SANSFitter) -> None:
+    """Render sans-fitter's own fit report (statistics, parameters, correlations)."""
+    try:
+        report = fitter.get_fit_report()
+        markdown = report.to_markdown()
+    except Exception:
+        # No fit in this session (e.g. result restored without a contract)
+        return
+    with st.expander(FIT_REPORT_HEADER, expanded=False):
+        st.markdown(markdown)
+
+
 def _build_results_csv(fitter: SANSFitter) -> str:
     """Build CSV string from fitter parameters."""
     results_data = []
@@ -283,6 +378,24 @@ def _build_results_csv(fitter: SANSFitter) -> str:
     return df_results.to_csv(index=False)
 
 
+def _build_fit_curve_csv(fitter: SANSFitter) -> str | None:
+    """Export the fitted curve and residuals through ``SANSFitter.save_results()``.
+
+    Returns None when the fitter holds no fit result.
+    """
+    if getattr(fitter, 'fit_result', None) is None:
+        return None
+    fd, tmp_path = tempfile.mkstemp(suffix='.csv')
+    os.close(fd)
+    try:
+        fitter.save_results(tmp_path)
+        with open(tmp_path, encoding='utf-8') as handle:
+            return handle.read()
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 def _render_export_section(fitter: SANSFitter) -> None:
     """Render the export results section."""
     try:
@@ -291,9 +404,26 @@ def _render_export_section(fitter: SANSFitter) -> None:
         st.error(f'Error preparing results: {str(e)}')
         csv_data = 'Error generating CSV'
 
-    st.download_button(
-        label=SAVE_RESULTS_BUTTON,
-        data=csv_data,
-        file_name=RESULTS_CSV_NAME,
-        mime='text/csv',
-    )
+    export_cols = st.columns(2)
+    with export_cols[0]:
+        st.download_button(
+            label=SAVE_RESULTS_BUTTON,
+            data=csv_data,
+            file_name=RESULTS_CSV_NAME,
+            mime='text/csv',
+        )
+
+    try:
+        curve_csv = _build_fit_curve_csv(fitter)
+    except Exception as e:
+        st.error(f'Error preparing fit curve: {str(e)}')
+        curve_csv = None
+
+    if curve_csv is not None:
+        with export_cols[1]:
+            st.download_button(
+                label=SAVE_FIT_CURVE_BUTTON,
+                data=curve_csv,
+                file_name=FIT_CURVE_CSV_NAME,
+                mime='text/csv',
+            )

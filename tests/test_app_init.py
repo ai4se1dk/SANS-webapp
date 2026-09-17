@@ -44,7 +44,9 @@ def test_init_mcp_and_ai_calls_setters_but_not_client_when_no_key():
     mock_st.session_state = MockSessionState()
     mock_st.session_state.fitter = 'FAKE_FITTER'
 
-    with patch.object(app, 'st', mock_st):
+    # The environment of the machine running the tests may carry a real key;
+    # this test is about the no-key path, so isolate it.
+    with patch.object(app, 'st', mock_st), patch.dict('os.environ', {}, clear=True):
         with (
             patch('sans_webapp.mcp_server.set_fitter') as mock_set_fitter,
             patch('sans_webapp.services.claude_mcp_client.get_claude_client') as mock_get_client,

@@ -5,8 +5,9 @@ A Streamlit-based web application for Small Angle Neutron Scattering (SANS) data
 ## Features
 
 ### 📤 Data Upload
-- Support for CSV and .dat file formats
-- Expected columns: Q (scattering vector), I(Q) (intensity), dI(Q) (error)
+- Columnar text (CSV, .dat, .txt, .abs), CanSAS XML and NXcanSAS HDF5 files, read through sasdata
+- Columnar files are read in the order Q (scattering vector), I(Q) (intensity), dI(Q) (error), dQ (resolution, optional)
+- The preview reports whether dI and dQ columns carry real values; a dQ column is applied as pinhole smearing automatically
 - Built-in example dataset for testing
 - Automatic data validation and preview
 
@@ -43,6 +44,11 @@ A Streamlit-based web application for Small Angle Neutron Scattering (SANS) data
 
 **LMFit** (Non-linear least-squares minimization)
 - Methods: leastsq, least_squares, differential_evolution, powell, nelder
+- Tolerates data without dI (points are unweighted); BUMPS requires dI
+
+**Fit Q range**
+- Restrict the Q range used for fitting from the Fitting section (or via the AI assistant)
+- Excluded points stay visible in the plots but do not enter χ²
 
 ### 📊 Visualization
 - Interactive Plotly charts with zoom, pan, export
@@ -52,8 +58,9 @@ A Streamlit-based web application for Small Angle Neutron Scattering (SANS) data
 - Real-time plot updates
 
 ### 💾 Results Export
-- Download fitted parameters as CSV
-- Includes parameter values, bounds, and fit status
+- Download fitted parameters as CSV (values, bounds, fit status, polydispersity)
+- Download the fitted curve with residuals as CSV (sans-fitter's `save_results` format, with the fit statistics in the header)
+- Fit report (reduced χ², convergence, parameters at a bound, correlations) rendered from sans-fitter's `get_fit_report()`
 - Ready for further analysis or reporting
 
 ## Installation
@@ -210,17 +217,20 @@ For samples with size distributions, use the Polydispersity tab:
 
 1. Select optimization engine (BUMPS or LMFit)
 2. Choose optimization method (e.g., "amoeba" for BUMPS)
-3. Click "🚀 Run Fit"
-4. Wait for optimization to complete (progress shown)
+3. Optionally restrict the fit Q range (points outside stay visible but are not fitted)
+4. Click "🚀 Run Fit"
+5. Wait for optimization to complete (progress shown)
 
 **Note:** Fitting with polydispersity enabled takes longer due to numerical integration over the size distribution.
 
 ### 7. View and Export Results
 
-- Interactive plot shows data points and fitted curve
+- Interactive plot shows data points, the fitted curve and normalized residuals
+- Reduced χ² (χ²/dof), points/free parameters/degrees of freedom, engine and convergence are shown next to the plot
+- Warnings from the fit (e.g. a parameter resting on a bound, optimizer not converged) are listed at the top of the panel
 - Fitted parameter values displayed in table (includes PD parameters when enabled)
-- Click "Save Results to CSV" to export
-- Download CSV file with all parameter information
+- Expand "Fit Report" for sans-fitter's full report including parameter correlations
+- Click "Save Results to CSV" to export the parameters, or "Download Fit Curve (CSV)" for Q, I, dI, I_fit and residuals
 
 ## Polydispersity Guide
 

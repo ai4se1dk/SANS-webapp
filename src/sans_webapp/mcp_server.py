@@ -3,12 +3,25 @@ MCP Server for SANS-webapp AI Assistant.
 
 Provides FastMCP-based tools for AI-assisted SANS model fitting.
 Tools allow Claude to interact with SANSFitter: list models,
-set parameters, run fits, and query results.
+set parameters, restrict the fit Q range, run fits, and query results.
+
+Targets sans-fitter >= 0.4: fit results are dictionaries with
+``reduced_chisq`` / ``chisq`` / ``on_bounds`` / ``converged``, polydispersity
+is configured through ``set_pd_param`` (not through ``params``), and the
+fitted curve is obtained from ``SANSFitter.calculate()``.
 """
 
 from typing import Any
 
-from sans_fitter import SANSFitter, get_all_models
+import numpy as np
+from sans_fitter import SANSFitter, get_all_models, get_structure_factors
+
+from sans_webapp.sans_analysis_utils import (
+    describe_fitter_state,
+    format_fit_parameters,
+    format_fit_summary,
+    run_fit_with_warnings,
+)
 
 # Try to instantiate FastMCP, but be resilient in test environments where
 # FastMCP's pydantic-based Settings may raise due to version mismatches.
@@ -26,6 +39,7 @@ Available capabilities:
 - Get detailed parameter information for any model
 - Set the active model for fitting
 - Adjust parameter values, bounds, and whether they vary during fitting
+- Restrict the Q range used for fitting
 - Enable polydispersity for size parameters
 - Add/remove structure factors for interparticle interactions
 - Run curve fitting optimization
@@ -145,6 +159,14 @@ def _check_tools_enabled() -> bool:
     return get_state_bridge().are_tools_enabled()
 
 
+def _supported_structure_factors() -> str:
+    """Comma-separated structure factor names known to sasmodels (best effort)."""
+    try:
+        return ', '.join(get_structure_factors())
+    except Exception:
+        return 'hardsphere, hayter_msa, squarewell, stickyhardsphere'
+
+
 # =============================================================================
 # Read-only tools (no state mutation)
 # =============================================================================
@@ -164,7 +186,8 @@ def list_sans_models() -> str:
 def get_model_parameters(model_name: str) -> str:
     """
     Get parameter details for a specific SANS model.
-    Shows parameter names, default values, units, and descriptions.
+    Shows parameter names, default values, bounds, vary flags and which
+    parameters support polydispersity.
 
     Args:
         model_name: Name of the model (e.g., 'sphere', 'cylinder')
@@ -183,6 +206,13 @@ def get_model_parameters(model_name: str) -> str:
             vary = param.get('vary', True)
             lines.append(f'  - {name}: {value} (bounds: ({p_min}, {p_max}), vary: {vary})')
 
+        try:
+            if temp_fitter.supports_polydispersity():
+                pd_names = temp_fitter.get_polydisperse_parameters()
+                lines.append(f'Polydisperse parameters: {", ".join(pd_names)}')
+        except Exception:
+            pass
+
         return '\n'.join(lines)
     except Exception as e:
         return f"Error getting parameters for '{model_name}': {str(e)}"
@@ -191,37 +221,16 @@ def get_model_parameters(model_name: str) -> str:
 def get_current_state() -> str:
     """
     Get the current state of the SANS fitter.
-    Shows loaded data info, current model, and parameter values.
+    Shows loaded data info (including the fit Q range and resolution mode),
+    current model, structure factor, parameter values, polydispersity and
+    the last fit summary.
     """
     try:
         _ensure_fitter_model_synced()
         fitter = get_fitter()
 
         lines = ['Current SANS Fitter State:']
-
-        # Data info
-        if hasattr(fitter, 'data') and fitter.data is not None:
-            data = fitter.data
-            lines.append(
-                f'  Data: {len(data.x)} points, Q range [{data.x.min():.4f}, {data.x.max():.4f}]'
-            )
-        else:
-            lines.append('  Data: Not loaded')
-
-        # Model info
-        if fitter.kernel is not None:
-            lines.append(f'  Model: {fitter.model_name or "Unknown"}')
-
-            # Parameters
-            if hasattr(fitter, 'params') and fitter.params:
-                lines.append('  Parameters:')
-                for name, param in fitter.params.items():
-                    value = param.get('value', 'N/A')
-                    vary = param.get('vary', True)
-                    lines.append(f'    - {name}: {value} (vary: {vary})')
-        else:
-            lines.append('  Model: Not selected')
-
+        lines.extend(f'  {line}' for line in describe_fitter_state(fitter))
         return '\n'.join(lines)
     except Exception as e:
         return f'Error getting state: {str(e)}'
@@ -230,32 +239,29 @@ def get_current_state() -> str:
 def get_fit_results() -> str:
     """
     Get the results from the most recent fit.
-    Shows optimized parameter values, uncertainties, and fit statistics.
+    Shows the reduced chi-squared, convergence, parameters resting on a bound,
+    and the optimized parameter values with uncertainties.
     """
     try:
         _ensure_fitter_model_synced()
         fitter = get_fitter()
 
-        if not hasattr(fitter, 'result') or fitter.result is None:
+        fit_result = getattr(fitter, 'fit_result', None)
+        if not isinstance(fit_result, dict) or not fit_result:
             return 'No fit results available. Run a fit first.'
 
-        result = fitter.result
         lines = ['Fit Results:']
+        lines.extend(f'  {line}' for line in format_fit_summary(fit_result))
 
-        # Chi-square if available
-        if hasattr(result, 'redchi'):
-            lines.append(f'  Reduced chi-square: {result.redchi:.4f}')
+        varied = format_fit_parameters(fit_result)
+        everything = format_fit_parameters(fit_result, include_fixed=True)
+        fixed = [line for line in everything if line not in varied]
 
-        # Parameter values
-        if hasattr(fitter, 'params') and fitter.params:
-            lines.append('  Optimized parameters:')
-            for name, param in fitter.params.items():
-                value = param.get('value', 'N/A')
-                stderr = param.get('stderr', None)
-                if stderr:
-                    lines.append(f'    - {name}: {value:.4g} ± {stderr:.4g}')
-                else:
-                    lines.append(f'    - {name}: {value:.4g}')
+        lines.append('  Optimized parameters:')
+        lines.extend(f'  {line}' for line in varied)
+        if fixed:
+            lines.append('  Fixed / linked parameters:')
+            lines.extend(f'  {line}' for line in fixed)
 
         return '\n'.join(lines)
     except Exception as e:
@@ -309,6 +315,7 @@ def set_model(model_name: str) -> str:
         # Update session state via bridge
         bridge = get_state_bridge()
         bridge.clear_parameter_widgets()  # Clear old model's widgets
+        bridge.clear_pd_widgets()  # PD configuration belongs to the old model too
         bridge.set_current_model(model_name)
         bridge.set_model_selected(True)
         bridge.set_fit_completed(False)
@@ -445,18 +452,64 @@ def set_multiple_parameters(parameters: dict[str, dict]) -> str:
         return f'Error setting parameters: {str(e)}'
 
 
+def set_q_range(qmin: float | None = None, qmax: float | None = None) -> str:
+    """
+    Restrict the Q range used for fitting (sans-fitter >= 0.4).
+
+    Data points outside [qmin, qmax] stay visible in the plots but are excluded
+    from the fit. Call with no arguments to reset to the full data range.
+
+    Args:
+        qmin: Lower Q limit in Å⁻¹ (optional; full range lower limit when omitted)
+        qmax: Upper Q limit in Å⁻¹ (optional; full range upper limit when omitted)
+    """
+    if not _check_tools_enabled():
+        return 'AI tools are disabled. Enable them in the sidebar to allow Q range changes.'
+
+    try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
+        fitter = get_fitter()
+        if not hasattr(fitter, 'data') or fitter.data is None:
+            return 'No data loaded. Load data before setting a Q range.'
+
+        if qmin is None and qmax is None:
+            fitter.reset_q_range()
+            action = 'reset to the full data range'
+        else:
+            fitter.set_q_range(qmin=qmin, qmax=qmax)
+            action = 'updated'
+
+        lo, hi = fitter.get_q_range()
+        x = np.asarray(fitter.data.x, dtype=float)
+        n_in_range = int(np.sum((x >= lo) & (x <= hi)))
+
+        bridge = get_state_bridge()
+        bridge.set_q_range_widgets(lo, hi)
+        bridge.set_needs_rerun(True)
+
+        return (
+            f'Fit Q range {action}: [{lo:.6g}, {hi:.6g}] Å⁻¹ '
+            f'({n_in_range} of {len(x)} points in the fit). '
+            'Re-run the fit for the new range to take effect.'
+        )
+    except Exception as e:
+        return f'Error setting Q range: {str(e)}'
+
+
 def enable_polydispersity(
     parameter_name: str, pd_type: str = 'gaussian', pd_value: float = 0.1
 ) -> str:
     """
     Enable polydispersity for a size parameter.
 
-    Enables PD on the fitter and syncs all PD widget state so the UI
-    immediately shows the polydispersity tab with correct values.
+    Turns polydispersity on globally, configures the distribution for the
+    given parameter and marks its width as a fit parameter. Syncs the PD
+    widget state so the UI shows the polydispersity tab with correct values.
 
     Args:
         parameter_name: Name of the parameter to make polydisperse (e.g., 'radius')
-        pd_type: Distribution type ('gaussian', 'lognormal', 'schulz')
+        pd_type: Distribution type ('gaussian', 'lognormal', 'schulz', 'rectangle', 'boltzmann')
         pd_value: Width of the distribution (relative, typically 0.01-0.5)
     """
     if not _check_tools_enabled():
@@ -465,34 +518,44 @@ def enable_polydispersity(
     try:
         from sans_webapp.services.mcp_state_bridge import get_state_bridge
 
+        _ensure_fitter_model_synced()
         fitter = get_fitter()
         bridge = get_state_bridge()
 
-        # Check if model supports polydispersity for this parameter
-        pd_param_name = f'{parameter_name}_pd'
-        if hasattr(fitter, 'params') and pd_param_name in fitter.params:
-            fitter.set_param(pd_param_name, value=pd_value, vary=True)
+        if fitter.kernel is None:
+            return 'No model selected. Set a model before enabling polydispersity.'
 
-            # Determine pd_n from fitter if available, else default to 35
-            pd_n = 35
-            pd_n_param = f'{parameter_name}_pd_n'
-            if pd_n_param in fitter.params:
-                pd_n = int(fitter.params[pd_n_param].get('value', 35))
+        if not fitter.supports_polydispersity():
+            return f"Model '{fitter.model_name}' has no polydisperse parameters."
 
-            # Sync PD widget state so the UI shows the polydispersity tab
-            bridge.set_pd_enabled(True)
-            bridge.set_pd_widget(
-                parameter_name,
-                pd_width=pd_value,
-                pd_n=pd_n,
-                pd_type=pd_type,
-                vary=True,
+        pd_params = fitter.get_polydisperse_parameters()
+        if parameter_name not in pd_params:
+            return (
+                f"'{parameter_name}' is not a polydisperse parameter of "
+                f"'{fitter.model_name}'. Available: {', '.join(pd_params)}"
             )
-            bridge.set_needs_rerun(True)
 
-            return f"Polydispersity enabled for '{parameter_name}': {pd_type} distribution, width={pd_value}"
-        else:
-            return f"Polydispersity parameter '{pd_param_name}' not found. This model may not support PD for '{parameter_name}'."
+        # sans-fitter keeps polydispersity outside ``params``: configure it
+        # through the dedicated API and let it validate pd_type.
+        fitter.enable_polydispersity(True)
+        fitter.set_pd_param(parameter_name, pd_width=pd_value, pd_type=pd_type, vary=True)
+        pd_config = fitter.get_pd_param(parameter_name)
+
+        # Sync PD widget state so the UI shows the polydispersity tab
+        bridge.set_pd_enabled(True)
+        bridge.set_pd_widget(
+            parameter_name,
+            pd_width=pd_value,
+            pd_n=int(pd_config.get('pd_n', 35)),
+            pd_type=pd_type,
+            vary=True,
+        )
+        bridge.set_needs_rerun(True)
+
+        return (
+            f"Polydispersity enabled for '{parameter_name}': {pd_type} distribution, "
+            f'width={pd_value} (the width will vary during the fit).'
+        )
     except Exception as e:
         return f'Error enabling polydispersity: {str(e)}'
 
@@ -512,19 +575,31 @@ def set_structure_factor(sf_name: str) -> str:
     try:
         from sans_webapp.services.mcp_state_bridge import get_state_bridge
 
+        _ensure_fitter_model_synced()
         fitter = get_fitter()
 
-        if hasattr(fitter, 'set_structure_factor'):
-            bridge = get_state_bridge()
-            bridge.clear_parameter_widgets()  # Clear old params; SF adds new ones
-            fitter.set_structure_factor(sf_name)
-            bridge.set_needs_rerun(True)
+        if fitter.kernel is None:
+            return 'No model selected. Set a form factor model before adding a structure factor.'
 
-            return f"Structure factor '{sf_name}' added. Additional parameters are now available for the interaction potential."
-        else:
-            return 'Structure factor support not available in this fitter version.'
+        before = set(fitter.params.keys()) if hasattr(fitter, 'params') else set()
+        fitter.set_structure_factor(sf_name)
+
+        bridge = get_state_bridge()
+        bridge.clear_parameter_widgets()  # Old params; SF adds new ones
+        bridge.set_needs_rerun(True)
+
+        after = list(fitter.params.keys()) if hasattr(fitter, 'params') else []
+        new_params = [name for name in after if name not in before]
+        detail = f' New parameters: {", ".join(new_params)}.' if new_params else ''
+        return (
+            f"Structure factor '{sf_name}' applied to '{fitter.model_name}'."
+            f'{detail} Additional parameters are now available for the interaction potential.'
+        )
     except Exception as e:
-        return f'Error setting structure factor: {str(e)}'
+        return (
+            f"Error setting structure factor '{sf_name}': {str(e)} "
+            f'Supported structure factors: {_supported_structure_factors()}'
+        )
 
 
 def remove_structure_factor() -> str:
@@ -537,26 +612,32 @@ def remove_structure_factor() -> str:
     try:
         from sans_webapp.services.mcp_state_bridge import get_state_bridge
 
+        _ensure_fitter_model_synced()
         fitter = get_fitter()
 
-        if hasattr(fitter, 'remove_structure_factor'):
-            bridge = get_state_bridge()
-            bridge.clear_parameter_widgets()  # Clear SF params before removal
-            fitter.remove_structure_factor()
-            bridge.set_needs_rerun(True)
+        fitter.remove_structure_factor()
 
-            return 'Structure factor removed.'
-        else:
-            return 'Structure factor support not available in this fitter version.'
+        bridge = get_state_bridge()
+        bridge.clear_parameter_widgets()  # SF params are gone
+        bridge.set_needs_rerun(True)
+
+        return 'Structure factor removed.'
     except Exception as e:
         return f'Error removing structure factor: {str(e)}'
 
 
-def run_fit() -> str:
+def run_fit(engine: str = 'bumps', method: str | None = None) -> str:
     """
     Run the curve fitting optimization.
     Uses the currently loaded model and parameter settings to fit the data.
-    Returns fit quality metrics and optimized parameter values.
+    Returns fit quality metrics (reduced chi-squared, convergence, parameters
+    at a bound) and optimized parameter values.
+
+    Args:
+        engine: Fitting engine, 'bumps' (default) or 'lmfit'
+        method: Optimizer name (engine default when omitted):
+                bumps: 'amoeba', 'lm', 'newton', 'de'; lmfit: 'leastsq',
+                'least_squares', 'differential_evolution'
     """
     if not _check_tools_enabled():
         return 'AI tools are disabled. Enable them in the sidebar to run fits.'
@@ -573,42 +654,39 @@ def run_fit() -> str:
         if fitter.kernel is None:
             return 'No model selected. Set a model before running a fit.'
 
-        # Run the fit
-        result = fitter.fit()
+        # Run the fit, capturing sans-fitter's warnings (bounds, convergence, ...)
+        result, fit_warnings = run_fit_with_warnings(fitter, engine=engine, method=method)
 
         # Update session state via bridge
         bridge = get_state_bridge()
         bridge.set_fit_completed(True)
         bridge.set_fit_result(result)
+        bridge.set_fit_warnings(fit_warnings)
 
-        # Sync fitted parameter values to widget state (SYNC-04)
-        for name, param in fitter.params.items():
-            if param.get('vary', False):
-                fitted_value = param.get('value', 0)
-                bridge.set_parameter_value(name, fitted_value)
-
-                # If this is a PD parameter (e.g. radius_pd), sync to PD widget too
-                if name.endswith('_pd'):
-                    base_param = name[:-3]  # Remove '_pd' suffix
-                    bridge.set_pd_widget(base_param, pd_width=fitted_value)
+        # Sync fitted parameter values to widget state (SYNC-04). The result's
+        # parameters block lists every parameter; only the varied ones moved.
+        for name, info in result.get('parameters', {}).items():
+            if info.get('fixed', False):
+                continue
+            fitted_value = info.get('value')
+            if fitted_value is None:
+                continue
+            if name in fitter.params:
+                bridge.set_parameter_value(name, float(fitted_value))
+            elif name.endswith('_pd'):
+                # Polydispersity width (e.g. radius_pd) lives in the PD widgets
+                bridge.set_pd_widget(name[:-3], pd_width=float(fitted_value))
 
         bridge.set_needs_rerun(True)
 
         # Format results
         lines = ['Fit completed!']
-
-        if hasattr(result, 'redchi'):
-            lines.append(f'Reduced chi-square: {result.redchi:.4f}')
-
+        lines.extend(format_fit_summary(result))
         lines.append('Optimized parameters:')
-        for name, param in fitter.params.items():
-            if param.get('vary', False):
-                value = param.get('value', 'N/A')
-                stderr = param.get('stderr', None)
-                if stderr:
-                    lines.append(f'  - {name}: {value:.4g} ± {stderr:.4g}')
-                else:
-                    lines.append(f'  - {name}: {value:.4g}')
+        lines.extend(format_fit_parameters(result))
+        if fit_warnings:
+            lines.append('Warnings:')
+            lines.extend(f'  - {message}' for message in fit_warnings)
 
         return '\n'.join(lines)
     except Exception as e:
@@ -626,6 +704,7 @@ mcp.tool(name='get-fit-results')(get_fit_results)
 mcp.tool(name='set-model')(set_model)
 mcp.tool(name='set-parameter')(set_parameter)
 mcp.tool(name='set-multiple-parameters')(set_multiple_parameters)
+mcp.tool(name='set-q-range')(set_q_range)
 mcp.tool(name='enable-polydispersity')(enable_polydispersity)
 mcp.tool(name='set-structure-factor')(set_structure_factor)
 mcp.tool(name='remove-structure-factor')(remove_structure_factor)

@@ -10,14 +10,18 @@ A Streamlit-based web application is now available for interactive SANS data ana
 
 ### Features
 
-- 📤 **Data Upload**: Upload your SANS datasets (CSV or .dat files)
+- 📤 **Data Upload**: Upload your SANS datasets (columnar CSV/.dat/.txt, CanSAS XML or NXcanSAS HDF5, read through sasdata)
 - 🤖 **AI-Assisted Model Selection**: Get intelligent model suggestions based on your data
 - 🎯 **Manual Model Selection**: Choose from all available SasModels
 - ⚙️ **Interactive Parameter Tuning**: Adjust parameters with real-time UI controls
 - 📊 **Interactive Plots**: Visualize data and fits with Plotly's zoom, pan, and export features
-- 💾 **Export Results**: Save fitted parameters and curves to CSV
+- 📏 **Fit Q Range**: Exclude beam-stop spillover or background-dominated points from the fit
+- 📋 **Fit Diagnostics**: Reduced χ², convergence, parameters at a bound, and sans-fitter's fit report
+- 💾 **Export Results**: Save fitted parameters and the fitted curve with residuals to CSV
 
 ### Quick Start (Web App)
+
+Requires Python >= 3.10 and [sans-fitter](https://pypi.org/project/sans-fitter/) >= 0.4.0 (pulled in automatically; numpy >= 2 and bumps >= 1 come with it).
 
 ```bash
 # Install the application
@@ -39,14 +43,14 @@ sans-webapp
 
 ### Using the Web Application
 
-1. **Upload Data**: Use the sidebar to upload your SANS data file (CSV or .dat format with Q, I, dI columns) or load the example dataset
+1. **Upload Data**: Use the sidebar to upload your SANS data file (columnar Q, I, dI[, dQ] text, CanSAS XML or NXcanSAS HDF5) or load the example dataset. A dI column is required for the bumps engine; a dQ column is applied as resolution smearing automatically
 2. **Select Model**: 
    - **Manual**: Choose from dropdown of all SasModels models
    - **AI-Assisted**: Optionally provide an Anthropic (Claude) API key for AI-powered suggestions and MCP tool access, or use built-in heuristics
 3. **Configure Parameters**: Set initial values, bounds, and which parameters to fit
-4. **Run Fit**: Choose optimization engine (BUMPS or LMFit) and method, then click "Run Fit"
-5. **View Results**: Interactive plots show data with error bars and fitted curve
-6. **Export**: Download fitted parameters as CSV
+4. **Run Fit**: Choose optimization engine (BUMPS or LMFit) and method, optionally restrict the fit Q range, then click "Run Fit"
+5. **View Results**: Interactive plots show data with error bars, the fitted curve and residuals; the panel reports the reduced χ² (χ²/dof), degrees of freedom, convergence and any parameter resting on a bound, plus sans-fitter's full fit report
+6. **Export**: Download fitted parameters, or the fitted curve with residuals, as CSV
 
 ### Web App Deployment
 

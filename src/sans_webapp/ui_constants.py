@@ -27,8 +27,12 @@ SIDEBAR_MODEL_SELECTION_HEADER = 'Model Selection'
 SIDEBAR_FITTING_HEADER = 'Fitting'
 
 # Upload Section
-UPLOAD_LABEL = 'Upload SANS data file (CSV or .dat)'
-UPLOAD_HELP = 'File should contain columns: Q, I(Q), dI(Q)'
+UPLOAD_LABEL = 'Upload SANS data file'
+UPLOAD_TYPES = ['csv', 'dat', 'txt', 'abs', 'xml', 'h5', 'hdf5', 'nxs']
+UPLOAD_HELP = (
+    'Columnar text (Q, I(Q), dI(Q) and optionally dQ), CanSAS XML or NXcanSAS HDF5. '
+    'Files are read through sasdata; the first dataset in a multi-dataset file is used.'
+)
 EXAMPLE_DATA_BUTTON = 'Load Example Data'
 EXAMPLE_DATA_FILE = 'simulated_sans_data.csv'
 
@@ -57,13 +61,24 @@ DATA_TABLE_HEIGHT = 300
 METRIC_DATA_POINTS = 'Data Points'
 METRIC_Q_RANGE = 'Q Range'
 METRIC_MAX_INTENSITY = 'Max Intensity'
+METRIC_HAS_DI = 'dI column'
+METRIC_HAS_DQ = 'dQ column'
+METRIC_FIT_Q_RANGE = 'Fit Q Range'
+METRIC_YES = 'yes'
+METRIC_NO = 'no'
+WARNING_NO_DI = (
+    '⚠️ This dataset carries no intensity uncertainties (dI). The bumps engine cannot weight '
+    'such points; use the lmfit engine (unweighted) or supply a dI column.'
+)
 DATA_FORMAT_HELP = """
 ### Expected Data Format
 
-Your data file should be a CSV or .dat file with three columns:
+Your data file should be a columnar text file (CSV, .dat, .txt), a CanSAS XML file
+or an NXcanSAS HDF5 file. Columnar files are read in the order Q, I(Q), dI(Q), dQ:
 - **Q**: Scattering vector (Å⁻¹)
 - **I(Q)**: Intensity (cm⁻¹)
-- **dI(Q)**: Error/uncertainty in intensity
+- **dI(Q)**: Error/uncertainty in intensity (required for the bumps engine)
+- **dQ**: Q resolution (optional; applied as pinhole smearing when present)
 
 Example:
 ```
@@ -140,10 +155,31 @@ FIT_METHOD_LMFIT = ['leastsq', 'least_squares', 'differential_evolution']
 FIT_METHOD_HELP_BUMPS = 'Optimization method for BUMPS'
 FIT_METHOD_HELP_LMFIT = 'Optimization method for LMFit'
 FIT_RUN_BUTTON = '🚀 Run Fit'
+Q_RANGE_HEADER = '**Fit Q range (Å⁻¹)**'
+Q_RANGE_MIN_LABEL = 'Q min'
+Q_RANGE_MAX_LABEL = 'Q max'
+Q_RANGE_APPLY_BUTTON = 'Apply Q range'
+Q_RANGE_RESET_BUTTON = 'Reset Q range'
+Q_RANGE_HELP = (
+    'Points outside the range stay visible in the plots but are excluded from the fit '
+    '(e.g. beam-stop spillover at low Q or background-dominated high Q).'
+)
+SUCCESS_Q_RANGE_UPDATED = '✓ Fit Q range updated'
+SUCCESS_Q_RANGE_RESET = '✓ Fit Q range reset to the full data range'
 
 # Fit Results Section
 FIT_RESULTS_HEADER = '📈 Fit Results'
-CHI_SQUARED_LABEL = '**Chi² (χ²):** '
+CHI_SQUARED_LABEL = '**Reduced χ² (χ²/dof):** '
+FIT_STATS_CAPTION = '{n_points} points, {n_free} free parameters, {dof} degrees of freedom'
+FIT_ENGINE_CAPTION = 'Engine: {engine} / {method}'
+FIT_CONVERGED_CAPTION = '✓ Optimizer reported convergence'
+FIT_NOT_CONVERGED_WARNING = '⚠️ Optimizer did not report convergence: {message}'
+FIT_ON_BOUNDS_WARNING = (
+    '⚠️ Fitted parameter(s) resting on a bound: {hits}. '
+    'Widen the bounds if the boundary was not intentional.'
+)
+FIT_WARNINGS_HEADER = '**Fit warnings**'
+FIT_REPORT_HEADER = '📋 Fit Report'
 FITTED_PARAMETERS_HEADER = '**Fitted Parameters**'
 ADJUST_PARAMETER_HEADER = '**Adjust Parameter**'
 SELECT_PARAMETER_LABEL = 'Select parameter to adjust'
@@ -152,6 +188,8 @@ EXPORT_RESULTS_HEADER = '**Export Results**'
 SAVE_RESULTS_BUTTON = 'Save Results to CSV'
 DOWNLOAD_RESULTS_LABEL = 'Download CSV'
 RESULTS_CSV_NAME = 'fit_results.csv'
+SAVE_FIT_CURVE_BUTTON = 'Download Fit Curve (CSV)'
+FIT_CURVE_CSV_NAME = 'fit_curve.csv'
 
 # Residual Plot Section
 RESIDUAL_PLOT_TITLE = 'Normalized Residuals'
@@ -184,7 +222,10 @@ WARNING_NO_API_KEY = (
     '⚠️ No API key provided. Please enter your Anthropic API key in the sidebar under '
     "'AI-Assisted' model selection."
 )
-WARNING_NO_VARY = '⚠️ No parameters are set to vary. Please enable at least one parameter to fit.'
+WARNING_NO_VARY = (
+    '⚠️ No parameters are set to vary. Please enable at least one parameter '
+    '(or polydispersity width) to fit.'
+)
 SUCCESS_DATA_UPLOADED = '✓ Data uploaded successfully!'
 SUCCESS_EXAMPLE_LOADED = '✓ Example data loaded successfully!'
 SUCCESS_MODEL_LOADED_PREFIX = '✓ Model "'

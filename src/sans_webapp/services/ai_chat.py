@@ -9,11 +9,16 @@ from typing import Any, Optional, cast
 import numpy as np
 import streamlit as st
 from sans_fitter import SANSFitter, get_all_models
-from sasmodels.direct_model import DirectModel
 
 # MCP & Claude imports
 from sans_webapp.mcp_server import set_fitter
 from sans_webapp.openai_client import create_chat_completion
+from sans_webapp.sans_analysis_utils import (
+    describe_fitter_state,
+    evaluate_model,
+    format_fit_parameters,
+    format_fit_summary,
+)
 from sans_webapp.sans_types import FitResult, ParamInfo
 from sans_webapp.services.claude_mcp_client import (
     get_claude_client,
@@ -67,37 +72,29 @@ def _send_chat_message_openai(user_message: str, api_key: Optional[str], fitter:
         if 'fit_result' in st.session_state and st.session_state.fit_completed:
             fit_result = cast(FitResult, st.session_state.fit_result)
             context_parts.append('\nFit results:')
-            chisq = fit_result.get('chisq')
-            if chisq is not None:
-                context_parts.append(f'  Chi² (goodness of fit): {chisq:.4f}')
+            # sans-fitter >= 0.4: reduced chi-squared, convergence, bounds
+            context_parts.extend(f'  {line}' for line in format_fit_summary(fit_result))
 
             # Add post-fit profile (model curve) if possible
             if fitter.data is not None and fitter.kernel is not None and fitter.params:
                 try:
-                    param_values = {name: info['value'] for name, info in fitter.params.items()}
-                    calculator = DirectModel(fitter.data, fitter.kernel)
-                    fit_i = calculator(**param_values)
+                    # calculate() applies PD, links and resolution like the fit did;
+                    # NaN marks points outside the fit Q range.
+                    fit_i = evaluate_model(fitter)
                     q_vals = fitter.data.x
                     sample_count = min(50, len(q_vals))
                     sample_idx = np.linspace(0, len(q_vals) - 1, num=sample_count, dtype=int)
                     context_parts.append('  Post-fit profile (Q, I_fit):')
                     for idx in sample_idx:
-                        context_parts.append(f'    - {q_vals[idx]:.6f}, {fit_i[idx]:.6e}')
+                        if np.isfinite(fit_i[idx]):
+                            context_parts.append(f'    - {q_vals[idx]:.6f}, {fit_i[idx]:.6e}')
                 except Exception:
                     pass
 
             # Add fitted parameter values with uncertainties
             if 'parameters' in fit_result:
                 context_parts.append('  Fitted parameter values:')
-                for name, param_info in fit_result['parameters'].items():
-                    stderr = param_info.get('stderr', 'N/A')
-                    value = param_info.get('value')
-                    if value is None:
-                        continue
-                    if isinstance(stderr, (int, float)):
-                        context_parts.append(f'    - {name}: {value:.4g} ± {stderr:.4g}')
-                    else:
-                        context_parts.append(f'    - {name}: {value:.4g} ± {stderr}')
+                context_parts.extend(f'  {line}' for line in format_fit_parameters(fit_result))
 
         system_message = '\n'.join(context_parts)
         system_message += (
@@ -139,16 +136,7 @@ def _build_context(fitter: SANSFitter) -> str:
     context is accurate even when the fitter's ``.model`` attribute is
     transiently ``None`` between Streamlit reruns.
     """
-    context_parts = []
-
-    # Data info
-    if hasattr(fitter, 'data') and fitter.data is not None:
-        data = fitter.data
-        context_parts.append(
-            f'Data loaded: {len(data.x)} points, Q range [{data.x.min():.4f}, {data.x.max():.4f}]'
-        )
-    else:
-        context_parts.append('No data loaded')
+    context_parts: list[str] = []
 
     # Determine the active model from fitter OR from session state
     fitter_model_name = (
@@ -185,25 +173,13 @@ def _build_context(fitter: SANSFitter) -> str:
         except Exception:
             pass
 
-    # Model info
-    if active_model:
-        context_parts.append(f'Current model: {active_model}')
+    # Data, fit Q range, resolution, model, parameters, structure factor,
+    # polydispersity, links and the last fit summary (sans-fitter >= 0.4 API).
+    context_parts.extend(describe_fitter_state(fitter))
 
-        # Parameters
-        if hasattr(fitter, 'params') and fitter.params:
-            param_info = []
-            for name, param in fitter.params.items():
-                value = param.get('value', 'N/A')
-                vary = param.get('vary', True)
-                param_info.append(f'  {name}: {value} (vary: {vary})')
-            context_parts.append('Parameters:\n' + '\n'.join(param_info))
-    else:
-        context_parts.append('No model selected')
-
-    # Fit results
-    if hasattr(fitter, 'result') and fitter.result is not None:
-        if hasattr(fitter.result, 'redchi'):
-            context_parts.append(f'Last fit chi-square: {fitter.result.redchi:.4f}')
+    # Session state knows about a model the fitter could not be re-synced with
+    if active_model and getattr(fitter, 'kernel', None) is None:
+        context_parts.append(f'Current model (per session state): {active_model}')
 
     # AI tools status
     ai_tools_enabled = getattr(st.session_state, 'ai_tools_enabled', False)

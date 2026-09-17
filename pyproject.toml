@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sans-webapp"
-version = "0.0.3"
+version = "0.1.0"
 description = "A webapp for SANS data fitting using SANS-fitter module."
 requires-python = ">=3.10"
 license = {text = "BSD-3-Clause"}
@@ -16,17 +16,16 @@ dependencies = [
     "fastmcp",
     "anthropic",
     "mcp",
-    "numpy>=1.20",
-    "matplotlib>=3.5",
+    "numpy>=2.0",
     "scipy>=1.7",
     "sasmodels>=1.0",
     "sasdata>=0.8",
-    "bumps>=0.9",
+    "bumps>=1.0",
     "streamlit>=1.28.0",
     "plotly>=5.17.0",
     "pandas>=2.0.0",
     "openai>=1.0.0",
-    "sans-fitter>=0.0.3",
+    "sans-fitter>=0.4.0",
     # "sans-fitter @ git+https://github.com/ai4se1dk/sans-fitter.git",
     "ruff>=0.8.0",
 ]
@@ -60,7 +59,7 @@ sans-webapp = { path = ".", editable = true }
 
 [tool.pixi.dependencies]
 python = ">=3.10,<3.14"
-numpy = ">=1.20"
+numpy = ">=2.0"
 sasmodels = ">=1.0"
 pytest = ">=7.0"
 pytest-cov = ">=4.0"

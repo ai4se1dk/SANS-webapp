@@ -21,6 +21,7 @@ _TOOL_PRIORITY: dict[str, int] = {
     'set-model': 1,  # must run before parameter tools
     'set-structure-factor': 2,
     'remove-structure-factor': 2,
+    'set-q-range': 2,
     'set-parameter': 3,
     'set-multiple-parameters': 3,
     'enable-polydispersity': 4,
@@ -51,6 +52,7 @@ def _build_tool_handlers() -> dict[str, callable]:
         set_model,
         set_multiple_parameters,
         set_parameter,
+        set_q_range,
         set_structure_factor,
     )
 
@@ -62,6 +64,7 @@ def _build_tool_handlers() -> dict[str, callable]:
         'set-model': set_model,
         'set-parameter': set_parameter,
         'set-multiple-parameters': set_multiple_parameters,
+        'set-q-range': set_q_range,
         'enable-polydispersity': enable_polydispersity,
         'set-structure-factor': set_structure_factor,
         'remove-structure-factor': remove_structure_factor,
@@ -103,7 +106,7 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
         },
         {
             'name': 'get-current-state',
-            'description': 'Get the current state of the SANS fitter. Shows loaded data info, current model, and parameter values.',
+            'description': 'Get the current state of the SANS fitter. Shows loaded data info (dI/dQ columns, fit Q range, resolution mode), current model, structure factor, parameter values, polydispersity settings and the last fit summary.',
             'input_schema': {
                 'type': 'object',
                 'properties': {},
@@ -112,7 +115,7 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
         },
         {
             'name': 'get-fit-results',
-            'description': 'Get the results from the most recent fit. Shows optimized parameter values, uncertainties, and fit statistics.',
+            'description': 'Get the results from the most recent fit. Shows the reduced chi-squared (chi2/dof), convergence, parameters resting on a bound, and optimized parameter values with uncertainties.',
             'input_schema': {
                 'type': 'object',
                 'properties': {},
@@ -187,8 +190,26 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
             },
         },
         {
+            'name': 'set-q-range',
+            'description': 'Restrict the Q range used for fitting. Points outside [qmin, qmax] stay visible but are excluded from the fit (e.g. to drop beam-stop spillover at low Q or background-dominated high Q). Call with no arguments to reset to the full data range. Re-run the fit afterwards.',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'qmin': {
+                        'type': 'number',
+                        'description': 'Lower Q limit in 1/Angstrom (optional; full-range lower limit when omitted)',
+                    },
+                    'qmax': {
+                        'type': 'number',
+                        'description': 'Upper Q limit in 1/Angstrom (optional; full-range upper limit when omitted)',
+                    },
+                },
+                'required': [],
+            },
+        },
+        {
             'name': 'enable-polydispersity',
-            'description': 'Enable polydispersity for a size parameter.',
+            'description': 'Enable polydispersity for a size parameter. Turns polydispersity on, configures the distribution and marks its width as a fit parameter.',
             'input_schema': {
                 'type': 'object',
                 'properties': {
@@ -198,7 +219,7 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
                     },
                     'pd_type': {
                         'type': 'string',
-                        'description': "Distribution type ('gaussian', 'lognormal', 'schulz')",
+                        'description': "Distribution type ('gaussian', 'lognormal', 'schulz', 'rectangle', 'boltzmann')",
                         'default': 'gaussian',
                     },
                     'pd_value': {
@@ -218,7 +239,7 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
                 'properties': {
                     'sf_name': {
                         'type': 'string',
-                        'description': "Structure factor name (e.g., 'hardsphere', 'stickyhardsphere', 'squarewell')",
+                        'description': "Structure factor name as known to sasmodels (e.g., 'hardsphere', 'hayter_msa', 'stickyhardsphere', 'squarewell'). Only applies to a single form-factor model.",
                     }
                 },
                 'required': ['sf_name'],
@@ -235,10 +256,20 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
         },
         {
             'name': 'run-fit',
-            'description': 'Run the curve fitting optimization. Uses the currently loaded model and parameter settings to fit the data. Returns fit quality metrics and optimized parameter values.',
+            'description': 'Run the curve fitting optimization. Uses the currently loaded model and parameter settings to fit the data. Returns the reduced chi-squared, convergence status, parameters resting on a bound, warnings, and optimized parameter values.',
             'input_schema': {
                 'type': 'object',
-                'properties': {},
+                'properties': {
+                    'engine': {
+                        'type': 'string',
+                        'description': "Fitting engine: 'bumps' (default, needs dI uncertainties) or 'lmfit' (scipy; tolerates missing dI)",
+                        'default': 'bumps',
+                    },
+                    'method': {
+                        'type': 'string',
+                        'description': "Optimizer (engine default when omitted). bumps: 'amoeba', 'lm', 'newton', 'de'; lmfit: 'leastsq', 'least_squares', 'differential_evolution'",
+                    },
+                },
                 'required': [],
             },
         },
@@ -311,8 +342,14 @@ class ClaudeMCPClient:
 You have access to tools that can:
 - List and inspect available scattering models (sphere, cylinder, ellipsoid, etc.)
 - Load models and configure their parameters
+- Restrict the Q range used for fitting (set-q-range)
 - Run curve fitting optimization
 - Enable advanced features like polydispersity and structure factors
+
+Fit quality is reported as the reduced chi-squared (chi2/dof); a value near 1
+means the model describes the data within its uncertainties. Fit results also
+flag parameters resting on a bound and optimizer non-convergence — mention
+these to the user and suggest widening bounds or better starting values.
 
 When helping users:
 1. First understand their sample and experimental setup

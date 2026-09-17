@@ -2,15 +2,16 @@
 """
 Demo script showing the SANS Fitter Streamlit app workflow.
 This demonstrates the core functionality without requiring browser interaction.
+
+Run from the repository root (the example data file is looked up there):
+
+    python src/demo_app.py
 """
 
-import sys
-
-sys.path.insert(0, '.')
-
 import numpy as np
-import sans_analysis_utils as utils
 from sans_fitter import SANSFitter, get_all_models
+
+from sans_webapp import sans_analysis_utils as utils
 
 print('=' * 80)
 print(' SANS DATA ANALYSIS WEB APPLICATION - DEMO ')
@@ -27,6 +28,10 @@ print('\n[Step 2] Loading SANS data...')
 fitter = SANSFitter()
 fitter.load_data('simulated_sans_data.csv')
 print('✓ Data loaded successfully')
+columns = utils.data_column_summary(fitter.data)
+print(
+    f'  dI column: {"yes" if columns["has_dy"] else "no"}, dQ column: {"yes" if columns["has_dx"] else "no"}'
+)
 
 # Step 3: AI-assisted model suggestion (simple)
 print('\n[Step 3] Running AI-assisted model suggestion (heuristic mode)...')
@@ -62,14 +67,17 @@ for name, info in fitter.params.items():
 print('\n[Step 6] Running fit with BUMPS/amoeba optimizer...')
 print('(This may take a few moments...)')
 try:
-    result = fitter.fit(engine='bumps', method='amoeba')
+    result, fit_warnings = utils.run_fit_with_warnings(fitter, engine='bumps', method='amoeba')
     print('✓ Fitting completed successfully!')
+    for line in utils.format_fit_summary(result):
+        print(f'  {line}')
+    for message in fit_warnings:
+        print(f'  ⚠ {message}')
 
     # Show fitted parameters
     print('\nFitted parameters:')
-    for name, info in fitter.params.items():
-        if info['vary']:
-            print(f'  {name:20s} = {info["value"]:.6g}')
+    for line in utils.format_fit_parameters(result):
+        print(line)
 
 except Exception as e:
     print(f'✗ Fitting failed: {e}')
@@ -78,12 +86,9 @@ except Exception as e:
 # Step 7: Create visualization
 print('\n[Step 7] Creating interactive Plotly visualization...')
 try:
-    # Generate fitted curve
-    from sasmodels.direct_model import call_kernel
-
+    # Generate fitted curve on a fine grid through the fitter itself
     q_plot = np.logspace(np.log10(fitter.data.x.min()), np.log10(fitter.data.x.max()), 500)
-    param_values = {name: info['value'] for name, info in fitter.params.items()}
-    fit_i = call_kernel(fitter.kernel, q_plot, **param_values)
+    fit_i = fitter.calculate(q_plot)
 
     fig = utils.plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
     print('✓ Interactive plot created')
@@ -122,8 +127,8 @@ print('\n' + '=' * 80)
 print(' DEMO COMPLETE ')
 print('=' * 80)
 print('\nTo run the full interactive web application:')
-print('  1. Ensure dependencies are installed: pip install -r requirements.txt')
-print('  2. Run: streamlit run src/app.py')
+print('  1. Ensure dependencies are installed: pip install -e .')
+print('  2. Run: sans-webapp   (or: streamlit run src/sans_webapp/app.py)')
 print('  3. Open browser at: http://localhost:8501')
 print('\nFeatures available in the web app:')
 print('  • File upload with drag-and-drop')

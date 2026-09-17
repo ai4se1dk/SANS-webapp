@@ -36,16 +36,42 @@ class ChatMessage(TypedDict, total=False):
 
 
 class FitParamInfo(TypedDict, total=False):
-    """Fitted parameter information."""
+    """One entry of the ``parameters`` block of a sans-fitter fit result.
+
+    sans-fitter >= 0.4 reports every model parameter, not only the varied ones.
+    ``fixed`` is False only for the parameters the optimizer moved; ``linked_to``
+    names the parameter a follower mirrors (``None`` for independent ones).
+    """
 
     value: float
     stderr: float | str
+    formatted: str
+    fixed: bool
+    linked_to: str | None
 
 
 class FitResult(TypedDict, total=False):
-    """Fit result containing chi-squared and parameters."""
+    """Fit result dictionary returned by ``SANSFitter.fit()`` (sans-fitter >= 0.4).
 
+    ``chisq`` is the raw weighted sum of squared residuals; ``reduced_chisq`` is
+    ``chisq / dof`` (NaN when ``dof <= 0``). Before sans-fitter 0.4 the bumps
+    engine stored χ²/dof under ``chisq``; the webapp displays ``reduced_chisq``.
+    """
+
+    engine: str
+    method: str
     chisq: float
+    reduced_chisq: float
+    n_points: int
+    n_free: int
+    dof: int
+    converged: bool | None
+    message: str
+    weighting_note: str
+    cov: Any
+    cov_labels: list[str]
+    cov_source: str | None
+    on_bounds: list[tuple[str, str]]
     parameters: dict[str, FitParamInfo]
 
 
