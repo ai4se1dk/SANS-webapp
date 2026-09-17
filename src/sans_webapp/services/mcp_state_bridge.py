@@ -121,6 +121,23 @@ class SessionStateBridge:
         """Get the fit result from session state."""
         return st.session_state.get('fit_result', None)
 
+    def set_fit_warnings(self, messages: list[str]) -> None:
+        """Store the warnings sans-fitter emitted during the last fit."""
+        st.session_state.fit_warnings = list(messages)
+
+    # Fit Q range widgets (sans-fitter >= 0.4 set_q_range)
+
+    def set_q_range_widgets(self, qmin: float, qmax: float) -> None:
+        """Set the fit Q-range widget state (keys used by the fitting sidebar)."""
+        st.session_state['fit_qmin'] = float(qmin)
+        st.session_state['fit_qmax'] = float(qmax)
+
+    def clear_q_range_widgets(self) -> None:
+        """Remove the fit Q-range widget state."""
+        for key in ('fit_qmin', 'fit_qmax'):
+            if key in st.session_state:
+                del st.session_state[key]
+
     # Fit status management
 
     def get_fit_status(self) -> str:
@@ -190,18 +207,41 @@ class SessionStateBridge:
         for key in keys_to_remove:
             del st.session_state[key]
 
+    def _sync_updates(self, store_key: str, param_name: str, **fields: Any) -> None:
+        """Mirror widget changes into the ``param_updates``/``pd_updates`` stores.
+
+        The fitting flow re-applies those stores to the fitter before a fit, so a
+        change made by a tool must land there too or the next UI fit reverts it.
+        """
+        if store_key not in st.session_state:
+            return
+        store = st.session_state.get(store_key)
+        if not isinstance(store, dict) or param_name not in store:
+            return
+        for key, value in fields.items():
+            if value is not None:
+                store[param_name][key] = value
+
     def set_parameter_value(self, param_name: str, value: float) -> None:
         """Set parameter value widget state."""
         st.session_state[f'value_{param_name}'] = clamp_for_display(value)
+        self._sync_updates('param_updates', param_name, value=clamp_for_display(value))
 
     def set_parameter_bounds(self, param_name: str, min_val: float, max_val: float) -> None:
         """Set parameter bounds widget state."""
         st.session_state[f'min_{param_name}'] = clamp_for_display(min_val)
         st.session_state[f'max_{param_name}'] = clamp_for_display(max_val)
+        self._sync_updates(
+            'param_updates',
+            param_name,
+            min=clamp_for_display(min_val),
+            max=clamp_for_display(max_val),
+        )
 
     def set_parameter_vary(self, param_name: str, vary: bool) -> None:
         """Set parameter vary checkbox state."""
         st.session_state[f'vary_{param_name}'] = vary
+        self._sync_updates('param_updates', param_name, vary=vary)
 
     def set_parameter_widget(
         self,
@@ -224,6 +264,14 @@ class SessionStateBridge:
             st.session_state[f'max_{param_name}'] = clamp_for_display(max_val)
         if vary is not None:
             st.session_state[f'vary_{param_name}'] = vary
+        self._sync_updates(
+            'param_updates',
+            param_name,
+            value=None if value is None else clamp_for_display(value),
+            min=None if min_val is None else clamp_for_display(min_val),
+            max=None if max_val is None else clamp_for_display(max_val),
+            vary=vary,
+        )
 
     # Polydispersity widget state management
 
@@ -253,6 +301,14 @@ class SessionStateBridge:
             st.session_state[f'pd_type_{param_name}'] = pd_type
         if vary is not None:
             st.session_state[f'pd_vary_{param_name}'] = vary
+        self._sync_updates(
+            'pd_updates',
+            param_name,
+            pd_width=None if pd_width is None else float(pd_width),
+            pd_n=None if pd_n is None else int(pd_n),
+            pd_type=pd_type,
+            vary=vary,
+        )
 
     def clear_pd_widgets(self) -> None:
         """Clear all PD widget state (for model changes)."""
@@ -266,6 +322,8 @@ class SessionStateBridge:
         ]
         for key in keys_to_remove:
             del st.session_state[key]
+        if 'pd_updates' in st.session_state:
+            del st.session_state['pd_updates']
         st.session_state.pd_enabled = False
 
 

@@ -342,12 +342,9 @@ class TestSyncRunFit:
     """Test SYNC-04: run-fit tool parameter synchronization."""
 
     def _setup_fitter_for_fit(self, mock_fitter, mock_session_state):
-        """Common setup: fitter with model, data, and fit() returning a result."""
+        """Common setup: fitter with model and data; fit() returns a 0.4-style dict."""
+        mock_fitter.load_data('test_data.csv')
         mock_fitter.set_model('sphere')
-        mock_fitter.data = MagicMock()
-        mock_result = MagicMock(redchi=1.5)
-        mock_fitter.fit = MagicMock(return_value=mock_result)
-        mock_fitter.result = mock_result
         mock_session_state._data['fitter'] = mock_fitter
 
     def test_run_fit_sets_fit_completed(self, mock_fitter, mock_session_state):
@@ -377,7 +374,8 @@ class TestSyncRunFit:
             run_fit()
 
             assert mock_session_state.fit_result is not None
-            assert mock_session_state.fit_result.redchi == 1.5
+            assert mock_session_state.fit_result['reduced_chisq'] == 1.5
+            assert 'parameters' in mock_session_state.fit_result
 
     def test_run_fit_syncs_varied_parameter_values(self, mock_fitter, mock_session_state):
         """run-fit should sync fitted values to value_{param} widget keys."""
@@ -408,14 +406,10 @@ class TestSyncRunFit:
         from sans_webapp.mcp_server import run_fit, set_fitter
 
         self._setup_fitter_for_fit(mock_fitter, mock_session_state)
-        # Add a PD parameter that was varied during fit
-        mock_fitter.params['radius_pd'] = {
-            'value': 0.15,
-            'min': 0,
-            'max': 1,
-            'vary': True,
-            'description': '',
-        }
+        # Polydispersity is configured through the PD API (not via params);
+        # a varied width shows up in the result as '<param>_pd'.
+        mock_fitter.enable_polydispersity(True)
+        mock_fitter.set_pd_param('radius', pd_width=0.15, vary=True)
         set_fitter(mock_fitter)
 
         with patch('sans_webapp.services.mcp_state_bridge.st') as mock_st:
@@ -423,9 +417,9 @@ class TestSyncRunFit:
 
             run_fit()
 
-            # PD param should be synced to both value_ and pd_width_ keys
-            assert mock_session_state._data['value_radius_pd'] == 0.15
+            # PD width should be synced to the pd_width_ widget key
             assert mock_session_state._data['pd_width_radius'] == 0.15
+            assert 'value_radius_pd' not in mock_session_state._data
 
     def test_run_fit_sets_needs_rerun(self, mock_fitter, mock_session_state):
         """run-fit should set needs_rerun for UI refresh."""
@@ -452,15 +446,9 @@ class TestSyncPolydispersity:
     """Test SYNC-05: enable-polydispersity tool state synchronization."""
 
     def _setup_fitter_with_pd(self, mock_fitter, mock_session_state):
-        """Common setup: fitter with model that has PD parameters."""
+        """Common setup: fitter with a model whose 'radius' is polydisperse."""
         mock_fitter.set_model('sphere')
-        mock_fitter.params['radius_pd'] = {
-            'value': 0.1,
-            'min': 0,
-            'max': 1,
-            'vary': False,
-            'description': '',
-        }
+        assert 'radius' in mock_fitter.get_polydisperse_parameters()
         mock_session_state._data['fitter'] = mock_fitter
 
     def test_enable_polydispersity_sets_pd_enabled(self, mock_fitter, mock_session_state):
@@ -590,6 +578,7 @@ class TestSyncStructureFactor:
         from sans_webapp.mcp_server import remove_structure_factor, set_fitter
 
         mock_fitter.set_model('sphere')
+        mock_fitter.set_structure_factor('hardsphere')  # removing without one is an error
         mock_session_state._data['fitter'] = mock_fitter
         # Pre-existing widgets (including SF params)
         mock_session_state._data['value_radius'] = 50.0
@@ -614,6 +603,7 @@ class TestSyncStructureFactor:
         from sans_webapp.mcp_server import remove_structure_factor, set_fitter
 
         mock_fitter.set_model('sphere')
+        mock_fitter.set_structure_factor('hardsphere')  # removing without one is an error
         mock_session_state._data['fitter'] = mock_fitter
         mock_session_state.needs_rerun = False
         set_fitter(mock_fitter)

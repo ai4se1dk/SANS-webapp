@@ -28,10 +28,12 @@ from sans_webapp.components.sidebar import (
     render_ai_chat_column,
     render_data_upload_sidebar,
     render_model_selection_sidebar,
+    render_q_range_controls,
 )
 from sans_webapp.sans_analysis_utils import (  # noqa: F401 - re-exported for backwards compatibility
     analyze_data_for_ai_suggestion,
     plot_data_and_fit,
+    run_fit_with_warnings,
     suggest_models_simple,
 )
 from sans_webapp.sans_types import FitResult, ParamUpdate
@@ -122,6 +124,9 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
                 key='fit_method_lmfit',
             )
 
+        # Fit Q range (sans-fitter >= 0.4)
+        render_q_range_controls(fitter)
+
     # Run Fit button always visible outside the expander
     if st.sidebar.button(FIT_RUN_BUTTON, type='primary'):
         engine = st.session_state.get('fit_engine', 'bumps')
@@ -149,13 +154,21 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
 
         with st.spinner(f'Fitting with {engine}/{method}...'):
             try:
-                any_vary = any(p['vary'] for p in fitter.params.values())
+                # A polydispersity width can be the only free parameter
+                any_vary = any(p['vary'] for p in fitter.params.values()) or bool(
+                    fitter.get_varying_pd_params()
+                )
                 if not any_vary:
                     st.sidebar.warning(WARNING_NO_VARY)
                 else:
-                    result = fitter.fit(engine=engine, method=method)
+                    # Capture sans-fitter's warnings (parameters at a bound,
+                    # non-convergence, ...) so the results panel can show them.
+                    result, fit_warnings = run_fit_with_warnings(
+                        fitter, engine=engine, method=method
+                    )
                     st.session_state.fit_completed = True
                     st.session_state.fit_result = cast(FitResult, result)
+                    st.session_state.fit_warnings = fit_warnings
                     st.session_state.expand_parameters = False
                     st.rerun()
             except Exception as e:

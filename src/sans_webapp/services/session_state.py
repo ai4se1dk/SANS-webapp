@@ -18,6 +18,7 @@ def init_session_state() -> None:
         'data_loaded': False,
         'model_selected': False,
         'fit_completed': False,
+        'fit_warnings': [],
         'show_ai_chat': False,
         'chat_api_key': None,
         'slider_value': 0.0,
@@ -70,9 +71,17 @@ def clear_parameter_state() -> None:
         or k.startswith('pd_vary_')
         or k == 'pd_enabled'
         or k == 'pd_updates'
+        or k == 'param_updates'
     ]
     for key in keys_to_remove:
         del st.session_state[key]
+
+
+def clear_q_range_state() -> None:
+    """Clear the fit Q-range widget keys (call when a new dataset is loaded)."""
+    for key in ('fit_qmin', 'fit_qmax'):
+        if key in st.session_state:
+            del st.session_state[key]
 
 
 def get_fitter() -> SANSFitter:

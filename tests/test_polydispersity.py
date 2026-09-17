@@ -377,8 +377,8 @@ class TestPolydispersityMultipleModels:
             mock_st.session_state = MagicMock()
             mock_st.session_state.__contains__ = lambda self, key: key in mock_session_state
             mock_st.session_state.__getitem__ = lambda self, key: mock_session_state[key]
-            mock_st.session_state.__setitem__ = (
-                lambda self, key, val: mock_session_state.__setitem__(key, val)
+            mock_st.session_state.__setitem__ = lambda self, key, val: (
+                mock_session_state.__setitem__(key, val)
             )
 
             deleted_keys = []

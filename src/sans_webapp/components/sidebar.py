@@ -44,6 +44,12 @@ from sans_webapp.ui_constants import (
     LOAD_MODEL_BUTTON,
     MODEL_SELECT_HELP,
     MODEL_SELECT_LABEL,
+    Q_RANGE_APPLY_BUTTON,
+    Q_RANGE_HEADER,
+    Q_RANGE_HELP,
+    Q_RANGE_MAX_LABEL,
+    Q_RANGE_MIN_LABEL,
+    Q_RANGE_RESET_BUTTON,
     SELECTION_METHOD_HELP,
     SELECTION_METHOD_LABEL,
     SELECTION_METHOD_OPTIONS,
@@ -56,8 +62,11 @@ from sans_webapp.ui_constants import (
     SUCCESS_EXAMPLE_LOADED,
     SUCCESS_MODEL_LOADED_PREFIX,
     SUCCESS_MODEL_LOADED_SUFFIX,
+    SUCCESS_Q_RANGE_RESET,
+    SUCCESS_Q_RANGE_UPDATED,
     UPLOAD_HELP,
     UPLOAD_LABEL,
+    UPLOAD_TYPES,
     WARNING_LOAD_DATA_FIRST,
     WARNING_NO_SUGGESTIONS,
 )
@@ -88,6 +97,89 @@ def _get_example_data_path() -> Path | None:
     return None
 
 
+# Session keys that belong to the fit Q-range widgets (see render_q_range_controls)
+Q_RANGE_WIDGET_KEYS = ('fit_qmin', 'fit_qmax')
+
+# Prefixes of the per-parameter widget keys that must be cleared on a model change
+_PARAMETER_WIDGET_PREFIXES = (
+    'value_',
+    'min_',
+    'max_',
+    'vary_',
+    'pd_width_',
+    'pd_n_',
+    'pd_type_',
+    'pd_vary_',
+)
+# Aggregate keys that describe the previous model's parameter/PD configuration
+_PARAMETER_STATE_KEYS = ('param_updates', 'pd_updates', 'pd_enabled')
+
+
+def _reset_after_data_load() -> None:
+    """Drop state that described the previous dataset (fit result, Q range widgets)."""
+    st.session_state.fit_completed = False
+    st.session_state.fit_warnings = []
+    for key in Q_RANGE_WIDGET_KEYS:
+        if key in st.session_state:
+            del st.session_state[key]
+
+
+def _clear_model_parameter_state() -> None:
+    """Remove widget and update state of the previous model before loading a new one."""
+    keys_to_remove = [
+        k
+        for k in st.session_state.keys()
+        if k.startswith(_PARAMETER_WIDGET_PREFIXES) or k in _PARAMETER_STATE_KEYS
+    ]
+    for key in keys_to_remove:
+        del st.session_state[key]
+
+
+def render_q_range_controls(fitter: SANSFitter) -> None:
+    """
+    Render the fit Q-range controls (sans-fitter >= 0.4 ``set_q_range``).
+
+    Points outside the range stay visible in the plots but are excluded from
+    the fit. Widget keys ``fit_qmin``/``fit_qmax`` are also written by the
+    ``set-q-range`` MCP tool so the UI reflects AI-driven changes.
+
+    Args:
+        fitter: The SANSFitter instance with loaded data
+    """
+    q_range = fitter.get_q_range()
+    if q_range is None:
+        return
+
+    if 'fit_qmin' not in st.session_state:
+        st.session_state.fit_qmin = float(q_range[0])
+    if 'fit_qmax' not in st.session_state:
+        st.session_state.fit_qmax = float(q_range[1])
+
+    st.markdown(Q_RANGE_HEADER)
+    range_cols = st.columns(2)
+    with range_cols[0]:
+        qmin = st.number_input(Q_RANGE_MIN_LABEL, format='%.4g', key='fit_qmin', help=Q_RANGE_HELP)
+    with range_cols[1]:
+        qmax = st.number_input(Q_RANGE_MAX_LABEL, format='%.4g', key='fit_qmax', help=Q_RANGE_HELP)
+
+    button_cols = st.columns(2)
+    with button_cols[0]:
+        if st.button(Q_RANGE_APPLY_BUTTON):
+            try:
+                fitter.set_q_range(qmin=float(qmin), qmax=float(qmax))
+                st.success(SUCCESS_Q_RANGE_UPDATED)
+            except ValueError as e:
+                st.error(f'Invalid Q range: {str(e)}')
+    with button_cols[1]:
+        if st.button(Q_RANGE_RESET_BUTTON):
+            fitter.reset_q_range()
+            for key in Q_RANGE_WIDGET_KEYS:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.success(SUCCESS_Q_RANGE_RESET)
+            st.rerun()
+
+
 def render_data_upload_sidebar() -> None:
     """Render the data upload controls in the sidebar as a collapsible section."""
     with st.sidebar.expander(
@@ -95,7 +187,7 @@ def render_data_upload_sidebar() -> None:
     ):
         uploaded_file = st.file_uploader(
             UPLOAD_LABEL,
-            type=['csv', 'dat'],
+            type=UPLOAD_TYPES,
             help=UPLOAD_HELP,
         )
 
@@ -108,6 +200,7 @@ def render_data_upload_sidebar() -> None:
                 try:
                     st.session_state.fitter.load_data(str(example_path))
                     st.session_state.data_loaded = True
+                    _reset_after_data_load()
                     # Collapse data upload, expand model selection
                     st.session_state.expand_data_upload = False
                     st.session_state.expand_model_selection = True
@@ -124,13 +217,17 @@ def render_data_upload_sidebar() -> None:
                 if st.session_state.last_uploaded_file_id == current_file_id:
                     return
 
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
+                # Keep the original extension: sasdata picks its reader from it
+                # (CanSAS XML and NXcanSAS HDF5 would not load as '.csv').
+                suffix = Path(uploaded_file.name).suffix or '.csv'
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
                     tmp_file.write(uploaded_file.getvalue())
                     tmp_file_path = tmp_file.name
 
                 try:
                     st.session_state.fitter.load_data(tmp_file_path)
                     st.session_state.data_loaded = True
+                    _reset_after_data_load()
                     st.session_state.last_uploaded_file_id = current_file_id
                     # Collapse data upload, expand model selection
                     st.session_state.expand_data_upload = False
@@ -206,16 +303,7 @@ def render_model_selection_sidebar() -> None:
         if selected_model:
             if st.button(LOAD_MODEL_BUTTON):
                 try:
-                    keys_to_remove = [
-                        k
-                        for k in st.session_state.keys()
-                        if k.startswith('value_')
-                        or k.startswith('min_')
-                        or k.startswith('max_')
-                        or k.startswith('vary_')
-                    ]
-                    for key in keys_to_remove:
-                        del st.session_state[key]
+                    _clear_model_parameter_state()
 
                     st.session_state.fitter.set_model(selected_model)
                     st.session_state.model_selected = True
