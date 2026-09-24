@@ -9,11 +9,12 @@ import pandas as pd
 import streamlit as st
 from sans_fitter import SANSFitter
 
-from sans_webapp.sans_analysis_utils import data_column_summary, plot_data_and_fit
+from sans_webapp.sans_analysis_utils import data_column_summary, plot_data
 from sans_webapp.ui_constants import (
     DATA_PREVIEW_HEADER,
     DATA_STATS_HEADER,
     DATA_TABLE_HEIGHT,
+    LOG_SCALE_LABEL,
     METRIC_DATA_POINTS,
     METRIC_FIT_Q_RANGE,
     METRIC_HAS_DI,
@@ -39,9 +40,9 @@ def render_data_preview(fitter: SANSFitter) -> None:
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            # Plot data
-            fig = plot_data_and_fit(fitter, show_fit=False)
-            st.plotly_chart(fig, width='stretch')
+            log_scale = st.checkbox(LOG_SCALE_LABEL, value=True, key='preview_log_scale')
+            fig = plot_data(fitter, log_scale=log_scale)
+            st.plotly_chart(fig, width='stretch', key='data_preview_chart')
 
         with col2:
             st.markdown(DATA_STATS_HEADER)

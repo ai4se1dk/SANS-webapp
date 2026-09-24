@@ -93,28 +93,23 @@ def test_utils_suggest_models_simple():
     return True
 
 
-def test_utils_plot_data_and_fit():
-    """Test plot generation from utils module."""
-    print('\nTesting utils.plot_data_and_fit()...')
+def test_utils_plot_data():
+    """Test the data-only plot from utils module."""
+    print('\nTesting utils.plot_data()...')
     fitter = SANSFitter()
 
     try:
         fitter.load_data('simulated_sans_data.csv')
 
-        # Test plot without fit
-        fig = utils.plot_data_and_fit(fitter, show_fit=False)
+        fig = utils.plot_data(fitter)
         assert fig is not None, 'No figure generated!'
-        assert hasattr(fig, 'data'), 'Figure has no data attribute!'
-        assert len(fig.data) >= 1, 'Figure should have at least one trace!'
-        print('✓ Plot without fit created successfully')
+        assert len(fig.data) == 1, 'Data-only plot should have exactly one trace!'
+        assert fig.layout.xaxis.type == 'log', 'Default plot should be log-log!'
+        print('✓ Data plot created successfully')
 
-        # Test plot with fit (using dummy fit data)
-        fit_q = fitter.data.x
-        fit_i = fitter.data.y * 0.9  # Dummy fit
-        fig_with_fit = utils.plot_data_and_fit(fitter, show_fit=True, fit_q=fit_q, fit_i=fit_i)
-        assert fig_with_fit is not None, 'No figure with fit generated!'
-        assert len(fig_with_fit.data) >= 2, 'Figure with fit should have at least two traces!'
-        print('✓ Plot with fit created successfully')
+        fig_linear = utils.plot_data(fitter, log_scale=False)
+        assert fig_linear.layout.xaxis.type == 'linear', 'log_scale=False should be linear!'
+        print('✓ Linear-scale data plot created successfully')
 
         return True
     except Exception as e:
@@ -138,12 +133,14 @@ def test_utils_calculate_residuals():
     np.testing.assert_array_almost_equal(residuals, expected, decimal=6)
     print('✓ Normal residuals calculated correctly')
 
-    # Test with zero uncertainties (should not crash)
+    # Zero uncertainties: no residual in sigma units exists, so NaN rather than
+    # a huge number that would blow up the residual axis and statistics
     uncertainties_with_zero = np.array([5.0, 0.0, 3.0, 0.0, 1.0])
     residuals_safe = utils.calculate_residuals(experimental, fitted, uncertainties_with_zero)
     assert not np.any(np.isinf(residuals_safe)), 'Residuals should not contain inf!'
-    assert not np.any(np.isnan(residuals_safe)), 'Residuals should not contain nan!'
-    print('✓ Zero uncertainties handled safely')
+    np.testing.assert_array_equal(np.isnan(residuals_safe), uncertainties_with_zero == 0)
+    np.testing.assert_array_almost_equal(residuals_safe[[0, 2, 4]], expected[[0, 2, 4]])
+    print('✓ Zero uncertainties give NaN residuals')
 
     # Test shape preservation
     assert residuals.shape == experimental.shape, 'Residuals should have same shape as input!'
@@ -152,41 +149,30 @@ def test_utils_calculate_residuals():
     return True
 
 
-def test_utils_plot_data_fit_and_residuals():
-    """Test combined plot with residuals from utils module."""
-    print('\nTesting utils.plot_data_fit_and_residuals()...')
+def test_utils_plot_fit_results():
+    """Test the data/model/residuals figure from utils module."""
+    print('\nTesting utils.plot_fit_results()...')
     fitter = SANSFitter()
+    fitter.load_data('simulated_sans_data.csv')
+    fitter.set_model('sphere')
 
-    try:
-        fitter.load_data('simulated_sans_data.csv')
+    # No fit yet: the model at the current parameters, with residual panel
+    fig = utils.plot_fit_results(fitter)
+    names = [trace.name for trace in fig.data]
+    assert 'Experimental Data' in names, 'Figure should show the data!'
+    assert any('current parameters' in (name or '') for name in names), (
+        'Without a fit the figure should show the model preview!'
+    )
+    assert 'yaxis2' in fig.layout, 'Figure should have second y-axis for residuals!'
+    assert fig.layout.width is None, 'Figure should size itself to the container!'
+    print('✓ Preview figure has data, model and residual panel')
 
-        # Test plot with fit and residuals (using dummy fit data)
-        fit_q = fitter.data.x
-        fit_i = fitter.data.y * 0.95  # Dummy fit close to data
+    fig_plain = utils.plot_fit_results(fitter, show_residuals=False, log_scale=False)
+    assert 'yaxis2' not in fig_plain.layout, 'show_residuals=False should drop the panel!'
+    assert fig_plain.layout.xaxis.type == 'linear', 'log_scale=False should be linear!'
+    print('✓ Residuals and log scale options respected')
 
-        fig = utils.plot_data_fit_and_residuals(fitter, fit_q=fit_q, fit_i=fit_i)
-
-        assert fig is not None, 'No figure generated!'
-        assert hasattr(fig, 'data'), 'Figure has no data attribute!'
-        # Should have: data points, fitted curve, residuals, and zero line
-        assert len(fig.data) >= 4, (
-            'Figure should have at least 4 traces (data, fit, residuals, zero)!'
-        )
-        print(f'✓ Combined plot created with {len(fig.data)} traces')
-
-        # Check that figure has subplots
-        assert hasattr(fig, 'layout'), 'Figure should have layout!'
-        # Layout should indicate multiple subplots
-        assert 'yaxis2' in fig.layout, 'Figure should have second y-axis for residuals!'
-        print('✓ Figure has subplots for main plot and residuals')
-
-        return True
-    except Exception as e:
-        print(f'✗ Combined plot creation failed: {e}')
-        import traceback
-
-        traceback.print_exc()
-        return False
+    return True
 
 
 # =============================================================================
@@ -632,7 +618,7 @@ def test_app_imports():
             'analyze_data_for_ai_suggestion not available in app!'
         )
         assert hasattr(app, 'suggest_models_simple'), 'suggest_models_simple not available in app!'
-        assert hasattr(app, 'plot_data_and_fit'), 'plot_data_and_fit not available in app!'
+        assert hasattr(app, 'plot_data'), 'plot_data not available in app!'
         print('✓ Utility functions re-exported from app (backwards compatible)')
 
         # Check app-specific functions
@@ -1532,9 +1518,9 @@ if __name__ == '__main__':
         results['utils_get_all_models_reexport'] = test_utils_get_all_models_reexported()
         results['utils_analyze_data'] = test_utils_analyze_data()
         results['utils_suggest_models'] = test_utils_suggest_models_simple()
-        results['utils_plot'] = test_utils_plot_data_and_fit()
+        results['utils_plot'] = test_utils_plot_data()
         results['utils_calculate_residuals'] = test_utils_calculate_residuals()
-        results['utils_plot_residuals'] = test_utils_plot_data_fit_and_residuals()
+        results['utils_plot_residuals'] = test_utils_plot_fit_results()
     except Exception as e:
         print(f'\n✗ Utility tests failed with exception: {e}')
         import traceback
