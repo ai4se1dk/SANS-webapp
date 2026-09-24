@@ -158,6 +158,32 @@ class TestRealFitterHelpers:
         fig = utils.plot_fit_results(fitter)
         assert fig.layout.title.text.startswith('Model preview')
 
+    @pytest.mark.parametrize(('engine', 'method'), [('bumps', 'amoeba'), ('lmfit', 'leastsq')])
+    def test_residual_sign_is_consistent_across_fit_and_preview(self, engine, method):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_resolution('none')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        fitter.fit(engine=engine, method=method)
+
+        def plotted_residuals():
+            fig = utils.plot_fit_results(fitter)
+            return np.asarray(next(t.y for t in fig.data if t.name == 'Residuals'), dtype=float)
+
+        # Same convention as the residual statistics: (I_exp - I_model) / dI
+        curve = utils.evaluate_model(fitter)
+        expected = utils.calculate_residuals(fitter.data.y, curve, fitter.data.dy)
+        assert utils.fit_is_current(fitter)
+        fit_residuals = plotted_residuals()
+        np.testing.assert_allclose(fit_residuals, expected[np.isfinite(curve)])
+
+        # A bound-only change leaves the curve alone and must not flip the residuals
+        fitter.set_param('radius', min=4.0)
+        assert not utils.fit_is_current(fitter)
+        np.testing.assert_array_equal(utils.evaluate_model(fitter), curve)
+        np.testing.assert_allclose(plotted_residuals(), fit_residuals)
+
     def test_plot_fit_results_marks_points_outside_q_range(self):
         fitter = SANSFitter()
         fitter.load_data(EXAMPLE_DATA)
