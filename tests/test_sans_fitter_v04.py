@@ -82,6 +82,118 @@ class TestRealFitterHelpers:
             fitter.reset_q_range()
         assert fitter.get_q_range() == (fitter.data.x.min(), fitter.data.x.max())
 
+    def test_fit_is_current_tracks_changes_after_fit(self):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        assert utils.fit_is_current(fitter) is False  # no fit yet
+
+        fitter.fit(engine='bumps', method='amoeba')
+        assert utils.fit_is_current(fitter) is True
+
+        fitted_radius = fitter.params['radius']['value']
+        fitter.set_param('radius', value=fitted_radius * 1.1)
+        assert utils.fit_is_current(fitter) is False
+        fitter.set_param('radius', value=fitted_radius)
+        assert utils.fit_is_current(fitter) is True
+
+        fitter.set_q_range(qmin=float(np.sort(fitter.data.x)[10]))
+        assert utils.fit_is_current(fitter) is False
+
+    def test_fit_is_current_falls_back_when_private_check_fails(self):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        fitter.fit(engine='bumps', method='amoeba')
+        with patch('sans_fitter.persistence.compare_fit_context', side_effect=TypeError('changed')):
+            assert utils.fit_is_current(fitter) is False
+            # The figure still renders, as the model preview
+            fig = utils.plot_fit_results(fitter)
+        assert fig.layout.title.text.startswith('Model preview')
+
+    def test_quiet_fitter_leaves_logger_level_and_other_threads_alone(self):
+        import logging
+        import threading
+
+        logger = logging.getLogger('sans_fitter')
+        level = logger.level
+        seen = []
+
+        class Collect(logging.Handler):
+            def emit(self, record):
+                seen.append(record.getMessage())
+
+        handler = Collect()
+        logger.addHandler(handler)
+        try:
+            with utils._quiet_fitter():
+                logger.info('own thread')
+                logger.error('own thread error')
+                other = threading.Thread(target=lambda: logger.info('other thread'))
+                other.start()
+                other.join()
+            logger.info('after')
+        finally:
+            logger.removeHandler(handler)
+
+        assert logger.level == level
+        assert logger.filters == []
+        assert seen == ['own thread error', 'other thread', 'after']
+
+    def test_plot_fit_results_switches_between_fit_and_preview(self):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        fitter.fit(engine='bumps', method='amoeba')
+
+        fig = utils.plot_fit_results(fitter)
+        assert fig.layout.title.text.startswith('SANS Fit')
+        assert 'Fitted Model' in [trace.name for trace in fig.data]
+
+        # A parameter moved after the fit: show the model at the new value
+        fitter.set_param('radius', value=fitter.params['radius']['value'] * 1.1)
+        fig = utils.plot_fit_results(fitter)
+        assert fig.layout.title.text.startswith('Model preview')
+
+    @pytest.mark.parametrize(('engine', 'method'), [('bumps', 'amoeba'), ('lmfit', 'leastsq')])
+    def test_residual_sign_is_consistent_across_fit_and_preview(self, engine, method):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_resolution('none')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        fitter.fit(engine=engine, method=method)
+
+        def plotted_residuals():
+            fig = utils.plot_fit_results(fitter)
+            return np.asarray(next(t.y for t in fig.data if t.name == 'Residuals'), dtype=float)
+
+        # Same convention as the residual statistics: (I_exp - I_model) / dI
+        curve = utils.evaluate_model(fitter)
+        expected = utils.calculate_residuals(fitter.data.y, curve, fitter.data.dy)
+        assert utils.fit_is_current(fitter)
+        fit_residuals = plotted_residuals()
+        np.testing.assert_allclose(fit_residuals, expected[np.isfinite(curve)])
+
+        # A bound-only change leaves the curve alone and must not flip the residuals
+        fitter.set_param('radius', min=4.0)
+        assert not utils.fit_is_current(fitter)
+        np.testing.assert_array_equal(utils.evaluate_model(fitter), curve)
+        np.testing.assert_allclose(plotted_residuals(), fit_residuals)
+
+    def test_plot_fit_results_marks_points_outside_q_range(self):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_q_range(qmin=float(np.sort(fitter.data.x)[10]))
+        fig = utils.plot_fit_results(fitter)
+        excluded = [trace for trace in fig.data if trace.name == 'Excluded Data']
+        assert len(excluded) == 1
+        assert len(excluded[0].x) == 10
+
     def test_data_column_summary(self, fitted_sphere):
         fitter, _, _ = fitted_sphere
         summary = utils.data_column_summary(fitter.data)

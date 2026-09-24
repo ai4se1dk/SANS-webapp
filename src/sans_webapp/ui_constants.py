@@ -197,6 +197,7 @@ RESIDUAL_YAXIS_LABEL = '(I_exp - I_fit) / dI'
 RESIDUAL_TRACE_NAME = 'Residuals'
 RESIDUAL_ZERO_LINE_NAME = 'Zero'
 SHOW_RESIDUALS_LABEL = 'Show residuals plot'
+LOG_SCALE_LABEL = 'Log scale'
 
 # AI Chat Section
 AI_CHAT_SIDEBAR_HEADER = '🤖 AI Assistant'

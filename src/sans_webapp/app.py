@@ -32,7 +32,7 @@ from sans_webapp.components.sidebar import (
 )
 from sans_webapp.sans_analysis_utils import (  # noqa: F401 - re-exported for backwards compatibility
     analyze_data_for_ai_suggestion,
-    plot_data_and_fit,
+    plot_data,
     run_fit_with_warnings,
     suggest_models_simple,
 )

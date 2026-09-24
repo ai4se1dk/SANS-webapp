@@ -5,23 +5,28 @@ Shared utility functions for SANS data analysis that can be used by both
 the Streamlit web application and command-line scripts without importing Streamlit.
 """
 
+import logging
+import threading
 import warnings
+from contextlib import contextmanager
 from typing import Any, Optional
 
 import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from sans_fitter import SANSFitter, get_all_models
+from sans_fitter.console import LOGGER_NAME
 from sans_fitter.data.loader import has_real_data
+from sans_fitter.plotting import PREVIEW_MODEL_TRACE_NAME, plot_fit
 
 # Re-export get_all_models for backwards compatibility
 __all__ = [
     'get_all_models',
     'analyze_data_for_ai_suggestion',
     'suggest_models_simple',
-    'plot_data_and_fit',
+    'plot_data',
+    'plot_fit_results',
+    'fit_is_current',
     'calculate_residuals',
-    'plot_data_fit_and_residuals',
     'evaluate_model',
     'data_column_summary',
     'run_fit_with_warnings',
@@ -423,64 +428,164 @@ def suggest_models_simple(q_data: np.ndarray, i_data: np.ndarray) -> list[str]:
 # =============================================================================
 
 
-def plot_data_and_fit(
-    fitter: SANSFitter,
-    show_fit: bool = False,
-    fit_q: Optional[np.ndarray] = None,
-    fit_i: Optional[np.ndarray] = None,
-) -> go.Figure:
+# =============================================================================
+# Plotting (delegated to sans-fitter's figure builders)
+# =============================================================================
+
+
+@contextmanager
+def _quiet_fitter():
+    """Silence sans-fitter's progress logging for the duration of the block.
+
+    Streamlit reruns the script on every interaction, and the preview/plot
+    builders log a status line each time they are called.
+
+    Streamlit runs each browser session in its own thread, so this filters
+    only the calling thread's records below ERROR rather than changing the
+    shared logger's level, which concurrent sessions could leave raised.
+    The plotting and preview code logs through the ``sans_fitter`` logger
+    itself, where the filter applies.
     """
-    Create an interactive Plotly figure with data and optionally fitted curve.
+    logger = logging.getLogger(LOGGER_NAME)
+    thread_id = threading.get_ident()
+
+    def drop_own_progress(record: logging.LogRecord) -> bool:
+        return record.thread != thread_id or record.levelno >= logging.ERROR
+
+    logger.addFilter(drop_own_progress)
+    try:
+        yield
+    finally:
+        logger.removeFilter(drop_own_progress)
+
+
+def _fit_container(fig: go.Figure) -> go.Figure:
+    """Let a sans-fitter figure size itself to its Streamlit container."""
+    fig.update_layout(width=None, autosize=True)
+    return fig
+
+
+def plot_data(fitter: SANSFitter, log_scale: bool = True) -> go.Figure:
+    """
+    Plot the loaded data only (I(Q) with dI and, when present, dQ error bars).
 
     Args:
         fitter: SANSFitter instance with loaded data
-        show_fit: Whether to show fitted curve
-        fit_q: Q values for fitted curve
-        fit_i: Intensity values for fitted curve (NaN entries are skipped)
+        log_scale: Use log scale on both axes
 
     Returns:
         Plotly figure object
     """
-    fig = go.Figure()
-
-    # Plot original data with error bars
-    fig.add_trace(
-        go.Scatter(
-            x=fitter.data.x,
-            y=fitter.data.y,
-            error_y={'type': 'data', 'array': fitter.data.dy, 'visible': True},
-            mode='markers',
-            name='Data',
-            marker={'size': 6, 'color': 'blue', 'symbol': 'circle'},
+    with _quiet_fitter():
+        fig = plot_fit(
+            fitter.data,
+            None,
+            fitter.model_name,
+            show_residuals=False,
+            log_scale=log_scale,
+            show=False,
         )
-    )
+    return _fit_container(fig)
 
-    # Plot fitted curve if available
-    if show_fit and fit_q is not None and fit_i is not None:
-        fig.add_trace(
-            go.Scatter(
-                x=fit_q,
-                y=fit_i,
-                mode='lines',
-                name='Fitted Model',
-                line={'color': 'red', 'width': 2},
+
+def fit_is_current(fitter: SANSFitter) -> bool:
+    """
+    Whether the fitter's last fit still describes its current configuration.
+
+    False once a parameter value, bound, vary flag, link, polydispersity
+    setting, the resolution mode, the fitting Q range or the data changed
+    after the fit, i.e. whenever the stored fitted curve no longer matches
+    what the model gives at the current settings.
+
+    Args:
+        fitter: SANSFitter instance
+
+    Returns:
+        True if a fit exists and nothing it depends on has changed since
+    """
+    if getattr(fitter, 'fit_result', None) is None:
+        return False
+    # sans-fitter records the configuration each fit belongs to (the same
+    # check save_analysis() uses to flag stale results). There is no public
+    # accessor for it yet, so read it defensively.
+    contract = getattr(fitter, '_fit_contract', None)
+    saved_context = getattr(contract, 'fit_context', None)
+    if saved_context is None:
+        return False
+    try:
+        from sans_fitter.persistence import _current_fit_context, compare_fit_context
+
+        current = _current_fit_context(fitter, fitter._param_manager.export_config())
+        return compare_fit_context(saved_context, current) is None
+    except Exception:
+        # The private API changed or failed: fall back to the model preview
+        return False
+
+
+def plot_fit_results(
+    fitter: SANSFitter, show_residuals: bool = True, log_scale: bool = True
+) -> go.Figure:
+    """
+    Plot the data against the model, with optional residual panel.
+
+    Shows the last fit (``SANSFitter.plot_results``) while it still describes
+    the fitter's settings, and the model at the current parameters
+    (``SANSFitter.plot_model``) once anything changed after the fit, e.g. a
+    parameter adjusted with the slider. Either way the figure marks points
+    outside the fitting Q range, draws dQ error bars when the data has them,
+    reports chi-squared/dof in the title and leaves the residual panel empty
+    rather than dividing by zero when the data has no dI.
+
+    Args:
+        fitter: SANSFitter instance with data and a model loaded
+        show_residuals: Add a residuals panel below the main plot
+        log_scale: Use log scale on both axes
+
+    Returns:
+        Plotly figure object
+    """
+    with _quiet_fitter():
+        if fit_is_current(fitter):
+            fig = fitter.plot_results(
+                show_residuals=show_residuals, log_scale=log_scale, show=False
             )
-        )
+        else:
+            fig = fitter.plot_model(show_residuals=show_residuals, log_scale=log_scale, show=False)
+    _normalize_residual_trace(fig)
+    return _fit_container(fig)
 
-    # Update layout
-    fig.update_layout(
-        title='SANS Data Analysis',
-        xaxis_title='Q (Å⁻¹)',
-        yaxis_title='Intensity (cm⁻¹)',
-        xaxis_type='log',
-        yaxis_type='log',
-        hovermode='closest',
-        template='plotly_white',
-        height=600,
-        showlegend=True,
-    )
 
-    return fig
+_DATA_TRACE_NAME = 'Experimental Data'
+_RESIDUAL_TRACE_NAME = 'Residuals'
+_MODEL_TRACE_NAMES = ('Fitted Model', PREVIEW_MODEL_TRACE_NAME)
+
+
+def _normalize_residual_trace(fig: go.Figure) -> None:
+    """Redraw the residual panel as (I_exp - I_model) / dI from the plotted curves.
+
+    sans-fitter's figures take the residuals the fit stored, whose sign depends
+    on the engine: the bumps engine stores model minus data, the scipy engine
+    and the model preview data minus model. Recomputing them from the data and
+    model traces the figure itself draws gives one convention for fitted and
+    preview plots alike, matching ``calculate_residuals()`` and the residual
+    statistics shown next to the plot. Points without a positive dI get no
+    residual, as there.
+    """
+    traces = {trace.name: trace for trace in fig.data}
+    residual_trace = traces.get(_RESIDUAL_TRACE_NAME)
+    data_trace = traces.get(_DATA_TRACE_NAME)
+    model_trace = next((traces[name] for name in _MODEL_TRACE_NAMES if name in traces), None)
+    if residual_trace is None or data_trace is None or model_trace is None:
+        return
+    error_y = data_trace.error_y
+    if error_y is None or error_y.array is None:
+        return
+    experimental = np.asarray(data_trace.y, dtype=float)
+    model = np.asarray(model_trace.y, dtype=float)
+    uncertainties = np.asarray(error_y.array, dtype=float)
+    if not (len(experimental) == len(model) == len(uncertainties) == len(residual_trace.y)):
+        return
+    residual_trace.y = calculate_residuals(experimental, model, uncertainties)
 
 
 def calculate_residuals(
@@ -497,115 +602,13 @@ def calculate_residuals(
         uncertainties: Measurement uncertainties (dI)
 
     Returns:
-        Normalized residuals: (I_exp - I_fit) / dI. NaN entries in ``fitted_i``
-        (points outside the fit Q range) propagate as NaN residuals.
+        Normalized residuals: (I_exp - I_fit) / dI. NaN where a point was not
+        fitted (NaN in ``fitted_i``) and where dI is not positive, since a
+        residual in sigma units is undefined without an uncertainty.
     """
     experimental_i = np.asarray(experimental_i, dtype=float)
     fitted_i = np.asarray(fitted_i, dtype=float)
     uncertainties = np.asarray(uncertainties, dtype=float)
-    # Avoid division by zero
-    safe_uncertainties = np.where(uncertainties > 0, uncertainties, 1e-10)
-    return (experimental_i - fitted_i) / safe_uncertainties
-
-
-def plot_data_fit_and_residuals(
-    fitter: SANSFitter,
-    fit_q: np.ndarray,
-    fit_i: np.ndarray,
-) -> go.Figure:
-    """
-    Create a combined figure with data/fit plot and residuals subplot.
-
-    Args:
-        fitter: SANSFitter instance with loaded data
-        fit_q: Q values for fitted curve
-        fit_i: Intensity values for fitted curve (NaN entries are skipped)
-
-    Returns:
-        Plotly figure with two subplots (main plot + residuals)
-    """
-    # Calculate residuals
-    residuals = calculate_residuals(fitter.data.y, fit_i, fitter.data.dy)
-
-    # Create subplots: main plot (larger) + residuals (smaller)
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.08,
-        row_heights=[0.7, 0.3],
-    )
-
-    # Main plot: Data with error bars
-    fig.add_trace(
-        go.Scatter(
-            x=fitter.data.x,
-            y=fitter.data.y,
-            error_y={'type': 'data', 'array': fitter.data.dy, 'visible': True},
-            mode='markers',
-            name='Data',
-            marker={'size': 6, 'color': 'blue', 'symbol': 'circle'},
-        ),
-        row=1,
-        col=1,
-    )
-
-    # Main plot: Fitted curve
-    fig.add_trace(
-        go.Scatter(
-            x=fit_q,
-            y=fit_i,
-            mode='lines',
-            name='Fitted Model',
-            line={'color': 'red', 'width': 2},
-        ),
-        row=1,
-        col=1,
-    )
-
-    # Residuals plot: scatter points
-    fig.add_trace(
-        go.Scatter(
-            x=fitter.data.x,
-            y=residuals,
-            mode='markers',
-            name='Residuals',
-            marker={'size': 5, 'color': 'green', 'symbol': 'circle'},
-            showlegend=True,
-        ),
-        row=2,
-        col=1,
-    )
-
-    # Residuals plot: zero reference line
-    fig.add_trace(
-        go.Scatter(
-            x=[fitter.data.x.min(), fitter.data.x.max()],
-            y=[0, 0],
-            mode='lines',
-            name='Zero',
-            line={'color': 'gray', 'width': 1, 'dash': 'dash'},
-            showlegend=False,
-        ),
-        row=2,
-        col=1,
-    )
-
-    # Update layout
-    fig.update_layout(
-        title='SANS Data Analysis',
-        hovermode='closest',
-        template='plotly_white',
-        height=750,  # Taller to accommodate both plots
-        showlegend=True,
-    )
-
-    # Main plot axes (log-log)
-    fig.update_xaxes(type='log', row=1, col=1)
-    fig.update_yaxes(title_text='Intensity (cm⁻¹)', type='log', row=1, col=1)
-
-    # Residuals axes (log-linear)
-    fig.update_xaxes(title_text='Q (Å⁻¹)', type='log', row=2, col=1)
-    fig.update_yaxes(title_text='(I_exp - I_fit) / dI', row=2, col=1)
-
-    return fig
+    with np.errstate(divide='ignore', invalid='ignore'):
+        residuals = (experimental_i - fitted_i) / uncertainties
+    return np.where(uncertainties > 0, residuals, np.nan)

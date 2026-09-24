@@ -17,8 +17,7 @@ from sans_fitter import SANSFitter
 from sans_webapp.sans_analysis_utils import (
     calculate_residuals,
     evaluate_model,
-    plot_data_and_fit,
-    plot_data_fit_and_residuals,
+    plot_fit_results,
 )
 from sans_webapp.sans_types import FitResult, ParamUpdate
 from sans_webapp.ui_constants import (
@@ -33,6 +32,7 @@ from sans_webapp.ui_constants import (
     FIT_STATS_CAPTION,
     FIT_WARNINGS_HEADER,
     FITTED_PARAMETERS_HEADER,
+    LOG_SCALE_LABEL,
     RESULTS_CSV_NAME,
     SAVE_FIT_CURVE_BUTTON,
     SAVE_RESULTS_BUTTON,
@@ -69,24 +69,19 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
     with st.expander(FIT_RESULTS_HEADER, expanded=True):
         _render_fit_warnings()
 
-        # Checkbox to toggle residuals display (placed before columns for stable layout)
-        show_residuals = st.checkbox(SHOW_RESIDUALS_LABEL, value=True)
+        # Plot options (placed before columns for stable layout)
+        option_cols = st.columns(2)
+        show_residuals = option_cols[0].checkbox(SHOW_RESIDUALS_LABEL, value=True)
+        log_scale = option_cols[1].checkbox(LOG_SCALE_LABEL, value=True, key='results_log_scale')
 
         col1, col2 = st.columns([2, 1])
 
         with col1:
             try:
-                # SANSFitter.calculate() evaluates the model exactly as the fit did
-                # (polydispersity, links, structure factor, resolution) and returns
-                # NaN outside the fit Q range so the curve aligns with data.x.
-                fit_i = evaluate_model(fitter)
-                q_plot = fitter.data.x
-
-                if show_residuals:
-                    fig = plot_data_fit_and_residuals(fitter, fit_q=q_plot, fit_i=fit_i)
-                else:
-                    fig = plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
-
+                # sans-fitter draws the figure: the last fit while it still matches
+                # the current settings, the model at the current parameters once
+                # something (e.g. the slider below) changed after the fit.
+                fig = plot_fit_results(fitter, show_residuals=show_residuals, log_scale=log_scale)
                 st.plotly_chart(fig, width='stretch')
 
             except Exception as e:
