@@ -79,4 +79,4 @@ def render_parameter_correlations(fitter: SANSFitter) -> None:
         for name_a, name_b, rho in pairs:
             st.warning(CORRELATIONS_STRONG_WARNING.format(a=name_a, b=name_b, rho=rho))
         fig = plot_correlation_matrix(list(report.cov_labels), corr)
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, width='stretch', key='correlations_chart')
