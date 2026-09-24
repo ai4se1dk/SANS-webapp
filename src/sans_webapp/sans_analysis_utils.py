@@ -6,6 +6,7 @@ the Streamlit web application and command-line scripts without importing Streaml
 """
 
 import logging
+import threading
 import warnings
 from contextlib import contextmanager
 from typing import Any, Optional
@@ -443,14 +444,24 @@ def _quiet_fitter():
 
     Streamlit reruns the script on every interaction, and the preview/plot
     builders log a status line each time they are called.
+
+    Streamlit runs each browser session in its own thread, so this filters
+    only the calling thread's records below ERROR rather than changing the
+    shared logger's level, which concurrent sessions could leave raised.
+    The plotting and preview code logs through the ``sans_fitter`` logger
+    itself, where the filter applies.
     """
     logger = logging.getLogger(LOGGER_NAME)
-    previous = logger.level
-    logger.setLevel(logging.ERROR)
+    thread_id = threading.get_ident()
+
+    def drop_own_progress(record: logging.LogRecord) -> bool:
+        return record.thread != thread_id or record.levelno >= logging.ERROR
+
+    logger.addFilter(drop_own_progress)
     try:
         yield
     finally:
-        logger.setLevel(previous)
+        logger.removeFilter(drop_own_progress)
 
 
 def _fit_container(fig: go.Figure) -> go.Figure:
@@ -510,9 +521,10 @@ def fit_is_current(fitter: SANSFitter) -> bool:
         from sans_fitter.persistence import _current_fit_context, compare_fit_context
 
         current = _current_fit_context(fitter, fitter._param_manager.export_config())
-    except (ImportError, AttributeError):
+        return compare_fit_context(saved_context, current) is None
+    except Exception:
+        # The private API changed or failed: fall back to the model preview
         return False
-    return compare_fit_context(saved_context, current) is None
 
 
 def plot_fit_results(

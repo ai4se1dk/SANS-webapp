@@ -101,6 +101,47 @@ class TestRealFitterHelpers:
         fitter.set_q_range(qmin=float(np.sort(fitter.data.x)[10]))
         assert utils.fit_is_current(fitter) is False
 
+    def test_fit_is_current_falls_back_when_private_check_fails(self):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        fitter.fit(engine='bumps', method='amoeba')
+        with patch('sans_fitter.persistence.compare_fit_context', side_effect=TypeError('changed')):
+            assert utils.fit_is_current(fitter) is False
+            # The figure still renders, as the model preview
+            fig = utils.plot_fit_results(fitter)
+        assert fig.layout.title.text.startswith('Model preview')
+
+    def test_quiet_fitter_leaves_logger_level_and_other_threads_alone(self):
+        import logging
+        import threading
+
+        logger = logging.getLogger('sans_fitter')
+        level = logger.level
+        seen = []
+
+        class Collect(logging.Handler):
+            def emit(self, record):
+                seen.append(record.getMessage())
+
+        handler = Collect()
+        logger.addHandler(handler)
+        try:
+            with utils._quiet_fitter():
+                logger.info('own thread')
+                logger.error('own thread error')
+                other = threading.Thread(target=lambda: logger.info('other thread'))
+                other.start()
+                other.join()
+            logger.info('after')
+        finally:
+            logger.removeHandler(handler)
+
+        assert logger.level == level
+        assert logger.filters == []
+        assert seen == ['own thread error', 'other thread', 'after']
+
     def test_plot_fit_results_switches_between_fit_and_preview(self):
         fitter = SANSFitter()
         fitter.load_data(EXAMPLE_DATA)
