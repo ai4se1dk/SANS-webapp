@@ -42,7 +42,7 @@ def render_data_preview(fitter: SANSFitter) -> None:
         with col1:
             log_scale = st.checkbox(LOG_SCALE_LABEL, value=True, key='preview_log_scale')
             fig = plot_data(fitter, log_scale=log_scale)
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, width='stretch', key='data_preview_chart')
 
         with col2:
             st.markdown(DATA_STATS_HEADER)

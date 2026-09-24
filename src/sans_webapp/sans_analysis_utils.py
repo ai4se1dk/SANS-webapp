@@ -30,6 +30,7 @@ __all__ = [
     'fit_is_current',
     'plot_model_preview',
     'snapshot_parameters',
+    'snapshot_context',
     'plot_parameter_comparison',
     'calculate_residuals',
     'evaluate_model',
@@ -647,9 +648,15 @@ def snapshot_parameters(fitter: SANSFitter) -> dict[str, float]:
     """
     Capture the current parameter values as overrides for ``SANSFitter.compare()``.
 
-    Linked parameters are left out (they follow their leader), and
-    polydispersity widths are included as ``<name>_pd`` while polydispersity
-    is enabled.
+    ``compare()`` starts every case from the fitter's current configuration and
+    applies only the overrides it is given, so a snapshot must pin everything it
+    depends on. Linked parameters are left out (they follow their leader), and
+    every polydispersity width is included as ``<name>_pd``: the current width
+    while polydispersity is enabled, and 0 while it is disabled, so a
+    monodisperse snapshot stays monodisperse after polydispersity is switched on.
+
+    Settings ``compare()`` cannot override (distribution type, sampling points,
+    structure factor, links) are captured by ``snapshot_context()`` instead.
 
     Args:
         fitter: SANSFitter instance with a model loaded
@@ -661,10 +668,47 @@ def snapshot_parameters(fitter: SANSFitter) -> dict[str, float]:
     values = {
         name: float(info['value']) for name, info in fitter.params.items() if name not in followers
     }
-    if fitter.supports_polydispersity() and fitter.is_polydispersity_enabled():
+    if fitter.supports_polydispersity():
+        enabled = fitter.is_polydispersity_enabled()
         for name in fitter.get_polydisperse_parameters():
-            values[f'{name}_pd'] = float(fitter.get_pd_param(name)['pd'])
+            values[f'{name}_pd'] = float(fitter.get_pd_param(name)['pd']) if enabled else 0.0
     return values
+
+
+def snapshot_context(fitter: SANSFitter) -> tuple:
+    """
+    Identify the configuration parameter snapshots are valid for.
+
+    Snapshots can only be compared while this stays the same: the model, its
+    structure factor, the parameter names (which also change with the
+    structure factor's effective-radius mode), the parameter links, and the
+    polydispersity distribution settings, none of which ``compare()`` can
+    override per case.
+
+    Args:
+        fitter: SANSFitter instance with a model loaded
+
+    Returns:
+        A hashable description of that configuration
+    """
+    pd_settings: tuple = ()
+    if fitter.supports_polydispersity():
+        pd_settings = tuple(
+            (
+                name,
+                fitter.get_pd_param(name)['pd_type'],
+                fitter.get_pd_param(name)['pd_n'],
+                fitter.get_pd_param(name)['pd_nsigma'],
+            )
+            for name in fitter.get_polydisperse_parameters()
+        )
+    return (
+        fitter.model_name,
+        fitter.get_structure_factor(),
+        tuple(sorted(fitter.params)),
+        tuple(sorted(fitter.get_links().items())),
+        pd_settings,
+    )
 
 
 def plot_parameter_comparison(
@@ -694,7 +738,14 @@ def plot_parameter_comparison(
     cases: dict[str, dict[str, float]] = {}
     if include_current:
         cases[CURRENT_PARAMETERS_LABEL] = {}
-    cases.update(snapshots)
+    for label, values in snapshots.items():
+        # Never let a snapshot replace the live curve or another case
+        unique = label
+        suffix = 2
+        while unique in cases:
+            unique = f'{label} ({suffix})'
+            suffix += 1
+        cases[unique] = values
     with _quiet_fitter():
         fig = fitter.compare(cases=cases, log_scale=log_scale, show=False)
     return _fit_container(fig)

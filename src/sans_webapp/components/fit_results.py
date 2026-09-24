@@ -82,7 +82,7 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
                 # the current settings, the model at the current parameters once
                 # something (e.g. the slider below) changed after the fit.
                 fig = plot_fit_results(fitter, show_residuals=show_residuals, log_scale=log_scale)
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, width='stretch', key='fit_results_chart')
 
             except Exception as e:
                 st.error(f'Error plotting results: {str(e)}')

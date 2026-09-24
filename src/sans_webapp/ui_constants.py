@@ -216,6 +216,10 @@ SNAPSHOT_LABEL_PLACEHOLDER = 'optional, e.g. "radius 40"'
 SNAPSHOT_DEFAULT_LABEL = 'Snapshot {n}'
 SNAPSHOT_BUTTON = '📌 Snapshot'
 CLEAR_SNAPSHOTS_BUTTON = 'Clear'
+SNAPSHOTS_RESET_INFO = (
+    'Snapshots were cleared: the model, structure factor, parameter links or '
+    'polydispersity distribution settings changed, so they can no longer be compared.'
+)
 NO_SNAPSHOTS_INFO = 'No snapshots yet. Take one to start comparing parameter sets.'
 
 # AI Chat Section
