@@ -198,6 +198,15 @@ RESIDUAL_TRACE_NAME = 'Residuals'
 RESIDUAL_ZERO_LINE_NAME = 'Zero'
 SHOW_RESIDUALS_LABEL = 'Show residuals plot'
 
+# Parameter correlations
+CORRELATIONS_HEADER = '🔗 Parameter Correlations'
+CORRELATIONS_CAPTION = (
+    'Correlation coefficients ρ between the free parameters, from the fit covariance '
+    '(source: {source}). |ρ| near 1 means the data cannot tell the two parameters apart: '
+    'consider fixing one, or constraining it with other information.'
+)
+CORRELATIONS_STRONG_WARNING = '{a} and {b} are strongly correlated (ρ = {rho:+.3f})'
+
 # AI Chat Section
 AI_CHAT_SIDEBAR_HEADER = '🤖 AI Assistant'
 AI_CHAT_DESCRIPTION = (
