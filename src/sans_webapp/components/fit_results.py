@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 from sans_fitter import SANSFitter
 
+from sans_webapp.components.correlations import render_parameter_correlations
 from sans_webapp.sans_analysis_utils import (
     calculate_residuals,
     evaluate_model,
@@ -93,6 +94,7 @@ def render_fit_results(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]
             _render_parameter_slider(fitter)
 
         _render_fit_report(fitter)
+        render_parameter_correlations(fitter)
         _render_export_section(fitter)
 
 
