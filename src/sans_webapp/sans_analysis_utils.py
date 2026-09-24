@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 from sans_fitter import SANSFitter, get_all_models
 from sans_fitter.console import LOGGER_NAME
 from sans_fitter.data.loader import has_real_data
-from sans_fitter.plotting import plot_fit
+from sans_fitter.plotting import PREVIEW_MODEL_TRACE_NAME, plot_fit
 
 # Re-export get_all_models for backwards compatibility
 __all__ = [
@@ -551,7 +551,41 @@ def plot_fit_results(
             )
         else:
             fig = fitter.plot_model(show_residuals=show_residuals, log_scale=log_scale, show=False)
+    _normalize_residual_trace(fig)
     return _fit_container(fig)
+
+
+_DATA_TRACE_NAME = 'Experimental Data'
+_RESIDUAL_TRACE_NAME = 'Residuals'
+_MODEL_TRACE_NAMES = ('Fitted Model', PREVIEW_MODEL_TRACE_NAME)
+
+
+def _normalize_residual_trace(fig: go.Figure) -> None:
+    """Redraw the residual panel as (I_exp - I_model) / dI from the plotted curves.
+
+    sans-fitter's figures take the residuals the fit stored, whose sign depends
+    on the engine: the bumps engine stores model minus data, the scipy engine
+    and the model preview data minus model. Recomputing them from the data and
+    model traces the figure itself draws gives one convention for fitted and
+    preview plots alike, matching ``calculate_residuals()`` and the residual
+    statistics shown next to the plot. Points without a positive dI get no
+    residual, as there.
+    """
+    traces = {trace.name: trace for trace in fig.data}
+    residual_trace = traces.get(_RESIDUAL_TRACE_NAME)
+    data_trace = traces.get(_DATA_TRACE_NAME)
+    model_trace = next((traces[name] for name in _MODEL_TRACE_NAMES if name in traces), None)
+    if residual_trace is None or data_trace is None or model_trace is None:
+        return
+    error_y = data_trace.error_y
+    if error_y is None or error_y.array is None:
+        return
+    experimental = np.asarray(data_trace.y, dtype=float)
+    model = np.asarray(model_trace.y, dtype=float)
+    uncertainties = np.asarray(error_y.array, dtype=float)
+    if not (len(experimental) == len(model) == len(uncertainties) == len(residual_trace.y)):
+        return
+    residual_trace.y = calculate_residuals(experimental, model, uncertainties)
 
 
 def calculate_residuals(
