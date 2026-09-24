@@ -6,6 +6,7 @@ Contains reusable UI components for the application.
 
 from sans_webapp.components.data_preview import render_data_preview
 from sans_webapp.components.fit_results import render_fit_results
+from sans_webapp.components.model_preview import render_model_preview
 from sans_webapp.components.parameters import (
     apply_fit_results_to_params,
     apply_param_updates,
@@ -23,6 +24,7 @@ from sans_webapp.components.sidebar import (
 __all__ = [
     'render_data_preview',
     'render_fit_results',
+    'render_model_preview',
     'apply_fit_results_to_params',
     'apply_param_updates',
     'apply_pending_preset',

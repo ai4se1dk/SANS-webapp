@@ -199,6 +199,25 @@ RESIDUAL_ZERO_LINE_NAME = 'Zero'
 SHOW_RESIDUALS_LABEL = 'Show residuals plot'
 LOG_SCALE_LABEL = 'Log scale'
 
+# Model preview
+MODEL_PREVIEW_HEADER = '🔭 Model Preview'
+MODEL_PREVIEW_TAB_CURRENT = 'Current parameters'
+MODEL_PREVIEW_TAB_COMPARE = 'Compare snapshots'
+MODEL_PREVIEW_CAPTION = (
+    'The model at the current parameter values, evaluated exactly as a fit would. '
+    'Click "Update Parameters" above to redraw it after editing values.'
+)
+SNAPSHOTS_CAPTION = (
+    'Save the current parameter values as a snapshot, change parameters, and '
+    'overlay the snapshots to see how each change moves the curve.'
+)
+SNAPSHOT_LABEL_INPUT = 'Snapshot label'
+SNAPSHOT_LABEL_PLACEHOLDER = 'optional, e.g. "radius 40"'
+SNAPSHOT_DEFAULT_LABEL = 'Snapshot {n}'
+SNAPSHOT_BUTTON = '📌 Snapshot'
+CLEAR_SNAPSHOTS_BUTTON = 'Clear'
+NO_SNAPSHOTS_INFO = 'No snapshots yet. Take one to start comparing parameter sets.'
+
 # AI Chat Section
 AI_CHAT_SIDEBAR_HEADER = '🤖 AI Assistant'
 AI_CHAT_DESCRIPTION = (

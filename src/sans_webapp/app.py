@@ -19,6 +19,7 @@ from sans_fitter import get_all_models  # noqa: F401 - re-exported for backwards
 
 from sans_webapp.components.data_preview import render_data_preview
 from sans_webapp.components.fit_results import render_fit_results
+from sans_webapp.components.model_preview import render_model_preview
 from sans_webapp.components.parameters import (
     apply_param_updates,
     apply_pd_updates,
@@ -356,6 +357,10 @@ def main() -> None:
 
             # Fitting Section (in sidebar)
             render_fitting_sidebar(param_updates)
+
+            # Model at the current parameters (after the parameter form, so an
+            # "Update Parameters" submit is already applied to the fitter)
+            render_model_preview(st.session_state.fitter)
 
             # Display fit results
             if st.session_state.fit_completed:

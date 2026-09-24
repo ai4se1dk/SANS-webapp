@@ -17,6 +17,8 @@ from sans_fitter.console import LOGGER_NAME
 from sans_fitter.data.loader import has_real_data
 from sans_fitter.plotting import plot_fit
 
+CURRENT_PARAMETERS_LABEL = 'Current parameters'
+
 # Re-export get_all_models for backwards compatibility
 __all__ = [
     'get_all_models',
@@ -25,6 +27,9 @@ __all__ = [
     'plot_data',
     'plot_fit_results',
     'fit_is_current',
+    'plot_model_preview',
+    'snapshot_parameters',
+    'plot_parameter_comparison',
     'calculate_residuals',
     'evaluate_model',
     'data_column_summary',
@@ -566,3 +571,84 @@ def calculate_residuals(
     with np.errstate(divide='ignore', invalid='ignore'):
         residuals = (experimental_i - fitted_i) / uncertainties
     return np.where(uncertainties > 0, residuals, np.nan)
+
+
+def plot_model_preview(
+    fitter: SANSFitter, show_residuals: bool = True, log_scale: bool = True
+) -> go.Figure:
+    """
+    Plot the data against the model at the current parameters, without fitting.
+
+    Uses ``SANSFitter.plot_model()``: the curve is evaluated exactly as a fit
+    would evaluate it (polydispersity, links, structure factor, resolution) and
+    the title reports chi-squared/dof at the current values, so starting values
+    can be judged before running a fit.
+
+    Args:
+        fitter: SANSFitter instance with data and a model loaded
+        show_residuals: Add a residuals panel below the main plot
+        log_scale: Use log scale on both axes
+
+    Returns:
+        Plotly figure object
+    """
+    with _quiet_fitter():
+        fig = fitter.plot_model(show_residuals=show_residuals, log_scale=log_scale, show=False)
+    return _fit_container(fig)
+
+
+def snapshot_parameters(fitter: SANSFitter) -> dict[str, float]:
+    """
+    Capture the current parameter values as overrides for ``SANSFitter.compare()``.
+
+    Linked parameters are left out (they follow their leader), and
+    polydispersity widths are included as ``<name>_pd`` while polydispersity
+    is enabled.
+
+    Args:
+        fitter: SANSFitter instance with a model loaded
+
+    Returns:
+        Parameter name -> value
+    """
+    followers = set(fitter.get_links())
+    values = {
+        name: float(info['value']) for name, info in fitter.params.items() if name not in followers
+    }
+    if fitter.supports_polydispersity() and fitter.is_polydispersity_enabled():
+        for name in fitter.get_polydisperse_parameters():
+            values[f'{name}_pd'] = float(fitter.get_pd_param(name)['pd'])
+    return values
+
+
+def plot_parameter_comparison(
+    fitter: SANSFitter,
+    snapshots: dict[str, dict[str, float]],
+    include_current: bool = True,
+    log_scale: bool = True,
+) -> go.Figure:
+    """
+    Overlay the model for several saved parameter sets over the data.
+
+    Delegates to ``SANSFitter.compare()``, which evaluates each set without
+    touching the fitter's own parameters.
+
+    Args:
+        fitter: SANSFitter instance with data and a model loaded
+        snapshots: Label -> parameter values, as from ``snapshot_parameters()``
+        include_current: Also draw the model at the current parameters
+        log_scale: Use log scale on both axes
+
+    Returns:
+        Plotly figure object
+
+    Raises:
+        ValueError: If there is nothing to compare
+    """
+    cases: dict[str, dict[str, float]] = {}
+    if include_current:
+        cases[CURRENT_PARAMETERS_LABEL] = {}
+    cases.update(snapshots)
+    with _quiet_fitter():
+        fig = fitter.compare(cases=cases, log_scale=log_scale, show=False)
+    return _fit_container(fig)
