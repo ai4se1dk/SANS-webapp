@@ -82,6 +82,51 @@ class TestRealFitterHelpers:
             fitter.reset_q_range()
         assert fitter.get_q_range() == (fitter.data.x.min(), fitter.data.x.max())
 
+    def test_fit_is_current_tracks_changes_after_fit(self):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        assert utils.fit_is_current(fitter) is False  # no fit yet
+
+        fitter.fit(engine='bumps', method='amoeba')
+        assert utils.fit_is_current(fitter) is True
+
+        fitted_radius = fitter.params['radius']['value']
+        fitter.set_param('radius', value=fitted_radius * 1.1)
+        assert utils.fit_is_current(fitter) is False
+        fitter.set_param('radius', value=fitted_radius)
+        assert utils.fit_is_current(fitter) is True
+
+        fitter.set_q_range(qmin=float(np.sort(fitter.data.x)[10]))
+        assert utils.fit_is_current(fitter) is False
+
+    def test_plot_fit_results_switches_between_fit_and_preview(self):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        fitter.fit(engine='bumps', method='amoeba')
+
+        fig = utils.plot_fit_results(fitter)
+        assert fig.layout.title.text.startswith('SANS Fit')
+        assert 'Fitted Model' in [trace.name for trace in fig.data]
+
+        # A parameter moved after the fit: show the model at the new value
+        fitter.set_param('radius', value=fitter.params['radius']['value'] * 1.1)
+        fig = utils.plot_fit_results(fitter)
+        assert fig.layout.title.text.startswith('Model preview')
+
+    def test_plot_fit_results_marks_points_outside_q_range(self):
+        fitter = SANSFitter()
+        fitter.load_data(EXAMPLE_DATA)
+        fitter.set_model('sphere')
+        fitter.set_q_range(qmin=float(np.sort(fitter.data.x)[10]))
+        fig = utils.plot_fit_results(fitter)
+        excluded = [trace for trace in fig.data if trace.name == 'Excluded Data']
+        assert len(excluded) == 1
+        assert len(excluded[0].x) == 10
+
     def test_data_column_summary(self, fitted_sphere):
         fitter, _, _ = fitted_sphere
         summary = utils.data_column_summary(fitter.data)

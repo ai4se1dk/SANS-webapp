@@ -8,7 +8,6 @@ Run from the repository root (the example data file is looked up there):
     python src/demo_app.py
 """
 
-import numpy as np
 from sans_fitter import SANSFitter, get_all_models
 
 from sans_webapp import sans_analysis_utils as utils
@@ -86,15 +85,12 @@ except Exception as e:
 # Step 7: Create visualization
 print('\n[Step 7] Creating interactive Plotly visualization...')
 try:
-    # Generate fitted curve on a fine grid through the fitter itself
-    q_plot = np.logspace(np.log10(fitter.data.x.min()), np.log10(fitter.data.x.max()), 500)
-    fit_i = fitter.calculate(q_plot)
-
-    fig = utils.plot_data_and_fit(fitter, show_fit=True, fit_q=q_plot, fit_i=fit_i)
+    # Same figure the webapp shows: the fit, or the model preview if no fit ran
+    fig = utils.plot_fit_results(fitter)
     print('✓ Interactive plot created')
     print('  Plot includes:')
     print('    - Data points with error bars')
-    print('    - Fitted model curve')
+    print('    - Model curve and residuals panel')
     print('    - Log-log scale')
     print('    - Zoom, pan, and export capabilities')
 except Exception:
