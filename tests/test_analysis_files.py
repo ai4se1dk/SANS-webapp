@@ -203,3 +203,122 @@ def test_slider_follows_a_fitter_adopted_over_an_existing_fit():
     assert not at.exception
     _assert_slider_shows(at, at.session_state.fitter)
     assert at.slider[0].value != pytest.approx(first_value)
+
+
+# -----------------------------------------------------------------------------
+# Only loadable settings can be saved: bounds, and saying when the fit is left out
+# -----------------------------------------------------------------------------
+
+
+def test_find_bound_problems():
+    from sans_webapp.components.parameters import find_bound_problems
+
+    def update(value, low, high):
+        return {'value': value, 'min': low, 'max': high, 'vary': True}
+
+    assert find_bound_problems({'a': update(5, 0, 10), 'b': update(0, 0, 1e300)}) == []
+    assert find_bound_problems({'length': update(11111, 10, 1000)}) == [
+        'length: value 11111 is outside [10, 1000]'
+    ]
+    assert find_bound_problems({'a': update(5, 10, 1)}) == ['a: min 10 is above max 1']
+
+
+def test_parameter_form_rejects_values_outside_their_bounds():
+    """The reported case: length 11111 with max 1000 made an unloadable analysis."""
+    from pathlib import Path
+
+    from streamlit.testing.v1 import AppTest
+
+    app_file = Path(__file__).parent.parent / 'src' / 'sans_webapp' / 'app.py'
+    at = AppTest.from_file(str(app_file), default_timeout=90).run()
+    at.sidebar.selectbox[0].select('cylinder').run()
+    next(b for b in at.button if b.label == 'Load Example').click().run()
+    fitter = at.session_state.fitter
+
+    at.number_input(key='value_length').set_value(11111.0)
+    next(b for b in at.button if b.label == 'Update Parameters').click().run()
+
+    assert not at.exception
+    assert any('within its bounds' in e.value for e in at.error)
+    assert fitter.params['length']['value'] == 300.0  # unchanged
+    # What is saved can be loaded again
+    utils.load_analysis_onto_data(utils.analysis_json(fitter).encode(), fitter.data)
+
+
+def _stale_fit_app():
+    import streamlit as st
+    from sans_fitter import SANSFitter
+
+    from sans_webapp.components.analysis_files import render_analysis_files_sidebar
+
+    if 'fitter' not in st.session_state:
+        fitter = SANSFitter()
+        fitter.load_data('simulated_sans_data.csv')
+        fitter.set_model('sphere')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        fitter.fit(engine='bumps', method='amoeba')
+        st.session_state.fitter = fitter
+        st.session_state.model_selected = True
+        st.session_state.data_loaded = True
+        st.session_state.fit_completed = True
+    render_analysis_files_sidebar()
+
+
+def test_warns_when_the_saved_analysis_will_not_include_the_fit():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_function(_stale_fit_app, default_timeout=60).run()
+    assert len(at.warning) == 0  # the fit is current and will be saved
+
+    at.session_state.fitter.set_param('radius', value=50.0)
+    at.run()
+    assert len(at.warning) == 1
+    assert 'will not include' in at.warning[0].value
+
+
+def _slider_app():
+    import streamlit as st
+    from sans_fitter import SANSFitter
+
+    from sans_webapp.components.fit_results import render_fit_results
+    from sans_webapp.services.session_state import adopt_fitter, init_session_state
+
+    init_session_state()
+    if 'fitter' not in st.session_state or st.session_state.fitter.fit_result is None:
+        fitter = SANSFitter()
+        fitter.load_data('simulated_sans_data.csv')
+        fitter.set_model('sphere')
+        fitter.set_param('radius', value=40.0, min=5.0, max=200.0, vary=True)
+        fitter.set_param('sld', value=1.0, min=-9.0, max=11.0, vary=True)
+        fitter.fit(engine='bumps', method='amoeba')
+        adopt_fitter(fitter)
+    render_fit_results(st.session_state.fitter, {})
+
+
+def test_slider_stays_within_the_parameter_bounds():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_function(_slider_app, default_timeout=60).run()
+    fitter = at.session_state.fitter
+    at.selectbox(key='selected_slider_param').select('radius').run()
+    value = fitter.params['radius']['value']
+    fitter.set_param('radius', max=value * 1.05)  # the value sits near its upper bound
+    at.selectbox(key='selected_slider_param').select('sld').run()
+    at.selectbox(key='selected_slider_param').select('radius').run()
+
+    assert not at.exception
+    assert at.slider[0].max == pytest.approx(value * 1.05)
+    assert at.slider[0].min == pytest.approx(value * 0.8)
+
+
+def test_slider_handles_negative_values():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_function(_slider_app, default_timeout=60).run()
+    at.session_state.fitter.set_param('sld', value=-2.0)
+    at.selectbox(key='selected_slider_param').select('radius').run()
+    at.selectbox(key='selected_slider_param').select('sld').run()
+
+    assert not at.exception
+    assert (at.slider[0].min, at.slider[0].max) == pytest.approx((-2.4, -1.6))
+    assert at.slider[0].value == pytest.approx(-2.0)

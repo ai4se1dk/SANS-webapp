@@ -7,9 +7,15 @@ report, and applies a saved analysis to the loaded data.
 
 import streamlit as st
 
-from sans_webapp.sans_analysis_utils import analysis_json, load_analysis_onto_data, report_html
+from sans_webapp.sans_analysis_utils import (
+    analysis_json,
+    fit_is_current,
+    load_analysis_onto_data,
+    report_html,
+)
 from sans_webapp.services.session_state import adopt_fitter
 from sans_webapp.ui_constants import (
+    ANALYSIS_FIT_NOT_SAVED_WARNING,
     ANALYSIS_NEEDS_DATA_INFO,
     ANALYSIS_SAVE_CAPTION,
     ANALYSIS_UPLOAD_HELP,
@@ -50,6 +56,8 @@ def _render_downloads() -> None:
         mime='text/html',
     )
     st.caption(ANALYSIS_SAVE_CAPTION)
+    if st.session_state.get('fit_completed') and not fit_is_current(fitter):
+        st.warning(ANALYSIS_FIT_NOT_SAVED_WARNING)
 
 
 def _render_load() -> None:

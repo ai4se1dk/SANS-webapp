@@ -17,6 +17,7 @@ from sans_fitter import SANSFitter
 from sans_webapp.sans_types import FitResult, ParamInfo, ParamUpdate, PDUpdate
 from sans_webapp.services.session_state import clamp_for_display
 from sans_webapp.ui_constants import (
+    ERROR_PARAMS_OUT_OF_BOUNDS,
     PARAM_TAB_BASIC,
     PARAM_TAB_POLYDISPERSITY,
     PARAMETER_COLUMNS_LABELS,
@@ -146,6 +147,29 @@ def apply_param_updates(fitter: SANSFitter, param_updates: dict[str, ParamUpdate
             max=updates['max'],
             vary=updates['vary'],
         )
+
+
+def find_bound_problems(param_updates: dict[str, ParamUpdate]) -> list[str]:
+    """
+    Describe every parameter whose value lies outside its bounds (or min > max).
+
+    sans-fitter's set_param() accepts such settings, but a saved analysis
+    holding one cannot be loaded again, and a fit cannot start from it.
+
+    Args:
+        param_updates: Parameter updates from the parameter form
+
+    Returns:
+        One message per offending parameter; empty when all are valid
+    """
+    problems = []
+    for name, update in param_updates.items():
+        low, high, value = update['min'], update['max'], update['value']
+        if low > high:
+            problems.append(f'{name}: min {low:g} is above max {high:g}')
+        elif not low <= value <= high:
+            problems.append(f'{name}: value {value:g} is outside [{low:g}, {high:g}]')
+    return problems
 
 
 def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdate]:
@@ -456,9 +480,13 @@ def render_basic_parameters_tab(
         submitted = st.form_submit_button(PARAMETER_UPDATE_BUTTON)
 
     if submitted:
-        apply_param_updates(fitter, param_updates)
-        st.session_state.param_updates = param_updates
-        st.success(SUCCESS_PARAMS_UPDATED)
+        problems = find_bound_problems(param_updates)
+        if problems:
+            st.error(ERROR_PARAMS_OUT_OF_BOUNDS + '\n\n' + '\n'.join(f'- {p}' for p in problems))
+        else:
+            apply_param_updates(fitter, param_updates)
+            st.session_state.param_updates = param_updates
+            st.success(SUCCESS_PARAMS_UPDATED)
 
     if 'param_updates' not in st.session_state:
         st.session_state.param_updates = build_param_updates_from_params(params)

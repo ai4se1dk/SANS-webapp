@@ -55,6 +55,10 @@ ANALYSIS_UPLOAD_HELP = 'An analysis file downloaded from this app or written by 
 APPLY_ANALYSIS_BUTTON = 'Apply to loaded data'
 ANALYSIS_NEEDS_DATA_INFO = 'Load the data first: a saved analysis is applied to the loaded data.'
 SUCCESS_ANALYSIS_LOADED = 'Analysis loaded.'
+ANALYSIS_FIT_NOT_SAVED_WARNING = (
+    'The last fit no longer matches the current settings, so the analysis will not '
+    'include it. Run the fit again to save it.'
+)
 SUCCESS_ANALYSIS_LOADED_WITH_FIT = 'Analysis loaded, including its fit result.'
 
 # Resolution (instrument smearing)
@@ -301,6 +305,7 @@ SUCCESS_MODEL_LOADED_PREFIX = '✓ Model "'
 SUCCESS_MODEL_LOADED_SUFFIX = '" loaded!'
 SUCCESS_FIT_COMPLETED = '✓ Fit completed successfully!'
 SUCCESS_PARAMS_UPDATED = '✓ Parameters updated!'
+ERROR_PARAMS_OUT_OF_BOUNDS = 'Parameters not updated: every value must lie within its bounds.'
 SUCCESS_AI_SUGGESTIONS_PREFIX = '✓ Found '
 SUCCESS_AI_SUGGESTIONS_SUFFIX = ' suggestions'
 
