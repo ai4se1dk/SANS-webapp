@@ -134,3 +134,71 @@ def test_sidebar_offers_downloads_only_with_a_model(with_model):
     at.run()
     assert not at.exception
     assert len(at.get('download_button')) == (2 if with_model else 0)
+
+
+# -----------------------------------------------------------------------------
+# Results slider starts at the fitted value (ordinary fit, loaded analysis)
+# -----------------------------------------------------------------------------
+
+
+def _assert_slider_shows(at, fitter):
+    slider = at.slider[0]
+    param = at.session_state['selected_slider_param']
+    assert slider.value == pytest.approx(fitter.params[param]['value'])
+    assert slider.min <= slider.value <= slider.max
+
+
+def test_slider_starts_at_the_fitted_value_after_a_fit():
+    from pathlib import Path
+
+    from streamlit.testing.v1 import AppTest
+
+    app_file = Path(__file__).parent.parent / 'src' / 'sans_webapp' / 'app.py'
+    at = AppTest.from_file(str(app_file), default_timeout=90).run()
+    for label in ('Load Example Data', 'Load Model', 'Fit All Parameters', '🚀 Run Fit'):
+        next(b for b in at.button if b.label == label).click().run()
+
+    assert not at.exception
+    _assert_slider_shows(at, at.session_state.fitter)
+
+
+def _adopt_over_fit_app():
+    import streamlit as st
+    from sans_fitter import SANSFitter
+
+    from sans_webapp.components.fit_results import render_fit_results
+    from sans_webapp.services.session_state import adopt_fitter, init_session_state
+
+    def fitted(radius, min_radius):
+        fitter = SANSFitter()
+        fitter.load_data('simulated_sans_data.csv')
+        fitter.set_model('sphere')
+        fitter.set_param('radius', value=radius, min=min_radius, max=500.0, vary=True)
+        fitter.fit(engine='bumps', method='amoeba')
+        return fitter
+
+    init_session_state()
+    if st.session_state.get('step') == 'fit':
+        adopt_fitter(fitted(40.0, min_radius=1.0))
+        st.session_state.step = 'shown'
+    elif st.session_state.get('step') == 'load':
+        # Stands in for a loaded analysis; its bounds keep the radius far from the first
+        adopt_fitter(fitted(120.0, min_radius=100.0))
+        st.session_state.step = 'loaded'
+    render_fit_results(st.session_state.fitter, {})
+
+
+def test_slider_follows_a_fitter_adopted_over_an_existing_fit():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_function(_adopt_over_fit_app, default_timeout=90)
+    at.session_state['step'] = 'fit'
+    at.run()
+    first_value = at.slider[0].value
+    _assert_slider_shows(at, at.session_state.fitter)
+
+    at.session_state['step'] = 'load'
+    at.run()
+    assert not at.exception
+    _assert_slider_shows(at, at.session_state.fitter)
+    assert at.slider[0].value != pytest.approx(first_value)
