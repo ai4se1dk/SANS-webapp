@@ -9,6 +9,7 @@ import os
 from typing import Any
 
 from anthropic import Anthropic
+from sans_fitter import examples
 
 # Tool name to function mapping - built from MCP server
 _tool_handlers: dict[str, callable] = {}
@@ -18,6 +19,7 @@ _tool_handlers: dict[str, callable] = {}
 # when Claude emits multiple tool_use blocks in a single response.
 _TOOL_PRIORITY: dict[str, int] = {
     # Writes – executed first, in dependency order
+    'load-example': 1,  # replaces data, model and parameters
     'set-model': 1,  # must run before parameter tools
     'set-structure-factor': 2,
     'remove-structure-factor': 2,
@@ -47,6 +49,7 @@ def _build_tool_handlers() -> dict[str, callable]:
         get_fit_results,
         get_model_parameters,
         list_sans_models,
+        load_example,
         remove_structure_factor,
         run_fit,
         set_model,
@@ -61,6 +64,7 @@ def _build_tool_handlers() -> dict[str, callable]:
         'get-model-parameters': get_model_parameters,
         'get-current-state': get_current_state,
         'get-fit-results': get_fit_results,
+        'load-example': load_example,
         'set-model': set_model,
         'set-parameter': set_parameter,
         'set-multiple-parameters': set_multiple_parameters,
@@ -120,6 +124,21 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
                 'type': 'object',
                 'properties': {},
                 'required': [],
+            },
+        },
+        {
+            'name': 'load-example',
+            'description': "Replace the current data, model and parameters with one of sans-fitter's bundled example datasets (measured and simulated). The example loads with a suitable model and starting parameters, ready to fit. The result describes the sample.",
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'name': {
+                        'type': 'string',
+                        'enum': examples.list_examples(),
+                        'description': 'Example dataset name',
+                    },
+                },
+                'required': ['name'],
             },
         },
         {
@@ -341,6 +360,7 @@ class ClaudeMCPClient:
 
 You have access to tools that can:
 - List and inspect available scattering models (sphere, cylinder, ellipsoid, etc.)
+- Load one of the bundled example datasets (load-example)
 - Load models and configure their parameters
 - Restrict the Q range used for fitting (set-q-range)
 - Run curve fitting optimization

@@ -6,7 +6,7 @@ Centralizes all session state initialization and utility functions.
 
 import numpy as np
 import streamlit as st
-from sans_fitter import SANSFitter
+from sans_fitter import SANSFitter, examples
 
 from sans_webapp.ui_constants import MAX_FLOAT_DISPLAY, MIN_FLOAT_DISPLAY
 
@@ -110,6 +110,24 @@ def adopt_fitter(fitter: SANSFitter) -> None:
     else:
         st.session_state.fit_completed = True
         st.session_state.fit_result = fitter.fit_result
+
+
+def load_example(name: str) -> SANSFitter:
+    """
+    Replace the app's fitter with one of sans-fitter's bundled examples.
+
+    The example comes with its data, model and suggested starting parameters
+    (and any structure factor and polydispersity), ready to fit.
+
+    Args:
+        name: Example name, one of ``examples.list_examples()``
+
+    Returns:
+        The new fitter
+    """
+    fitter = examples.load_fitter(name)
+    adopt_fitter(fitter)
+    return fitter
 
 
 def get_fitter() -> SANSFitter:

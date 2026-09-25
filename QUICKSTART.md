@@ -62,8 +62,6 @@ pytest tests/ -v
 │       ├── sans_analysis_utils.py  # Shared utility functions
 │       ├── sans_types.py       # TypedDict definitions
 │       ├── ui_constants.py     # UI string constants
-│       ├── data/               # Bundled example data
-│       │   └── simulated_sans_data.csv
 │       ├── components/         # UI rendering components
 │       │   ├── __init__.py
 │       │   ├── data_preview.py # Data visualization section
@@ -87,7 +85,7 @@ pytest tests/ -v
 
 ### 1. Upload Data
 - Click "Browse files" in sidebar
-- Or click "Load Example Data" button
+- Or pick an example dataset and click "Load Example"
 - Supported formats: CSV, .dat
 - Required columns: Q, I(Q), dI(Q)
 
