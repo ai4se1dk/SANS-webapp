@@ -524,6 +524,31 @@ def set_q_range(qmin: float | None = None, qmax: float | None = None) -> str:
         return f'Error setting Q range: {str(e)}'
 
 
+def set_resolution(mode: str, dq_over_q: float | None = None) -> str:
+    """
+    Set how instrument resolution smears the model (sans-fitter >= 0.4).
+
+    Args:
+        mode: 'data' (the file's dQ column; unsmeared if it has none),
+            'none' (no smearing) or 'pinhole' (constant relative width)
+        dq_over_q: Relative Gaussian 1-sigma width, required for 'pinhole'
+    """
+    if not _check_tools_enabled():
+        return 'AI tools are disabled. Enable them in the sidebar to allow resolution changes.'
+
+    try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
+        fitter = get_fitter()
+        fitter.set_resolution(mode, dq_over_q=dq_over_q)
+        get_state_bridge().set_needs_rerun(True)
+
+        detail = f' with dQ/Q = {dq_over_q}' if mode == 'pinhole' else ''
+        return f"Resolution set to '{mode}'{detail}. Re-run the fit for it to take effect."
+    except Exception as e:
+        return f'Error setting resolution: {str(e)}'
+
+
 def enable_polydispersity(
     parameter_name: str, pd_type: str = 'gaussian', pd_value: float = 0.1
 ) -> str:
@@ -733,6 +758,7 @@ mcp.tool(name='set-model')(set_model)
 mcp.tool(name='set-parameter')(set_parameter)
 mcp.tool(name='set-multiple-parameters')(set_multiple_parameters)
 mcp.tool(name='set-q-range')(set_q_range)
+mcp.tool(name='set-resolution')(set_resolution)
 mcp.tool(name='enable-polydispersity')(enable_polydispersity)
 mcp.tool(name='set-structure-factor')(set_structure_factor)
 mcp.tool(name='remove-structure-factor')(remove_structure_factor)

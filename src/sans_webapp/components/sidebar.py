@@ -51,6 +51,14 @@ from sans_webapp.ui_constants import (
     Q_RANGE_MAX_LABEL,
     Q_RANGE_MIN_LABEL,
     Q_RANGE_RESET_BUTTON,
+    RESOLUTION_DQ_DEFAULT,
+    RESOLUTION_DQ_HELP,
+    RESOLUTION_DQ_LABEL,
+    RESOLUTION_HEADER,
+    RESOLUTION_MODE_HELP,
+    RESOLUTION_MODE_LABEL,
+    RESOLUTION_MODES,
+    RESOLUTION_OTHER_MODE_CAPTION,
     SELECTION_METHOD_HELP,
     SELECTION_METHOD_LABEL,
     SELECTION_METHOD_OPTIONS,
@@ -71,6 +79,11 @@ from sans_webapp.ui_constants import (
     WARNING_LOAD_DATA_FIRST,
     WARNING_NO_SUGGESTIONS,
 )
+
+# Session keys of the resolution widgets (see render_resolution_controls)
+RESOLUTION_MODE_KEY = 'resolution_mode'
+RESOLUTION_DQ_KEY = 'resolution_dq_over_q'
+RESOLUTION_ERROR_KEY = 'resolution_error'
 
 # Session keys that belong to the fit Q-range widgets (see render_q_range_controls)
 Q_RANGE_WIDGET_KEYS = ('fit_qmin', 'fit_qmax')
@@ -153,6 +166,59 @@ def render_q_range_controls(fitter: SANSFitter) -> None:
                     del st.session_state[key]
             st.success(SUCCESS_Q_RANGE_RESET)
             st.rerun()
+
+
+def render_resolution_controls(fitter: SANSFitter) -> None:
+    """
+    Render the resolution (smearing) controls.
+
+    The fitter is the single source of truth. On every run the widgets are set
+    from it before they are drawn, and user edits reach it through on_change
+    callbacks, so edits made here and changes made elsewhere (an AI tool, a
+    loaded analysis) cannot overwrite each other. sans-fitter validates the
+    setting; a rejected edit is reported and leaves the fitter unchanged.
+
+    Args:
+        fitter: The SANSFitter instance
+    """
+    current = fitter.get_resolution()
+    modes = list(RESOLUTION_MODES)
+    st.session_state[RESOLUTION_MODE_KEY] = current['mode'] if current['mode'] in modes else None
+    st.session_state[RESOLUTION_DQ_KEY] = current['dq_over_q'] or RESOLUTION_DQ_DEFAULT
+
+    def apply_edit() -> None:
+        mode = st.session_state[RESOLUTION_MODE_KEY]
+        dq_over_q = st.session_state[RESOLUTION_DQ_KEY] if mode == 'pinhole' else None
+        try:
+            fitter.set_resolution(mode, dq_over_q=dq_over_q)
+        except ValueError as e:
+            st.session_state[RESOLUTION_ERROR_KEY] = str(e)
+
+    st.markdown(RESOLUTION_HEADER)
+    if current['mode'] not in modes:
+        st.caption(RESOLUTION_OTHER_MODE_CAPTION.format(mode=current['mode']))
+    st.selectbox(
+        RESOLUTION_MODE_LABEL,
+        options=modes,
+        format_func=RESOLUTION_MODES.get,
+        key=RESOLUTION_MODE_KEY,
+        on_change=apply_edit,
+        help=RESOLUTION_MODE_HELP,
+    )
+    if st.session_state[RESOLUTION_MODE_KEY] == 'pinhole':
+        # No bounds: any width sans-fitter accepts can be shown as it is
+        st.number_input(
+            RESOLUTION_DQ_LABEL,
+            step=0.01,
+            format='%g',
+            key=RESOLUTION_DQ_KEY,
+            on_change=apply_edit,
+            help=RESOLUTION_DQ_HELP,
+        )
+
+    error = st.session_state.pop(RESOLUTION_ERROR_KEY, None)
+    if error:
+        st.error(error)
 
 
 def render_data_upload_sidebar() -> None:

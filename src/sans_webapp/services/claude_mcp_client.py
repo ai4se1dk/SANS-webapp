@@ -24,6 +24,7 @@ _TOOL_PRIORITY: dict[str, int] = {
     'set-structure-factor': 2,
     'remove-structure-factor': 2,
     'set-q-range': 2,
+    'set-resolution': 2,
     'set-parameter': 3,
     'set-multiple-parameters': 3,
     'enable-polydispersity': 4,
@@ -56,6 +57,7 @@ def _build_tool_handlers() -> dict[str, callable]:
         set_multiple_parameters,
         set_parameter,
         set_q_range,
+        set_resolution,
         set_structure_factor,
     )
 
@@ -69,6 +71,7 @@ def _build_tool_handlers() -> dict[str, callable]:
         'set-parameter': set_parameter,
         'set-multiple-parameters': set_multiple_parameters,
         'set-q-range': set_q_range,
+        'set-resolution': set_resolution,
         'enable-polydispersity': enable_polydispersity,
         'set-structure-factor': set_structure_factor,
         'remove-structure-factor': remove_structure_factor,
@@ -227,6 +230,25 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
             },
         },
         {
+            'name': 'set-resolution',
+            'description': "Set how instrument resolution smears the model: 'data' uses the data file's dQ column (unsmeared if it has none), 'none' applies no smearing, 'pinhole' applies a constant relative width dq_over_q. Re-run the fit afterwards.",
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'mode': {
+                        'type': 'string',
+                        'enum': ['data', 'none', 'pinhole'],
+                        'description': 'Resolution mode',
+                    },
+                    'dq_over_q': {
+                        'type': 'number',
+                        'description': "Relative Gaussian 1-sigma width (not FWHM), required for 'pinhole', e.g. 0.05",
+                    },
+                },
+                'required': ['mode'],
+            },
+        },
+        {
             'name': 'enable-polydispersity',
             'description': 'Enable polydispersity for a size parameter. Turns polydispersity on, configures the distribution and marks its width as a fit parameter.',
             'input_schema': {
@@ -363,6 +385,7 @@ You have access to tools that can:
 - Load one of the bundled example datasets (load-example)
 - Load models and configure their parameters
 - Restrict the Q range used for fitting (set-q-range)
+- Set the instrument resolution smearing (set-resolution)
 - Run curve fitting optimization
 - Enable advanced features like polydispersity and structure factors
 

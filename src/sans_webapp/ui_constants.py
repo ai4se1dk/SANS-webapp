@@ -57,7 +57,23 @@ ANALYSIS_NEEDS_DATA_INFO = 'Load the data first: a saved analysis is applied to 
 SUCCESS_ANALYSIS_LOADED = 'Analysis loaded.'
 SUCCESS_ANALYSIS_LOADED_WITH_FIT = 'Analysis loaded, including its fit result.'
 
-# Model Selection
+# Resolution (instrument smearing)
+RESOLUTION_HEADER = '**Resolution**'
+RESOLUTION_MODE_LABEL = 'Resolution smearing'
+RESOLUTION_MODES = {
+    'data': 'From the data (dQ column)',
+    'none': 'None',
+    'pinhole': 'Pinhole (constant ΔQ/Q)',
+}
+RESOLUTION_MODE_HELP = (
+    'How instrument resolution is applied when the model is evaluated. '
+    '"From the data" uses the file\'s dQ column and evaluates unsmeared if there is none.'
+)
+RESOLUTION_DQ_LABEL = 'ΔQ/Q (σ, not FWHM)'
+RESOLUTION_DQ_HELP = 'Relative Gaussian 1-σ width, the same quantity as a dQ column divided by Q.'
+RESOLUTION_DQ_DEFAULT = 0.05
+RESOLUTION_OTHER_MODE_CAPTION = 'Current setting: {mode} (set outside the app).'
+
 SELECTION_METHOD_LABEL = 'Selection Method'
 SELECTION_METHOD_OPTIONS = ['Manual', 'AI-Assisted']
 SELECTION_METHOD_HELP = 'Choose how to select the fitting model'
