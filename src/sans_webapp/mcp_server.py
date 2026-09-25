@@ -14,7 +14,7 @@ fitted curve is obtained from ``SANSFitter.calculate()``.
 from typing import Any
 
 import numpy as np
-from sans_fitter import SANSFitter, get_all_models, get_structure_factors
+from sans_fitter import SANSFitter, examples, get_all_models, get_structure_factors
 
 from sans_webapp.sans_analysis_utils import (
     describe_fitter_state,
@@ -271,6 +271,33 @@ def get_fit_results() -> str:
 # =============================================================================
 # State-modifying tools (gated by ai_tools_enabled)
 # =============================================================================
+
+
+def load_example(name: str) -> str:
+    """
+    Replace the data, model and parameters with one of sans-fitter's examples.
+
+    Args:
+        name: Example name, one of ``sans_fitter.examples.list_examples()``
+    """
+    if not _check_tools_enabled():
+        return 'AI tools are disabled. Enable them in the sidebar to allow loading examples.'
+
+    try:
+        from sans_webapp.services import session_state
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
+        fitter = session_state.load_example(name)
+        set_fitter(fitter)
+        get_state_bridge().set_needs_rerun(True)
+
+        example = examples.get_example(name)
+        return (
+            f"Loaded example '{name}': {len(fitter.data.x)} data points, model "
+            f"'{fitter.model_name}' with suggested starting parameters. {example.description}"
+        )
+    except Exception as e:
+        return f'Error loading example: {str(e)}'
 
 
 def set_model(model_name: str) -> str:
@@ -726,6 +753,7 @@ mcp.tool(name='list-sans-models')(list_sans_models)
 mcp.tool(name='get-model-parameters')(get_model_parameters)
 mcp.tool(name='get-current-state')(get_current_state)
 mcp.tool(name='get-fit-results')(get_fit_results)
+mcp.tool(name='load-example')(load_example)
 mcp.tool(name='set-model')(set_model)
 mcp.tool(name='set-parameter')(set_parameter)
 mcp.tool(name='set-multiple-parameters')(set_multiple_parameters)

@@ -9,18 +9,18 @@ Contains rendering functions for the sidebar sections:
 
 import os
 import tempfile
-from importlib.resources import files
 from pathlib import Path
 from typing import Optional
 
 import streamlit as st
-from sans_fitter import SANSFitter, get_all_models
+from sans_fitter import SANSFitter, examples, get_all_models
 
 from sans_webapp.services.ai_chat import (
     response_requests_enable_tools,
     send_chat_message,
     suggest_models_ai,
 )
+from sans_webapp.services.session_state import load_example
 from sans_webapp.ui_constants import (
     AI_ASSISTED_HEADER,
     AI_CHAT_CLEAR_BUTTON,
@@ -38,9 +38,10 @@ from sans_webapp.ui_constants import (
     AI_SUGGESTIONS_SELECT_LABEL,
     CHAT_HISTORY_HEIGHT,
     CHAT_INPUT_HEIGHT,
-    ERROR_EXAMPLE_NOT_FOUND,
-    EXAMPLE_DATA_BUTTON,
-    EXAMPLE_DATA_FILE,
+    EXAMPLE_DEFAULT,
+    EXAMPLE_SELECT_HELP,
+    EXAMPLE_SELECT_LABEL,
+    LOAD_EXAMPLE_BUTTON,
     LOAD_MODEL_BUTTON,
     MODEL_SELECT_HELP,
     MODEL_SELECT_LABEL,
@@ -78,32 +79,6 @@ from sans_webapp.ui_constants import (
     WARNING_LOAD_DATA_FIRST,
     WARNING_NO_SUGGESTIONS,
 )
-
-
-def _get_example_data_path() -> Path | None:
-    """Get the path to the example data file bundled with the package."""
-    # First, try to find it relative to the package
-    try:
-        package_files = files('sans_webapp')
-        example_path = package_files / 'data' / EXAMPLE_DATA_FILE
-        if hasattr(example_path, 'is_file') and example_path.is_file():
-            return Path(str(example_path))
-    except (TypeError, FileNotFoundError):
-        pass
-
-    # Fallback: check current working directory
-    cwd_path = Path.cwd() / EXAMPLE_DATA_FILE
-    if cwd_path.exists():
-        return cwd_path
-
-    # Fallback: check parent directories (for development)
-    for parent in [Path.cwd()] + list(Path.cwd().parents)[:3]:
-        candidate = parent / EXAMPLE_DATA_FILE
-        if candidate.exists():
-            return candidate
-
-    return None
-
 
 # Session keys of the resolution widgets (see render_resolution_controls)
 RESOLUTION_MODE_KEY = 'resolution_mode'
@@ -260,22 +235,7 @@ def render_data_upload_sidebar() -> None:
         if uploaded_file is None:
             st.session_state.last_uploaded_file_id = None
 
-        if st.button(EXAMPLE_DATA_BUTTON):
-            example_path = _get_example_data_path()
-            if example_path is not None:
-                try:
-                    st.session_state.fitter.load_data(str(example_path))
-                    st.session_state.data_loaded = True
-                    _reset_after_data_load()
-                    # Collapse data upload, expand model selection
-                    st.session_state.expand_data_upload = False
-                    st.session_state.expand_model_selection = True
-                    st.success(SUCCESS_EXAMPLE_LOADED)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f'Error loading example data: {str(e)}')
-            else:
-                st.error(ERROR_EXAMPLE_NOT_FOUND)
+        _render_example_picker()
 
         if uploaded_file is not None:
             try:
@@ -283,32 +243,56 @@ def render_data_upload_sidebar() -> None:
                 if st.session_state.last_uploaded_file_id == current_file_id:
                     return
 
-                # Keep the original extension: sasdata picks its reader from it
-                # (CanSAS XML and NXcanSAS HDF5 would not load as '.csv').
-                suffix = Path(uploaded_file.name).suffix or '.csv'
-                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
-                    tmp_file_path = tmp_file.name
+                # Keep the original file name: sasdata picks its reader from the
+                # extension, and sans-fitter records the name in saved analyses
+                # and reports. The temporary directory is removed afterwards.
+                with tempfile.TemporaryDirectory() as folder:
+                    file_path = os.path.join(folder, Path(uploaded_file.name).name)
+                    with open(file_path, 'wb') as file:
+                        file.write(uploaded_file.getvalue())
+                    st.session_state.fitter.load_data(file_path)
 
-                try:
-                    st.session_state.fitter.load_data(tmp_file_path)
-                    st.session_state.data_loaded = True
-                    _reset_after_data_load()
-                    st.session_state.last_uploaded_file_id = current_file_id
-                    # Collapse data upload, expand model selection
-                    st.session_state.expand_data_upload = False
-                    st.session_state.expand_model_selection = True
-                    st.success(SUCCESS_DATA_UPLOADED)
-                    st.rerun()
-                finally:
-                    # Always cleanup temp file, even if exception occurs
-                    if os.path.exists(tmp_file_path):
-                        os.unlink(tmp_file_path)
+                st.session_state.data_loaded = True
+                _reset_after_data_load()
+                st.session_state.last_uploaded_file_id = current_file_id
+                # Collapse data upload, expand model selection
+                st.session_state.expand_data_upload = False
+                st.session_state.expand_model_selection = True
+                st.success(SUCCESS_DATA_UPLOADED)
+                st.rerun()
 
             except Exception as e:
                 st.error(f'Error loading data: {str(e)}')
                 st.session_state.data_loaded = False
                 st.session_state.last_uploaded_file_id = None
+
+
+def _render_example_picker() -> None:
+    """Pick one of sans-fitter's bundled examples and load it (data, model, parameters)."""
+    names = examples.list_examples()
+    name = st.selectbox(
+        EXAMPLE_SELECT_LABEL,
+        options=names,
+        index=names.index(EXAMPLE_DEFAULT),
+        help=EXAMPLE_SELECT_HELP,
+    )
+    example = examples.get_example(name)
+    st.caption(example.description)
+    if example.notes:
+        st.caption(example.notes)
+
+    if not st.button(LOAD_EXAMPLE_BUTTON):
+        return
+    try:
+        fitter = load_example(name)
+    except Exception as e:
+        st.error(f'Error loading example: {str(e)}')
+        return
+    st.session_state.expand_data_upload = False
+    st.session_state.expand_model_selection = False
+    st.session_state.expand_parameters = True
+    st.toast(SUCCESS_EXAMPLE_LOADED.format(name=name, model=fitter.model_name))
+    st.rerun()
 
 
 def render_model_selection_sidebar() -> None:

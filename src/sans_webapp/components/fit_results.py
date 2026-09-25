@@ -285,6 +285,9 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
 
         if param_changed:
             st.session_state.prev_selected_param = selected_param
+            # The slider reads its value from session state (key below), so start
+            # it at the parameter's current value whenever another one is picked
+            st.session_state.slider_value = float(current_value)
 
         if current_value != 0:
             slider_min = current_value * SLIDER_SCALE_MIN
@@ -299,16 +302,10 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
             if f'value_{selected_param}' in st.session_state:
                 st.session_state[f'value_{selected_param}'] = new_value
 
-        # Determine default value based on whether parameter changed
-        default_value = (
-            current_value if param_changed else st.session_state.get('slider_value', current_value)
-        )
-
         st.slider(
             f'{selected_param}',
             min_value=float(slider_min),
             max_value=float(slider_max),
-            value=float(default_value),
             format='%.4g',
             key='slider_value',
             on_change=update_profile,

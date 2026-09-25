@@ -25,6 +25,7 @@ SIDEBAR_CONTROLS_HEADER = 'Controls'
 SIDEBAR_DATA_UPLOAD_HEADER = 'Data Upload'
 SIDEBAR_MODEL_SELECTION_HEADER = 'Model Selection'
 SIDEBAR_FITTING_HEADER = 'Fitting'
+SIDEBAR_ANALYSIS_FILES_HEADER = 'Save & Load'
 
 # Upload Section
 UPLOAD_LABEL = 'Upload SANS data file'
@@ -33,8 +34,28 @@ UPLOAD_HELP = (
     'Columnar text (Q, I(Q), dI(Q) and optionally dQ), CanSAS XML or NXcanSAS HDF5. '
     'Files are read through sasdata; the first dataset in a multi-dataset file is used.'
 )
-EXAMPLE_DATA_BUTTON = 'Load Example Data'
-EXAMPLE_DATA_FILE = 'simulated_sans_data.csv'
+EXAMPLE_SELECT_LABEL = 'Example dataset'
+EXAMPLE_SELECT_HELP = (
+    'Measured and simulated datasets bundled with sans-fitter. Each loads with a '
+    'suitable model and starting parameters, ready to fit.'
+)
+EXAMPLE_DEFAULT = 'sphere'
+LOAD_EXAMPLE_BUTTON = 'Load Example'
+
+# Save & Load (analysis files and report)
+DOWNLOAD_ANALYSIS_BUTTON = '💾 Download analysis (.json)'
+DOWNLOAD_REPORT_BUTTON = '📄 Download report (.html)'
+ANALYSIS_SAVE_CAPTION = (
+    'The analysis holds the model, parameters, polydispersity, links, resolution, '
+    'Q range and the last fit (if nothing changed since). Parameter edits are saved '
+    'once applied with "Update Parameters".'
+)
+ANALYSIS_UPLOAD_LABEL = 'Load a saved analysis'
+ANALYSIS_UPLOAD_HELP = 'An analysis file downloaded from this app or written by sans-fitter.'
+APPLY_ANALYSIS_BUTTON = 'Apply to loaded data'
+ANALYSIS_NEEDS_DATA_INFO = 'Load the data first: a saved analysis is applied to the loaded data.'
+SUCCESS_ANALYSIS_LOADED = 'Analysis loaded.'
+SUCCESS_ANALYSIS_LOADED_WITH_FIT = 'Analysis loaded, including its fit result.'
 
 # Resolution (instrument smearing)
 RESOLUTION_HEADER = '**Resolution**'
@@ -264,7 +285,6 @@ AI_CHAT_THINKING = 'Thinking...'
 SPINNER_ANALYZING_DATA = 'Analyzing data...'
 WARNING_NO_SUGGESTIONS = 'No suggestions found'
 WARNING_LOAD_DATA_FIRST = 'Please load data first'
-ERROR_EXAMPLE_NOT_FOUND = 'Example data file not found!'
 
 INFO_NO_DATA = '👆 Please upload a SANS data file or load example data from the sidebar.'
 WARNING_NO_API_KEY = (
@@ -276,7 +296,7 @@ WARNING_NO_VARY = (
     '(or polydispersity width) to fit.'
 )
 SUCCESS_DATA_UPLOADED = '✓ Data uploaded successfully!'
-SUCCESS_EXAMPLE_LOADED = '✓ Example data loaded successfully!'
+SUCCESS_EXAMPLE_LOADED = "Example '{name}' loaded with model '{model}'."
 SUCCESS_MODEL_LOADED_PREFIX = '✓ Model "'
 SUCCESS_MODEL_LOADED_SUFFIX = '" loaded!'
 SUCCESS_FIT_COMPLETED = '✓ Fit completed successfully!'

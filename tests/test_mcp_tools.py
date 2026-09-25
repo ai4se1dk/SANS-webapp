@@ -25,7 +25,7 @@ class TestMCPToolSchemas:
 
         schemas = get_mcp_tool_schemas()
         assert isinstance(schemas, list)
-        assert len(schemas) == 13  # 13 tools defined
+        assert len(schemas) == 14  # 14 tools defined
 
     def test_all_tools_have_required_fields(self):
         """Each tool schema should have name, description, and input_schema."""
@@ -48,6 +48,7 @@ class TestMCPToolSchemas:
             'get-model-parameters',
             'get-current-state',
             'get-fit-results',
+            'load-example',
             'set-model',
             'set-parameter',
             'set-multiple-parameters',
