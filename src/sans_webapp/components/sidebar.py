@@ -50,6 +50,14 @@ from sans_webapp.ui_constants import (
     Q_RANGE_MAX_LABEL,
     Q_RANGE_MIN_LABEL,
     Q_RANGE_RESET_BUTTON,
+    RESOLUTION_DQ_DEFAULT,
+    RESOLUTION_DQ_HELP,
+    RESOLUTION_DQ_LABEL,
+    RESOLUTION_HEADER,
+    RESOLUTION_MODE_HELP,
+    RESOLUTION_MODE_LABEL,
+    RESOLUTION_MODES,
+    RESOLUTION_OTHER_MODE_CAPTION,
     SELECTION_METHOD_HELP,
     SELECTION_METHOD_LABEL,
     SELECTION_METHOD_OPTIONS,
@@ -178,6 +186,46 @@ def render_q_range_controls(fitter: SANSFitter) -> None:
                     del st.session_state[key]
             st.success(SUCCESS_Q_RANGE_RESET)
             st.rerun()
+
+
+def render_resolution_controls(fitter: SANSFitter) -> None:
+    """
+    Render the resolution (smearing) controls and apply changes to the fitter.
+
+    The widgets have no session-state keys and take their defaults from the
+    fitter, so a change made elsewhere (an AI tool, a loaded analysis) shows up
+    on the next rerun without any widget syncing.
+
+    Args:
+        fitter: The SANSFitter instance
+    """
+    current = fitter.get_resolution()
+    modes = list(RESOLUTION_MODES)
+
+    st.markdown(RESOLUTION_HEADER)
+    if current['mode'] not in modes:
+        st.caption(RESOLUTION_OTHER_MODE_CAPTION.format(mode=current['mode']))
+    mode = st.selectbox(
+        RESOLUTION_MODE_LABEL,
+        options=modes,
+        index=modes.index(current['mode']) if current['mode'] in modes else None,
+        format_func=RESOLUTION_MODES.get,
+        help=RESOLUTION_MODE_HELP,
+    )
+    dq_over_q = None
+    if mode == 'pinhole':
+        dq_over_q = st.number_input(
+            RESOLUTION_DQ_LABEL,
+            min_value=0.001,
+            max_value=1.0,
+            value=current['dq_over_q'] or RESOLUTION_DQ_DEFAULT,
+            step=0.01,
+            format='%.3f',
+            help=RESOLUTION_DQ_HELP,
+        )
+
+    if mode is not None and (mode != current['mode'] or dq_over_q != current['dq_over_q']):
+        fitter.set_resolution(mode, dq_over_q=dq_over_q)
 
 
 def render_data_upload_sidebar() -> None:
