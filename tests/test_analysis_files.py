@@ -155,7 +155,8 @@ def test_slider_starts_at_the_fitted_value_after_a_fit():
 
     app_file = Path(__file__).parent.parent / 'src' / 'sans_webapp' / 'app.py'
     at = AppTest.from_file(str(app_file), default_timeout=90).run()
-    for label in ('Load Example Data', 'Load Model', 'Fit All Parameters', '🚀 Run Fit'):
+    # The default example (sphere) loads with its model
+    for label in ('Load Example', 'Fit All Parameters', '🚀 Run Fit'):
         next(b for b in at.button if b.label == label).click().run()
 
     assert not at.exception

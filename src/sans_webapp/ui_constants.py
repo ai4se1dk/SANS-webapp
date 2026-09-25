@@ -34,8 +34,13 @@ UPLOAD_HELP = (
     'Columnar text (Q, I(Q), dI(Q) and optionally dQ), CanSAS XML or NXcanSAS HDF5. '
     'Files are read through sasdata; the first dataset in a multi-dataset file is used.'
 )
-EXAMPLE_DATA_BUTTON = 'Load Example Data'
-EXAMPLE_DATA_FILE = 'simulated_sans_data.csv'
+EXAMPLE_SELECT_LABEL = 'Example dataset'
+EXAMPLE_SELECT_HELP = (
+    'Measured and simulated datasets bundled with sans-fitter. Each loads with a '
+    'suitable model and starting parameters, ready to fit.'
+)
+EXAMPLE_DEFAULT = 'sphere'
+LOAD_EXAMPLE_BUTTON = 'Load Example'
 
 # Save & Load (analysis files and report)
 DOWNLOAD_ANALYSIS_BUTTON = '💾 Download analysis (.json)'
@@ -264,7 +269,6 @@ AI_CHAT_THINKING = 'Thinking...'
 SPINNER_ANALYZING_DATA = 'Analyzing data...'
 WARNING_NO_SUGGESTIONS = 'No suggestions found'
 WARNING_LOAD_DATA_FIRST = 'Please load data first'
-ERROR_EXAMPLE_NOT_FOUND = 'Example data file not found!'
 
 INFO_NO_DATA = '👆 Please upload a SANS data file or load example data from the sidebar.'
 WARNING_NO_API_KEY = (
@@ -276,7 +280,7 @@ WARNING_NO_VARY = (
     '(or polydispersity width) to fit.'
 )
 SUCCESS_DATA_UPLOADED = '✓ Data uploaded successfully!'
-SUCCESS_EXAMPLE_LOADED = '✓ Example data loaded successfully!'
+SUCCESS_EXAMPLE_LOADED = "Example '{name}' loaded with model '{model}'."
 SUCCESS_MODEL_LOADED_PREFIX = '✓ Model "'
 SUCCESS_MODEL_LOADED_SUFFIX = '" loaded!'
 SUCCESS_FIT_COMPLETED = '✓ Fit completed successfully!'
