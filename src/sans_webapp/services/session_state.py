@@ -21,7 +21,6 @@ def init_session_state() -> None:
         'fit_warnings': [],
         'show_ai_chat': False,
         'chat_api_key': None,
-        'slider_value': 0.0,
         'prev_selected_param': None,
         'last_uploaded_file_id': None,
         # Sidebar expander states - only data_upload starts expanded
@@ -104,6 +103,9 @@ def adopt_fitter(fitter: SANSFitter) -> None:
     st.session_state.model_selected = fitter.model_name is not None
     st.session_state.current_model = fitter.model_name
     st.session_state.fit_warnings = []
+    # Re-initialize the results slider from the new fitter's parameters
+    st.session_state.prev_selected_param = None
+    st.session_state.pop('selected_slider_param', None)
     if fitter.fit_result is None:
         st.session_state.fit_completed = False
         st.session_state.pop('fit_result', None)

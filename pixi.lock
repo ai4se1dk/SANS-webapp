@@ -12298,7 +12298,7 @@ packages:
   - sasmodels>=1.0
   - sasdata>=0.8
   - bumps>=1.0
-  - streamlit>=1.28.0
+  - streamlit>=1.52.0
   - plotly>=5.17.0
   - pandas>=2.0.0
   - openai>=1.0.0
