@@ -84,6 +84,34 @@ def clear_q_range_state() -> None:
             del st.session_state[key]
 
 
+def adopt_fitter(fitter: SANSFitter) -> None:
+    """
+    Make *fitter* the app's fitter, replacing the current one.
+
+    Used when a complete fitter arrives from elsewhere (a loaded analysis, an
+    example). Clears the widget state that described the old fitter, so the
+    parameter, polydispersity and Q-range widgets re-initialize from the new
+    one, and sets the progress flags from what the new fitter holds. The MCP
+    server picks the new fitter up on the next rerun (``init_mcp_and_ai``).
+
+    Args:
+        fitter: The fitter to use from now on
+    """
+    clear_parameter_state()
+    clear_q_range_state()
+    st.session_state.fitter = fitter
+    st.session_state.data_loaded = fitter.data is not None
+    st.session_state.model_selected = fitter.model_name is not None
+    st.session_state.current_model = fitter.model_name
+    st.session_state.fit_warnings = []
+    if fitter.fit_result is None:
+        st.session_state.fit_completed = False
+        st.session_state.pop('fit_result', None)
+    else:
+        st.session_state.fit_completed = True
+        st.session_state.fit_result = fitter.fit_result
+
+
 def get_fitter() -> SANSFitter:
     """Get the fitter instance from session state."""
     return st.session_state.fitter

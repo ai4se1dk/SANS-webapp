@@ -217,27 +217,23 @@ def render_data_upload_sidebar() -> None:
                 if st.session_state.last_uploaded_file_id == current_file_id:
                     return
 
-                # Keep the original extension: sasdata picks its reader from it
-                # (CanSAS XML and NXcanSAS HDF5 would not load as '.csv').
-                suffix = Path(uploaded_file.name).suffix or '.csv'
-                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
-                    tmp_file_path = tmp_file.name
+                # Keep the original file name: sasdata picks its reader from the
+                # extension, and sans-fitter records the name in saved analyses
+                # and reports. The temporary directory is removed afterwards.
+                with tempfile.TemporaryDirectory() as folder:
+                    file_path = os.path.join(folder, Path(uploaded_file.name).name)
+                    with open(file_path, 'wb') as file:
+                        file.write(uploaded_file.getvalue())
+                    st.session_state.fitter.load_data(file_path)
 
-                try:
-                    st.session_state.fitter.load_data(tmp_file_path)
-                    st.session_state.data_loaded = True
-                    _reset_after_data_load()
-                    st.session_state.last_uploaded_file_id = current_file_id
-                    # Collapse data upload, expand model selection
-                    st.session_state.expand_data_upload = False
-                    st.session_state.expand_model_selection = True
-                    st.success(SUCCESS_DATA_UPLOADED)
-                    st.rerun()
-                finally:
-                    # Always cleanup temp file, even if exception occurs
-                    if os.path.exists(tmp_file_path):
-                        os.unlink(tmp_file_path)
+                st.session_state.data_loaded = True
+                _reset_after_data_load()
+                st.session_state.last_uploaded_file_id = current_file_id
+                # Collapse data upload, expand model selection
+                st.session_state.expand_data_upload = False
+                st.session_state.expand_model_selection = True
+                st.success(SUCCESS_DATA_UPLOADED)
+                st.rerun()
 
             except Exception as e:
                 st.error(f'Error loading data: {str(e)}')

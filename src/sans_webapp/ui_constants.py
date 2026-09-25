@@ -25,6 +25,7 @@ SIDEBAR_CONTROLS_HEADER = 'Controls'
 SIDEBAR_DATA_UPLOAD_HEADER = 'Data Upload'
 SIDEBAR_MODEL_SELECTION_HEADER = 'Model Selection'
 SIDEBAR_FITTING_HEADER = 'Fitting'
+SIDEBAR_ANALYSIS_FILES_HEADER = 'Save & Load'
 
 # Upload Section
 UPLOAD_LABEL = 'Upload SANS data file'
@@ -35,6 +36,21 @@ UPLOAD_HELP = (
 )
 EXAMPLE_DATA_BUTTON = 'Load Example Data'
 EXAMPLE_DATA_FILE = 'simulated_sans_data.csv'
+
+# Save & Load (analysis files and report)
+DOWNLOAD_ANALYSIS_BUTTON = '💾 Download analysis (.json)'
+DOWNLOAD_REPORT_BUTTON = '📄 Download report (.html)'
+ANALYSIS_SAVE_CAPTION = (
+    'The analysis holds the model, parameters, polydispersity, links, resolution, '
+    'Q range and the last fit (if nothing changed since). Parameter edits are saved '
+    'once applied with "Update Parameters".'
+)
+ANALYSIS_UPLOAD_LABEL = 'Load a saved analysis'
+ANALYSIS_UPLOAD_HELP = 'An analysis file downloaded from this app or written by sans-fitter.'
+APPLY_ANALYSIS_BUTTON = 'Apply to loaded data'
+ANALYSIS_NEEDS_DATA_INFO = 'Load the data first: a saved analysis is applied to the loaded data.'
+SUCCESS_ANALYSIS_LOADED = 'Analysis loaded.'
+SUCCESS_ANALYSIS_LOADED_WITH_FIT = 'Analysis loaded, including its fit result.'
 
 # Model Selection
 SELECTION_METHOD_LABEL = 'Selection Method'

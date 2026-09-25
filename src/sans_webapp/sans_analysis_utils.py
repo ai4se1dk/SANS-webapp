@@ -6,6 +6,8 @@ the Streamlit web application and command-line scripts without importing Streaml
 """
 
 import logging
+import os
+import tempfile
 import threading
 import warnings
 from contextlib import contextmanager
@@ -32,6 +34,9 @@ __all__ = [
     'snapshot_parameters',
     'snapshot_context',
     'plot_parameter_comparison',
+    'analysis_json',
+    'load_analysis_onto_data',
+    'report_html',
     'calculate_residuals',
     'evaluate_model',
     'data_column_summary',
@@ -749,3 +754,72 @@ def plot_parameter_comparison(
     with _quiet_fitter():
         fig = fitter.compare(cases=cases, log_scale=log_scale, show=False)
     return _fit_container(fig)
+
+
+# =============================================================================
+# Analysis files and reports
+# =============================================================================
+
+
+def analysis_json(fitter: SANSFitter) -> str:
+    """
+    Return the fitter's analysis (setup and, if still current, the fit) as JSON.
+
+    Wraps ``SANSFitter.save_analysis()``, which only writes to a file.
+
+    Args:
+        fitter: SANSFitter instance with a model loaded
+
+    Returns:
+        The analysis file's contents
+    """
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, 'analysis.json')
+        with _quiet_fitter():
+            fitter.save_analysis(path)
+        with open(path, encoding='utf-8') as file:
+            return file.read()
+
+
+def load_analysis_onto_data(contents: bytes, data: Any) -> SANSFitter:
+    """
+    Rebuild a fitter from a saved analysis, applied to already loaded data.
+
+    The webapp does not keep uploaded files, so the dataset an analysis
+    recorded cannot be reloaded from its path. sans-fitter reattaches the saved
+    fit only when *data* is the dataset it was fitted to; otherwise the setup
+    alone is restored, ready to fit.
+
+    Args:
+        contents: The analysis file's contents
+        data: The dataset to apply the analysis to
+
+    Returns:
+        A new, configured SANSFitter
+
+    Raises:
+        ValueError: If the file is not a valid analysis (sans-fitter's
+            ``AnalysisFileError``)
+    """
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, 'analysis.json')
+        with open(path, 'wb') as file:
+            file.write(contents)
+        with _quiet_fitter():
+            return SANSFitter.load_analysis(path, data=data)
+
+
+def report_html(fitter: SANSFitter) -> str:
+    """
+    Render sans-fitter's shareable report (settings, tables, plot) as HTML.
+
+    Before any fit this is a configuration report with a model preview.
+
+    Args:
+        fitter: SANSFitter instance with data and a model loaded
+
+    Returns:
+        A self-contained HTML document
+    """
+    with _quiet_fitter():
+        return fitter.report(fmt='html').to_html()
