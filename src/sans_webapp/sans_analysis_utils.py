@@ -5,6 +5,8 @@ Shared utility functions for SANS data analysis that can be used by both
 the Streamlit web application and command-line scripts without importing Streamlit.
 """
 
+import functools
+import json
 import logging
 import os
 import tempfile
@@ -15,9 +17,10 @@ from typing import Any, Optional
 
 import numpy as np
 import plotly.graph_objects as go
-from sans_fitter import SANSFitter, get_all_models
+from sans_fitter import SANSFitter, examples, get_all_models
 from sans_fitter.console import LOGGER_NAME
 from sans_fitter.data.loader import has_real_data
+from sans_fitter.data.provenance import fingerprint_arrays
 from sans_fitter.plotting import PREVIEW_MODEL_TRACE_NAME, plot_fit
 
 CURRENT_PARAMETERS_LABEL = 'Current parameters'
@@ -37,6 +40,9 @@ __all__ = [
     'analysis_json',
     'load_analysis_onto_data',
     'report_html',
+    'analysis_data_summary',
+    'is_analysis_data',
+    'find_example_for_analysis',
     'calculate_residuals',
     'evaluate_model',
     'data_column_summary',
@@ -823,3 +829,55 @@ def report_html(fitter: SANSFitter) -> str:
     """
     with _quiet_fitter():
         return fitter.report(fmt='html').to_html()
+
+
+def analysis_data_summary(contents: bytes) -> dict[str, Any]:
+    """
+    Describe the dataset a saved analysis was made with.
+
+    Args:
+        contents: The analysis file's contents
+
+    Returns:
+        ``{'label', 'n_points', 'fingerprint'}`` as recorded in the file; the
+        fingerprint is sans-fitter's array fingerprint of the data at save time
+
+    Raises:
+        ValueError: If the contents are not an analysis file
+    """
+    document = json.loads(contents)
+    data = document.get('data') if isinstance(document, dict) else None
+    if not isinstance(data, dict):
+        raise ValueError('This is not a sans-fitter analysis file.')
+    return {
+        'label': data.get('label'),
+        'n_points': data.get('n_points'),
+        'fingerprint': data.get('array_fingerprint_now'),
+    }
+
+
+def is_analysis_data(data: Any, summary: dict[str, Any]) -> bool:
+    """Whether *data* is the dataset described by ``analysis_data_summary()``."""
+    return fingerprint_arrays(data) == summary['fingerprint']
+
+
+@functools.cache
+def _example_fingerprints() -> dict[str, str]:
+    """Array fingerprint of each bundled example (fixed per installation)."""
+    return {name: fingerprint_arrays(examples.load(name)) for name in examples.list_examples()}
+
+
+def find_example_for_analysis(summary: dict[str, Any]) -> Optional[str]:
+    """
+    Name the bundled example whose data a saved analysis was made with.
+
+    Args:
+        summary: As returned by ``analysis_data_summary()``
+
+    Returns:
+        The example name, or None if the analysis used other data
+    """
+    for name, fingerprint in _example_fingerprints().items():
+        if fingerprint == summary['fingerprint']:
+            return name
+    return None

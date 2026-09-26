@@ -322,3 +322,106 @@ def test_slider_handles_negative_values():
     assert not at.exception
     assert (at.slider[0].min, at.slider[0].max) == pytest.approx((-2.4, -1.6))
     assert at.slider[0].value == pytest.approx(-2.0)
+
+
+# -----------------------------------------------------------------------------
+# Loading into a session without the analysis's data
+# -----------------------------------------------------------------------------
+
+
+@pytest.fixture(scope='module')
+def example_analysis():
+    """A fitted sphere analysis made with the bundled 'sphere' example."""
+    fitter = examples.load_fitter('sphere')
+    fitter.fit(engine='bumps', method='amoeba')
+    return utils.analysis_json(fitter).encode()
+
+
+class TestAnalysisDataSummary:
+    def test_describes_the_saved_data(self, fitted):
+        summary = utils.analysis_data_summary(utils.analysis_json(fitted).encode())
+        assert summary['label'] == EXAMPLE_DATA
+        assert summary['n_points'] == len(fitted.data.x)
+        assert utils.is_analysis_data(fitted.data, summary)
+        assert not utils.is_analysis_data(examples.load('sphere'), summary)
+
+    def test_rejects_other_files(self):
+        with pytest.raises(ValueError):
+            utils.analysis_data_summary(b'not json')
+        with pytest.raises(ValueError):
+            utils.analysis_data_summary(b'[1, 2]')
+
+    def test_finds_the_example_an_analysis_was_made_with(self, fitted, example_analysis):
+        summary = utils.analysis_data_summary(example_analysis)
+        assert utils.find_example_for_analysis(summary) == 'sphere'
+        own_data = utils.analysis_data_summary(utils.analysis_json(fitted).encode())
+        assert utils.find_example_for_analysis(own_data) is None
+
+
+def _load_app():
+    """The Save & Load section with the analysis upload stubbed (AppTest has no uploader)."""
+    import streamlit as st
+    from sans_fitter import SANSFitter
+
+    from sans_webapp.components import analysis_files
+    from sans_webapp.services.session_state import init_session_state
+
+    class Upload:
+        def getvalue(self):
+            return st.session_state.analysis_contents
+
+    init_session_state()
+    if st.session_state.get('with_data') and not st.session_state.data_loaded:
+        fitter = SANSFitter()
+        fitter.load_data('simulated_sans_data.csv')
+        st.session_state.fitter = fitter
+        st.session_state.data_loaded = True
+
+    # st is the shared streamlit module: swap the uploader for this render only
+    original_uploader = st.file_uploader
+    st.file_uploader = lambda *args, **kwargs: Upload()
+    try:
+        analysis_files.render_analysis_files_sidebar()
+    finally:
+        st.file_uploader = original_uploader
+
+
+def _load_session(contents, with_data=False):
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_function(_load_app, default_timeout=60)
+    at.session_state['analysis_contents'] = contents
+    at.session_state['with_data'] = with_data
+    return at.run()
+
+
+def test_example_analysis_loads_its_data_in_a_fresh_session(example_analysis):
+    at = _load_session(example_analysis)
+    assert "saved with '100nmSpheresNodQ.txt' (150 points)" in at.info[0].value
+    assert [b.label for b in at.button] == ["Load example 'sphere' and apply"]
+
+    at.button[0].click().run()
+    assert not at.exception
+    fitter = at.session_state.fitter
+    assert fitter.model_name == 'sphere'
+    assert len(fitter.data.x) == 150
+    assert at.session_state.data_loaded is True
+    assert at.session_state.fit_completed is True  # the saved fit came back
+
+
+def test_analysis_of_uploaded_data_names_the_data_it_needs(fitted):
+    at = _load_session(utils.analysis_json(fitted).encode())
+    assert f"saved with '{EXAMPLE_DATA}'" in at.info[0].value
+    assert len(at.button) == 0  # nothing to apply it to yet
+
+
+def test_other_loaded_data_is_pointed_out_but_can_be_used(example_analysis):
+    at = _load_session(example_analysis, with_data=True)
+    assert 'not the loaded data' in at.info[0].value
+    labels = [b.label for b in at.button]
+    assert labels == ["Load example 'sphere' and apply", 'Apply to loaded data']
+
+    at.button[1].click().run()
+    assert not at.exception
+    assert at.session_state.fitter.model_name == 'sphere'
+    assert at.session_state.fit_completed is False  # setup only: different data

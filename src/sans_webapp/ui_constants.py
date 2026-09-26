@@ -53,7 +53,19 @@ ANALYSIS_SAVE_CAPTION = (
 ANALYSIS_UPLOAD_LABEL = 'Load a saved analysis'
 ANALYSIS_UPLOAD_HELP = 'An analysis file downloaded from this app or written by sans-fitter.'
 APPLY_ANALYSIS_BUTTON = 'Apply to loaded data'
-ANALYSIS_NEEDS_DATA_INFO = 'Load the data first: a saved analysis is applied to the loaded data.'
+ANALYSIS_NEEDS_DATA_INFO = (
+    'A saved analysis is applied to its data: load the data first. '
+    'Analyses of bundled examples can load their data themselves.'
+)
+ANALYSIS_DATA_NOT_LOADED = (
+    "This analysis was saved with '{label}' ({n_points} points). "
+    'Load that data under Data Upload, then apply the analysis.'
+)
+ANALYSIS_DATA_DIFFERENT = (
+    "This analysis was saved with '{label}' ({n_points} points), not the loaded data. "
+    'Applying it to the loaded data restores the setup without the fit.'
+)
+LOAD_EXAMPLE_AND_APPLY_BUTTON = "Load example '{name}' and apply"
 SUCCESS_ANALYSIS_LOADED = 'Analysis loaded.'
 ANALYSIS_FIT_NOT_SAVED_WARNING = (
     'The last fit no longer matches the current settings, so the analysis will not '
