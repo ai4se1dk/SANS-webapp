@@ -3,6 +3,7 @@ Tests for Save & Load: sans-fitter analysis files and reports, and replacing
 the app's fitter with a loaded one.
 """
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -340,8 +341,7 @@ def example_analysis():
 class TestAnalysisDataSummary:
     def test_describes_the_saved_data(self, fitted):
         summary = utils.analysis_data_summary(utils.analysis_json(fitted).encode())
-        assert summary['label'] == EXAMPLE_DATA
-        assert summary['n_points'] == len(fitted.data.x)
+        assert summary['description'] == f"'{EXAMPLE_DATA}' ({len(fitted.data.x)} points)"
         assert utils.is_analysis_data(fitted.data, summary)
         assert not utils.is_analysis_data(examples.load('sphere'), summary)
 
@@ -350,6 +350,19 @@ class TestAnalysisDataSummary:
             utils.analysis_data_summary(b'not json')
         with pytest.raises(ValueError):
             utils.analysis_data_summary(b'[1, 2]')
+        with pytest.raises(ValueError):
+            utils.analysis_data_summary(b'{"data": {"label": "x.csv"}}')  # no schema
+
+    def test_analysis_saved_without_data_names_no_dataset(self):
+        fitter = SANSFitter()
+        fitter.set_model('sphere')  # the sidebar allows a model without data
+        assert utils.analysis_data_summary(utils.analysis_json(fitter).encode()) is None
+
+    def test_describes_data_recorded_without_label_or_point_count(self, fitted):
+        document = json.loads(utils.analysis_json(fitted))
+        del document['data']['label'], document['data']['n_points']
+        summary = utils.analysis_data_summary(json.dumps(document).encode())
+        assert summary['description'] == "'unnamed dataset'"
 
     def test_finds_the_example_an_analysis_was_made_with(self, fitted, example_analysis):
         summary = utils.analysis_data_summary(example_analysis)
@@ -425,3 +438,105 @@ def test_other_loaded_data_is_pointed_out_but_can_be_used(example_analysis):
     assert not at.exception
     assert at.session_state.fitter.model_name == 'sphere'
     assert at.session_state.fit_completed is False  # setup only: different data
+
+
+def test_analysis_without_data_asks_for_data_then_applies_to_it():
+    fitter = SANSFitter()
+    fitter.set_model('cylinder')
+    contents = utils.analysis_json(fitter).encode()
+
+    at = _load_session(contents)
+    assert 'names no dataset' in at.info[0].value
+    assert len(at.button) == 0
+
+    at = _load_session(contents, with_data=True)
+    assert len(at.info) == 0
+    assert [b.label for b in at.button] == ['Apply to loaded data']
+    at.button[0].click().run()
+    assert not at.exception
+    assert at.session_state.fitter.model_name == 'cylinder'
+
+
+# -----------------------------------------------------------------------------
+# Every parameter write respects the bounds
+# -----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sphere_fitter():
+    fitter = SANSFitter()
+    fitter.load_data(EXAMPLE_DATA)
+    fitter.set_model('sphere')
+    return fitter
+
+
+class TestSetParamWithinBounds:
+    def test_accepts_settings_within_bounds(self, sphere_fitter):
+        utils.set_param_within_bounds(sphere_fitter, 'radius', value=40.0, min=5.0, vary=True)
+        assert sphere_fitter.params['radius']['value'] == 40.0
+        assert sphere_fitter.params['radius']['min'] == 5.0
+        assert sphere_fitter.params['radius']['vary'] is True
+
+    @pytest.mark.parametrize(
+        'settings',
+        [{'value': 11111.0}, {'max': 10.0}, {'min': 600.0}, {'min': 100.0, 'max': 10.0}],
+    )
+    def test_refuses_settings_outside_bounds_and_leaves_the_fitter(self, sphere_fitter, settings):
+        before = dict(sphere_fitter.params['radius'])
+        with pytest.raises(ValueError):
+            utils.set_param_within_bounds(sphere_fitter, 'radius', **settings)
+        assert sphere_fitter.params['radius'] == before
+
+
+def _call_parameter_tool(fitter, mock_session_state, tool, **kwargs):
+    from sans_webapp import mcp_server
+
+    mcp_server.set_fitter(fitter)
+    mock_session_state._data['fitter'] = fitter
+    with patch('sans_webapp.services.mcp_state_bridge.st') as mock_st:
+        mock_st.session_state = mock_session_state
+        return getattr(mcp_server, tool)(**kwargs)
+
+
+def test_set_parameter_tool_refuses_values_outside_bounds(sphere_fitter, mock_session_state):
+    """The review's reproduction: the AI tool could write radius = 11111 (max 550)."""
+    result = _call_parameter_tool(
+        sphere_fitter, mock_session_state, 'set_parameter', name='radius', value=11111.0
+    )
+    assert result.startswith("Error setting parameter 'radius'")
+    assert sphere_fitter.params['radius']['value'] == 50.0
+    # What is saved can be loaded again
+    utils.load_analysis_onto_data(utils.analysis_json(sphere_fitter).encode(), sphere_fitter.data)
+
+
+def test_set_multiple_parameters_tool_applies_valid_and_rejects_invalid(
+    sphere_fitter, mock_session_state
+):
+    result = _call_parameter_tool(
+        sphere_fitter,
+        mock_session_state,
+        'set_multiple_parameters',
+        parameters={'radius': {'value': 11111.0}, 'scale': {'value': 0.5}},
+    )
+    assert 'radius: REJECTED' in result
+    assert sphere_fitter.params['radius']['value'] == 50.0
+    assert sphere_fitter.params['scale']['value'] == 0.5
+
+
+# -----------------------------------------------------------------------------
+# Uploaded data is recorded by name, not by a temporary path
+# -----------------------------------------------------------------------------
+
+
+def test_uploaded_data_is_recorded_by_name_without_a_dead_path():
+    with open(EXAMPLE_DATA, 'rb') as file:
+        data = utils.load_uploaded_data('my_sample.csv', file.read())
+    fitter = SANSFitter()
+    fitter.set_data(data)
+    fitter.set_model('sphere')
+
+    section = json.loads(utils.analysis_json(fitter))['data']
+    assert section['label'] == 'my_sample.csv'
+    assert 'path_absolute' not in section
+    report = utils.report_html(fitter)
+    assert '<td>my_sample.csv</td>' in report

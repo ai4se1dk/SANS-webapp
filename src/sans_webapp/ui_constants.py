@@ -58,12 +58,16 @@ ANALYSIS_NEEDS_DATA_INFO = (
     'Analyses of bundled examples can load their data themselves.'
 )
 ANALYSIS_DATA_NOT_LOADED = (
-    "This analysis was saved with '{label}' ({n_points} points). "
+    'This analysis was saved with {data}. '
     'Load that data under Data Upload, then apply the analysis.'
 )
 ANALYSIS_DATA_DIFFERENT = (
-    "This analysis was saved with '{label}' ({n_points} points), not the loaded data. "
+    'This analysis was saved with {data}, not the loaded data. '
     'Applying it to the loaded data restores the setup without the fit.'
+)
+ANALYSIS_NAMES_NO_DATA = (
+    'This analysis names no dataset (it was saved without data). '
+    'Load data under Data Upload, then apply the analysis to it.'
 )
 LOAD_EXAMPLE_AND_APPLY_BUTTON = "Load example '{name}' and apply"
 SUCCESS_ANALYSIS_LOADED = 'Analysis loaded.'

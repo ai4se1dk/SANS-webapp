@@ -19,6 +19,7 @@ from sans_webapp.sans_analysis_utils import (
     calculate_residuals,
     evaluate_model,
     plot_fit_results,
+    set_param_within_bounds,
 )
 from sans_webapp.sans_types import FitResult, ParamUpdate
 from sans_webapp.ui_constants import (
@@ -303,7 +304,7 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
 
         def update_profile():
             new_value = st.session_state.slider_value
-            fitter.set_param(selected_param, value=new_value)
+            set_param_within_bounds(fitter, selected_param, value=new_value)
             if f'value_{selected_param}' in st.session_state:
                 st.session_state[f'value_{selected_param}'] = new_value
 

@@ -14,6 +14,7 @@ from typing import cast
 import streamlit as st
 from sans_fitter import SANSFitter
 
+from sans_webapp.sans_analysis_utils import bound_problem, set_param_within_bounds
 from sans_webapp.sans_types import FitResult, ParamInfo, ParamUpdate, PDUpdate
 from sans_webapp.services.session_state import clamp_for_display
 from sans_webapp.ui_constants import (
@@ -100,7 +101,7 @@ def apply_fit_results_to_params(fitter: SANSFitter, params: dict[str, ParamInfo]
             if param_name in params:
                 # Regular parameter
                 st.session_state[f'value_{param_name}'] = clamp_for_display(float(fitted_value))
-                fitter.set_param(param_name, value=fitted_value)
+                set_param_within_bounds(fitter, param_name, value=fitted_value)
             elif param_name.endswith('_pd'):
                 # Polydispersity parameter - update fitter and session state
                 base_param = param_name[:-3]  # Remove '_pd' suffix
@@ -140,7 +141,8 @@ def build_param_updates_from_params(params: dict[str, ParamInfo]) -> dict[str, P
 def apply_param_updates(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]) -> None:
     """Apply parameter updates to the fitter."""
     for param_name, updates in param_updates.items():
-        fitter.set_param(
+        set_param_within_bounds(
+            fitter,
             param_name,
             value=updates['value'],
             min=updates['min'],
@@ -162,14 +164,11 @@ def find_bound_problems(param_updates: dict[str, ParamUpdate]) -> list[str]:
     Returns:
         One message per offending parameter; empty when all are valid
     """
-    problems = []
-    for name, update in param_updates.items():
-        low, high, value = update['min'], update['max'], update['value']
-        if low > high:
-            problems.append(f'{name}: min {low:g} is above max {high:g}')
-        elif not low <= value <= high:
-            problems.append(f'{name}: value {value:g} is outside [{low:g}, {high:g}]')
-    return problems
+    problems = [
+        bound_problem(name, update['value'], update['min'], update['max'])
+        for name, update in param_updates.items()
+    ]
+    return [problem for problem in problems if problem]
 
 
 def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdate]:

@@ -21,6 +21,7 @@ from sans_webapp.sans_analysis_utils import (
     format_fit_parameters,
     format_fit_summary,
     run_fit_with_warnings,
+    set_param_within_bounds,
 )
 
 # Try to instantiate FastMCP, but be resilient in test environments where
@@ -147,7 +148,7 @@ def _restore_params_from_session(fitter: SANSFitter, session_state: Any) -> None
             kwargs['vary'] = vary_val
         if kwargs:
             try:
-                fitter.set_param(name, **kwargs)
+                set_param_within_bounds(fitter, name, **kwargs)
             except Exception:
                 pass
 
@@ -385,8 +386,8 @@ def set_parameter(
 
         changes = []
 
-        # Use fitter.set_param() — the canonical API that correctly
-        # updates the internal dict-of-dicts parameter store.
+        # Through the app's single parameter write path, which refuses a value
+        # outside the bounds and leaves the fitter unchanged
         kwargs: dict[str, Any] = {}
         if value is not None:
             kwargs['value'] = value
@@ -402,7 +403,7 @@ def set_parameter(
             changes.append(f'vary={vary}')
 
         if kwargs:
-            fitter.set_param(name, **kwargs)
+            set_param_within_bounds(fitter, name, **kwargs)
 
         # Update UI widgets via bridge
         bridge = get_state_bridge()
@@ -443,7 +444,7 @@ def set_multiple_parameters(parameters: dict[str, dict]) -> str:
 
             changes = []
 
-            # Build kwargs for fitter.set_param()
+            # Build kwargs for set_param_within_bounds()
             kwargs: dict[str, Any] = {}
             if 'value' in settings:
                 kwargs['value'] = settings['value']
@@ -459,7 +460,11 @@ def set_multiple_parameters(parameters: dict[str, dict]) -> str:
                 changes.append(f'vary={settings["vary"]}')
 
             if kwargs:
-                fitter.set_param(name, **kwargs)
+                try:
+                    set_param_within_bounds(fitter, name, **kwargs)
+                except ValueError as e:
+                    results.append(f'  - {name}: REJECTED ({e})')
+                    continue
 
             # Update UI widget via bridge
             bridge.set_parameter_widget(

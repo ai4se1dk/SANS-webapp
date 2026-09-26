@@ -7,14 +7,12 @@ Contains rendering functions for the sidebar sections:
 - AI chat
 """
 
-import os
-import tempfile
-from pathlib import Path
 from typing import Optional
 
 import streamlit as st
 from sans_fitter import SANSFitter, examples, get_all_models
 
+from sans_webapp.sans_analysis_utils import load_uploaded_data
 from sans_webapp.services.ai_chat import (
     response_requests_enable_tools,
     send_chat_message,
@@ -84,6 +82,7 @@ from sans_webapp.ui_constants import (
 RESOLUTION_MODE_KEY = 'resolution_mode'
 RESOLUTION_DQ_KEY = 'resolution_dq_over_q'
 RESOLUTION_ERROR_KEY = 'resolution_error'
+RESOLUTION_LAST_DQ_KEY = 'resolution_last_dq_over_q'
 
 # Session keys that belong to the fit Q-range widgets (see render_q_range_controls)
 Q_RANGE_WIDGET_KEYS = ('fit_qmin', 'fit_qmax')
@@ -184,7 +183,12 @@ def render_resolution_controls(fitter: SANSFitter) -> None:
     current = fitter.get_resolution()
     modes = list(RESOLUTION_MODES)
     st.session_state[RESOLUTION_MODE_KEY] = current['mode'] if current['mode'] in modes else None
-    st.session_state[RESOLUTION_DQ_KEY] = current['dq_over_q'] or RESOLUTION_DQ_DEFAULT
+    # Other modes carry no width, so remember the last pinhole one for switching back
+    if current['mode'] == 'pinhole':
+        st.session_state[RESOLUTION_LAST_DQ_KEY] = current['dq_over_q']
+    st.session_state[RESOLUTION_DQ_KEY] = st.session_state.get(
+        RESOLUTION_LAST_DQ_KEY, RESOLUTION_DQ_DEFAULT
+    )
 
     def apply_edit() -> None:
         mode = st.session_state[RESOLUTION_MODE_KEY]
@@ -243,14 +247,8 @@ def render_data_upload_sidebar() -> None:
                 if st.session_state.last_uploaded_file_id == current_file_id:
                     return
 
-                # Keep the original file name: sasdata picks its reader from the
-                # extension, and sans-fitter records the name in saved analyses
-                # and reports. The temporary directory is removed afterwards.
-                with tempfile.TemporaryDirectory() as folder:
-                    file_path = os.path.join(folder, Path(uploaded_file.name).name)
-                    with open(file_path, 'wb') as file:
-                        file.write(uploaded_file.getvalue())
-                    st.session_state.fitter.load_data(file_path)
+                data = load_uploaded_data(uploaded_file.name, uploaded_file.getvalue())
+                st.session_state.fitter.set_data(data)
 
                 st.session_state.data_loaded = True
                 _reset_after_data_load()

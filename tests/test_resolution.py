@@ -78,6 +78,15 @@ def test_consecutive_width_edits_all_apply(app):
     _assert_shows(app, 'pinhole', 0.3)
 
 
+def test_pinhole_width_is_kept_across_other_modes(app):
+    app.selectbox[0].select('pinhole').run()
+    app.number_input[0].set_value(0.2).run()
+    app.selectbox[0].select('none').run()
+    _assert_shows(app, 'none')
+    app.selectbox[0].select('pinhole').run()
+    _assert_shows(app, 'pinhole', 0.2)
+
+
 def test_change_made_elsewhere_right_after_an_edit_is_kept(app):
     app.selectbox[0].select('none').run()
     app.session_state.fitter.set_resolution('data')

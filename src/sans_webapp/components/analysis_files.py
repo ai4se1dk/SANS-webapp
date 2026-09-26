@@ -22,6 +22,7 @@ from sans_webapp.ui_constants import (
     ANALYSIS_DATA_DIFFERENT,
     ANALYSIS_DATA_NOT_LOADED,
     ANALYSIS_FIT_NOT_SAVED_WARNING,
+    ANALYSIS_NAMES_NO_DATA,
     ANALYSIS_NEEDS_DATA_INFO,
     ANALYSIS_SAVE_CAPTION,
     ANALYSIS_UPLOAD_HELP,
@@ -85,13 +86,20 @@ def _render_load() -> None:
         return
 
     # Say which data the analysis needs unless it is the data already loaded
-    has_its_data = data_loaded and is_analysis_data(st.session_state.fitter.data, summary)
-    if not data_loaded:
-        st.info(ANALYSIS_DATA_NOT_LOADED.format(**summary))
+    has_its_data = (
+        summary is not None
+        and data_loaded
+        and is_analysis_data(st.session_state.fitter.data, summary)
+    )
+    if summary is None:
+        if not data_loaded:
+            st.info(ANALYSIS_NAMES_NO_DATA)
+    elif not data_loaded:
+        st.info(ANALYSIS_DATA_NOT_LOADED.format(data=summary['description']))
     elif not has_its_data:
-        st.info(ANALYSIS_DATA_DIFFERENT.format(**summary))
+        st.info(ANALYSIS_DATA_DIFFERENT.format(data=summary['description']))
 
-    example = find_example_for_analysis(summary)
+    example = find_example_for_analysis(summary) if summary is not None else None
     if example is not None and not has_its_data:
         if st.button(LOAD_EXAMPLE_AND_APPLY_BUTTON.format(name=example)):
             _apply(contents, examples.load(example))
