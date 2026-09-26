@@ -9,6 +9,7 @@ import os
 from typing import Any
 
 from anthropic import Anthropic
+from sans_fitter import examples
 
 # Tool name to function mapping - built from MCP server
 _tool_handlers: dict[str, callable] = {}
@@ -18,10 +19,12 @@ _tool_handlers: dict[str, callable] = {}
 # when Claude emits multiple tool_use blocks in a single response.
 _TOOL_PRIORITY: dict[str, int] = {
     # Writes – executed first, in dependency order
+    'load-example': 1,  # replaces data, model and parameters
     'set-model': 1,  # must run before parameter tools
     'set-structure-factor': 2,
     'remove-structure-factor': 2,
     'set-q-range': 2,
+    'set-resolution': 2,
     'set-parameter': 3,
     'set-multiple-parameters': 3,
     'enable-polydispersity': 4,
@@ -47,12 +50,14 @@ def _build_tool_handlers() -> dict[str, callable]:
         get_fit_results,
         get_model_parameters,
         list_sans_models,
+        load_example,
         remove_structure_factor,
         run_fit,
         set_model,
         set_multiple_parameters,
         set_parameter,
         set_q_range,
+        set_resolution,
         set_structure_factor,
     )
 
@@ -61,10 +66,12 @@ def _build_tool_handlers() -> dict[str, callable]:
         'get-model-parameters': get_model_parameters,
         'get-current-state': get_current_state,
         'get-fit-results': get_fit_results,
+        'load-example': load_example,
         'set-model': set_model,
         'set-parameter': set_parameter,
         'set-multiple-parameters': set_multiple_parameters,
         'set-q-range': set_q_range,
+        'set-resolution': set_resolution,
         'enable-polydispersity': enable_polydispersity,
         'set-structure-factor': set_structure_factor,
         'remove-structure-factor': remove_structure_factor,
@@ -120,6 +127,21 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
                 'type': 'object',
                 'properties': {},
                 'required': [],
+            },
+        },
+        {
+            'name': 'load-example',
+            'description': "Replace the current data, model and parameters with one of sans-fitter's bundled example datasets (measured and simulated). The example loads with a suitable model and starting parameters, ready to fit. The result describes the sample.",
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'name': {
+                        'type': 'string',
+                        'enum': examples.list_examples(),
+                        'description': 'Example dataset name',
+                    },
+                },
+                'required': ['name'],
             },
         },
         {
@@ -205,6 +227,25 @@ def get_mcp_tool_schemas() -> list[dict[str, Any]]:
                     },
                 },
                 'required': [],
+            },
+        },
+        {
+            'name': 'set-resolution',
+            'description': "Set how instrument resolution smears the model: 'data' uses the data file's dQ column (unsmeared if it has none), 'none' applies no smearing, 'pinhole' applies a constant relative width dq_over_q. Re-run the fit afterwards.",
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'mode': {
+                        'type': 'string',
+                        'enum': ['data', 'none', 'pinhole'],
+                        'description': 'Resolution mode',
+                    },
+                    'dq_over_q': {
+                        'type': 'number',
+                        'description': "Relative Gaussian 1-sigma width (not FWHM), required for 'pinhole', e.g. 0.05",
+                    },
+                },
+                'required': ['mode'],
             },
         },
         {
@@ -341,8 +382,10 @@ class ClaudeMCPClient:
 
 You have access to tools that can:
 - List and inspect available scattering models (sphere, cylinder, ellipsoid, etc.)
+- Load one of the bundled example datasets (load-example)
 - Load models and configure their parameters
 - Restrict the Q range used for fitting (set-q-range)
+- Set the instrument resolution smearing (set-resolution)
 - Run curve fitting optimization
 - Enable advanced features like polydispersity and structure factors
 

@@ -14,13 +14,14 @@ fitted curve is obtained from ``SANSFitter.calculate()``.
 from typing import Any
 
 import numpy as np
-from sans_fitter import SANSFitter, get_all_models, get_structure_factors
+from sans_fitter import SANSFitter, examples, get_all_models, get_structure_factors
 
 from sans_webapp.sans_analysis_utils import (
     describe_fitter_state,
     format_fit_parameters,
     format_fit_summary,
     run_fit_with_warnings,
+    set_param_within_bounds,
 )
 
 # Try to instantiate FastMCP, but be resilient in test environments where
@@ -147,7 +148,7 @@ def _restore_params_from_session(fitter: SANSFitter, session_state: Any) -> None
             kwargs['vary'] = vary_val
         if kwargs:
             try:
-                fitter.set_param(name, **kwargs)
+                set_param_within_bounds(fitter, name, **kwargs)
             except Exception:
                 pass
 
@@ -273,6 +274,33 @@ def get_fit_results() -> str:
 # =============================================================================
 
 
+def load_example(name: str) -> str:
+    """
+    Replace the data, model and parameters with one of sans-fitter's examples.
+
+    Args:
+        name: Example name, one of ``sans_fitter.examples.list_examples()``
+    """
+    if not _check_tools_enabled():
+        return 'AI tools are disabled. Enable them in the sidebar to allow loading examples.'
+
+    try:
+        from sans_webapp.services import session_state
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
+        fitter = session_state.load_example(name)
+        set_fitter(fitter)
+        get_state_bridge().set_needs_rerun(True)
+
+        example = examples.get_example(name)
+        return (
+            f"Loaded example '{name}': {len(fitter.data.x)} data points, model "
+            f"'{fitter.model_name}' with suggested starting parameters. {example.description}"
+        )
+    except Exception as e:
+        return f'Error loading example: {str(e)}'
+
+
 def set_model(model_name: str) -> str:
     """
     Load a SANS model for fitting.
@@ -358,8 +386,8 @@ def set_parameter(
 
         changes = []
 
-        # Use fitter.set_param() — the canonical API that correctly
-        # updates the internal dict-of-dicts parameter store.
+        # Through the app's single parameter write path, which refuses a value
+        # outside the bounds and leaves the fitter unchanged
         kwargs: dict[str, Any] = {}
         if value is not None:
             kwargs['value'] = value
@@ -375,7 +403,7 @@ def set_parameter(
             changes.append(f'vary={vary}')
 
         if kwargs:
-            fitter.set_param(name, **kwargs)
+            set_param_within_bounds(fitter, name, **kwargs)
 
         # Update UI widgets via bridge
         bridge = get_state_bridge()
@@ -416,7 +444,7 @@ def set_multiple_parameters(parameters: dict[str, dict]) -> str:
 
             changes = []
 
-            # Build kwargs for fitter.set_param()
+            # Build kwargs for set_param_within_bounds()
             kwargs: dict[str, Any] = {}
             if 'value' in settings:
                 kwargs['value'] = settings['value']
@@ -432,7 +460,11 @@ def set_multiple_parameters(parameters: dict[str, dict]) -> str:
                 changes.append(f'vary={settings["vary"]}')
 
             if kwargs:
-                fitter.set_param(name, **kwargs)
+                try:
+                    set_param_within_bounds(fitter, name, **kwargs)
+                except ValueError as e:
+                    results.append(f'  - {name}: REJECTED ({e})')
+                    continue
 
             # Update UI widget via bridge
             bridge.set_parameter_widget(
@@ -495,6 +527,31 @@ def set_q_range(qmin: float | None = None, qmax: float | None = None) -> str:
         )
     except Exception as e:
         return f'Error setting Q range: {str(e)}'
+
+
+def set_resolution(mode: str, dq_over_q: float | None = None) -> str:
+    """
+    Set how instrument resolution smears the model (sans-fitter >= 0.4).
+
+    Args:
+        mode: 'data' (the file's dQ column; unsmeared if it has none),
+            'none' (no smearing) or 'pinhole' (constant relative width)
+        dq_over_q: Relative Gaussian 1-sigma width, required for 'pinhole'
+    """
+    if not _check_tools_enabled():
+        return 'AI tools are disabled. Enable them in the sidebar to allow resolution changes.'
+
+    try:
+        from sans_webapp.services.mcp_state_bridge import get_state_bridge
+
+        fitter = get_fitter()
+        fitter.set_resolution(mode, dq_over_q=dq_over_q)
+        get_state_bridge().set_needs_rerun(True)
+
+        detail = f' with dQ/Q = {dq_over_q}' if mode == 'pinhole' else ''
+        return f"Resolution set to '{mode}'{detail}. Re-run the fit for it to take effect."
+    except Exception as e:
+        return f'Error setting resolution: {str(e)}'
 
 
 def enable_polydispersity(
@@ -701,10 +758,12 @@ mcp.tool(name='list-sans-models')(list_sans_models)
 mcp.tool(name='get-model-parameters')(get_model_parameters)
 mcp.tool(name='get-current-state')(get_current_state)
 mcp.tool(name='get-fit-results')(get_fit_results)
+mcp.tool(name='load-example')(load_example)
 mcp.tool(name='set-model')(set_model)
 mcp.tool(name='set-parameter')(set_parameter)
 mcp.tool(name='set-multiple-parameters')(set_multiple_parameters)
 mcp.tool(name='set-q-range')(set_q_range)
+mcp.tool(name='set-resolution')(set_resolution)
 mcp.tool(name='enable-polydispersity')(enable_polydispersity)
 mcp.tool(name='set-structure-factor')(set_structure_factor)
 mcp.tool(name='remove-structure-factor')(remove_structure_factor)

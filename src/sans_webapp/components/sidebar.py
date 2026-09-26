@@ -7,20 +7,18 @@ Contains rendering functions for the sidebar sections:
 - AI chat
 """
 
-import os
-import tempfile
-from importlib.resources import files
-from pathlib import Path
 from typing import Optional
 
 import streamlit as st
-from sans_fitter import SANSFitter, get_all_models
+from sans_fitter import SANSFitter, examples, get_all_models
 
+from sans_webapp.sans_analysis_utils import load_uploaded_data
 from sans_webapp.services.ai_chat import (
     response_requests_enable_tools,
     send_chat_message,
     suggest_models_ai,
 )
+from sans_webapp.services.session_state import load_example
 from sans_webapp.ui_constants import (
     AI_ASSISTED_HEADER,
     AI_CHAT_CLEAR_BUTTON,
@@ -38,9 +36,10 @@ from sans_webapp.ui_constants import (
     AI_SUGGESTIONS_SELECT_LABEL,
     CHAT_HISTORY_HEIGHT,
     CHAT_INPUT_HEIGHT,
-    ERROR_EXAMPLE_NOT_FOUND,
-    EXAMPLE_DATA_BUTTON,
-    EXAMPLE_DATA_FILE,
+    EXAMPLE_DEFAULT,
+    EXAMPLE_SELECT_HELP,
+    EXAMPLE_SELECT_LABEL,
+    LOAD_EXAMPLE_BUTTON,
     LOAD_MODEL_BUTTON,
     MODEL_SELECT_HELP,
     MODEL_SELECT_LABEL,
@@ -50,6 +49,14 @@ from sans_webapp.ui_constants import (
     Q_RANGE_MAX_LABEL,
     Q_RANGE_MIN_LABEL,
     Q_RANGE_RESET_BUTTON,
+    RESOLUTION_DQ_DEFAULT,
+    RESOLUTION_DQ_HELP,
+    RESOLUTION_DQ_LABEL,
+    RESOLUTION_HEADER,
+    RESOLUTION_MODE_HELP,
+    RESOLUTION_MODE_LABEL,
+    RESOLUTION_MODES,
+    RESOLUTION_OTHER_MODE_CAPTION,
     SELECTION_METHOD_HELP,
     SELECTION_METHOD_LABEL,
     SELECTION_METHOD_OPTIONS,
@@ -71,31 +78,11 @@ from sans_webapp.ui_constants import (
     WARNING_NO_SUGGESTIONS,
 )
 
-
-def _get_example_data_path() -> Path | None:
-    """Get the path to the example data file bundled with the package."""
-    # First, try to find it relative to the package
-    try:
-        package_files = files('sans_webapp')
-        example_path = package_files / 'data' / EXAMPLE_DATA_FILE
-        if hasattr(example_path, 'is_file') and example_path.is_file():
-            return Path(str(example_path))
-    except (TypeError, FileNotFoundError):
-        pass
-
-    # Fallback: check current working directory
-    cwd_path = Path.cwd() / EXAMPLE_DATA_FILE
-    if cwd_path.exists():
-        return cwd_path
-
-    # Fallback: check parent directories (for development)
-    for parent in [Path.cwd()] + list(Path.cwd().parents)[:3]:
-        candidate = parent / EXAMPLE_DATA_FILE
-        if candidate.exists():
-            return candidate
-
-    return None
-
+# Session keys of the resolution widgets (see render_resolution_controls)
+RESOLUTION_MODE_KEY = 'resolution_mode'
+RESOLUTION_DQ_KEY = 'resolution_dq_over_q'
+RESOLUTION_ERROR_KEY = 'resolution_error'
+RESOLUTION_LAST_DQ_KEY = 'resolution_last_dq_over_q'
 
 # Session keys that belong to the fit Q-range widgets (see render_q_range_controls)
 Q_RANGE_WIDGET_KEYS = ('fit_qmin', 'fit_qmax')
@@ -180,6 +167,64 @@ def render_q_range_controls(fitter: SANSFitter) -> None:
             st.rerun()
 
 
+def render_resolution_controls(fitter: SANSFitter) -> None:
+    """
+    Render the resolution (smearing) controls.
+
+    The fitter is the single source of truth. On every run the widgets are set
+    from it before they are drawn, and user edits reach it through on_change
+    callbacks, so edits made here and changes made elsewhere (an AI tool, a
+    loaded analysis) cannot overwrite each other. sans-fitter validates the
+    setting; a rejected edit is reported and leaves the fitter unchanged.
+
+    Args:
+        fitter: The SANSFitter instance
+    """
+    current = fitter.get_resolution()
+    modes = list(RESOLUTION_MODES)
+    st.session_state[RESOLUTION_MODE_KEY] = current['mode'] if current['mode'] in modes else None
+    # Other modes carry no width, so remember the last pinhole one for switching back
+    if current['mode'] == 'pinhole':
+        st.session_state[RESOLUTION_LAST_DQ_KEY] = current['dq_over_q']
+    st.session_state[RESOLUTION_DQ_KEY] = st.session_state.get(
+        RESOLUTION_LAST_DQ_KEY, RESOLUTION_DQ_DEFAULT
+    )
+
+    def apply_edit() -> None:
+        mode = st.session_state[RESOLUTION_MODE_KEY]
+        dq_over_q = st.session_state[RESOLUTION_DQ_KEY] if mode == 'pinhole' else None
+        try:
+            fitter.set_resolution(mode, dq_over_q=dq_over_q)
+        except ValueError as e:
+            st.session_state[RESOLUTION_ERROR_KEY] = str(e)
+
+    st.markdown(RESOLUTION_HEADER)
+    if current['mode'] not in modes:
+        st.caption(RESOLUTION_OTHER_MODE_CAPTION.format(mode=current['mode']))
+    st.selectbox(
+        RESOLUTION_MODE_LABEL,
+        options=modes,
+        format_func=RESOLUTION_MODES.get,
+        key=RESOLUTION_MODE_KEY,
+        on_change=apply_edit,
+        help=RESOLUTION_MODE_HELP,
+    )
+    if st.session_state[RESOLUTION_MODE_KEY] == 'pinhole':
+        # No bounds: any width sans-fitter accepts can be shown as it is
+        st.number_input(
+            RESOLUTION_DQ_LABEL,
+            step=0.01,
+            format='%g',
+            key=RESOLUTION_DQ_KEY,
+            on_change=apply_edit,
+            help=RESOLUTION_DQ_HELP,
+        )
+
+    error = st.session_state.pop(RESOLUTION_ERROR_KEY, None)
+    if error:
+        st.error(error)
+
+
 def render_data_upload_sidebar() -> None:
     """Render the data upload controls in the sidebar as a collapsible section."""
     with st.sidebar.expander(
@@ -194,22 +239,7 @@ def render_data_upload_sidebar() -> None:
         if uploaded_file is None:
             st.session_state.last_uploaded_file_id = None
 
-        if st.button(EXAMPLE_DATA_BUTTON):
-            example_path = _get_example_data_path()
-            if example_path is not None:
-                try:
-                    st.session_state.fitter.load_data(str(example_path))
-                    st.session_state.data_loaded = True
-                    _reset_after_data_load()
-                    # Collapse data upload, expand model selection
-                    st.session_state.expand_data_upload = False
-                    st.session_state.expand_model_selection = True
-                    st.success(SUCCESS_EXAMPLE_LOADED)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f'Error loading example data: {str(e)}')
-            else:
-                st.error(ERROR_EXAMPLE_NOT_FOUND)
+        _render_example_picker()
 
         if uploaded_file is not None:
             try:
@@ -217,32 +247,50 @@ def render_data_upload_sidebar() -> None:
                 if st.session_state.last_uploaded_file_id == current_file_id:
                     return
 
-                # Keep the original extension: sasdata picks its reader from it
-                # (CanSAS XML and NXcanSAS HDF5 would not load as '.csv').
-                suffix = Path(uploaded_file.name).suffix or '.csv'
-                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
-                    tmp_file_path = tmp_file.name
+                data = load_uploaded_data(uploaded_file.name, uploaded_file.getvalue())
+                st.session_state.fitter.set_data(data)
 
-                try:
-                    st.session_state.fitter.load_data(tmp_file_path)
-                    st.session_state.data_loaded = True
-                    _reset_after_data_load()
-                    st.session_state.last_uploaded_file_id = current_file_id
-                    # Collapse data upload, expand model selection
-                    st.session_state.expand_data_upload = False
-                    st.session_state.expand_model_selection = True
-                    st.success(SUCCESS_DATA_UPLOADED)
-                    st.rerun()
-                finally:
-                    # Always cleanup temp file, even if exception occurs
-                    if os.path.exists(tmp_file_path):
-                        os.unlink(tmp_file_path)
+                st.session_state.data_loaded = True
+                _reset_after_data_load()
+                st.session_state.last_uploaded_file_id = current_file_id
+                # Collapse data upload, expand model selection
+                st.session_state.expand_data_upload = False
+                st.session_state.expand_model_selection = True
+                st.success(SUCCESS_DATA_UPLOADED)
+                st.rerun()
 
             except Exception as e:
                 st.error(f'Error loading data: {str(e)}')
                 st.session_state.data_loaded = False
                 st.session_state.last_uploaded_file_id = None
+
+
+def _render_example_picker() -> None:
+    """Pick one of sans-fitter's bundled examples and load it (data, model, parameters)."""
+    names = examples.list_examples()
+    name = st.selectbox(
+        EXAMPLE_SELECT_LABEL,
+        options=names,
+        index=names.index(EXAMPLE_DEFAULT),
+        help=EXAMPLE_SELECT_HELP,
+    )
+    example = examples.get_example(name)
+    st.caption(example.description)
+    if example.notes:
+        st.caption(example.notes)
+
+    if not st.button(LOAD_EXAMPLE_BUTTON):
+        return
+    try:
+        fitter = load_example(name)
+    except Exception as e:
+        st.error(f'Error loading example: {str(e)}')
+        return
+    st.session_state.expand_data_upload = False
+    st.session_state.expand_model_selection = False
+    st.session_state.expand_parameters = True
+    st.toast(SUCCESS_EXAMPLE_LOADED.format(name=name, model=fitter.model_name))
+    st.rerun()
 
 
 def render_model_selection_sidebar() -> None:

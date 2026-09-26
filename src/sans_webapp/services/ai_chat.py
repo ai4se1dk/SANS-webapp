@@ -18,6 +18,7 @@ from sans_webapp.sans_analysis_utils import (
     evaluate_model,
     format_fit_parameters,
     format_fit_summary,
+    set_param_within_bounds,
 )
 from sans_webapp.sans_types import FitResult, ParamInfo
 from sans_webapp.services.claude_mcp_client import (
@@ -169,7 +170,7 @@ def _build_context(fitter: SANSFitter) -> str:
                     if vy is not None:
                         kwargs['vary'] = vy
                     if kwargs:
-                        fitter.set_param(pname, **kwargs)
+                        set_param_within_bounds(fitter, pname, **kwargs)
         except Exception:
             pass
 

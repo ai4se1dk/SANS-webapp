@@ -25,6 +25,7 @@ SIDEBAR_CONTROLS_HEADER = 'Controls'
 SIDEBAR_DATA_UPLOAD_HEADER = 'Data Upload'
 SIDEBAR_MODEL_SELECTION_HEADER = 'Model Selection'
 SIDEBAR_FITTING_HEADER = 'Fitting'
+SIDEBAR_ANALYSIS_FILES_HEADER = 'Save & Load'
 
 # Upload Section
 UPLOAD_LABEL = 'Upload SANS data file'
@@ -33,10 +34,66 @@ UPLOAD_HELP = (
     'Columnar text (Q, I(Q), dI(Q) and optionally dQ), CanSAS XML or NXcanSAS HDF5. '
     'Files are read through sasdata; the first dataset in a multi-dataset file is used.'
 )
-EXAMPLE_DATA_BUTTON = 'Load Example Data'
-EXAMPLE_DATA_FILE = 'simulated_sans_data.csv'
+EXAMPLE_SELECT_LABEL = 'Example dataset'
+EXAMPLE_SELECT_HELP = (
+    'Measured and simulated datasets bundled with sans-fitter. Each loads with a '
+    'suitable model and starting parameters, ready to fit.'
+)
+EXAMPLE_DEFAULT = 'sphere'
+LOAD_EXAMPLE_BUTTON = 'Load Example'
 
-# Model Selection
+# Save & Load (analysis files and report)
+DOWNLOAD_ANALYSIS_BUTTON = '💾 Download analysis (.json)'
+DOWNLOAD_REPORT_BUTTON = '📄 Download report (.html)'
+ANALYSIS_SAVE_CAPTION = (
+    'The analysis holds the model, parameters, polydispersity, links, resolution, '
+    'Q range and the last fit (if nothing changed since). Parameter edits are saved '
+    'once applied with "Update Parameters".'
+)
+ANALYSIS_UPLOAD_LABEL = 'Load a saved analysis'
+ANALYSIS_UPLOAD_HELP = 'An analysis file downloaded from this app or written by sans-fitter.'
+APPLY_ANALYSIS_BUTTON = 'Apply to loaded data'
+ANALYSIS_NEEDS_DATA_INFO = (
+    'A saved analysis is applied to its data: load the data first. '
+    'Analyses of bundled examples can load their data themselves.'
+)
+ANALYSIS_DATA_NOT_LOADED = (
+    'This analysis was saved with {data}. '
+    'Load that data under Data Upload, then apply the analysis.'
+)
+ANALYSIS_DATA_DIFFERENT = (
+    'This analysis was saved with {data}, not the loaded data. '
+    'Applying it to the loaded data restores the setup without the fit.'
+)
+ANALYSIS_NAMES_NO_DATA = (
+    'This analysis names no dataset (it was saved without data). '
+    'Load data under Data Upload, then apply the analysis to it.'
+)
+LOAD_EXAMPLE_AND_APPLY_BUTTON = "Load example '{name}' and apply"
+SUCCESS_ANALYSIS_LOADED = 'Analysis loaded.'
+ANALYSIS_FIT_NOT_SAVED_WARNING = (
+    'The last fit no longer matches the current settings, so the analysis will not '
+    'include it. Run the fit again to save it.'
+)
+SUCCESS_ANALYSIS_LOADED_WITH_FIT = 'Analysis loaded, including its fit result.'
+
+# Resolution (instrument smearing)
+RESOLUTION_HEADER = '**Resolution**'
+RESOLUTION_MODE_LABEL = 'Resolution smearing'
+RESOLUTION_MODES = {
+    'data': 'From the data (dQ column)',
+    'none': 'None',
+    'pinhole': 'Pinhole (constant ΔQ/Q)',
+}
+RESOLUTION_MODE_HELP = (
+    'How instrument resolution is applied when the model is evaluated. '
+    '"From the data" uses the file\'s dQ column and evaluates unsmeared if there is none.'
+)
+RESOLUTION_DQ_LABEL = 'ΔQ/Q (σ, not FWHM)'
+RESOLUTION_DQ_HELP = 'Relative Gaussian 1-σ width, the same quantity as a dQ column divided by Q.'
+RESOLUTION_DQ_DEFAULT = 0.05
+RESOLUTION_OTHER_MODE_CAPTION = 'Current setting: {mode} (set outside the app).'
+
 SELECTION_METHOD_LABEL = 'Selection Method'
 SELECTION_METHOD_OPTIONS = ['Manual', 'AI-Assisted']
 SELECTION_METHOD_HELP = 'Choose how to select the fitting model'
@@ -248,7 +305,6 @@ AI_CHAT_THINKING = 'Thinking...'
 SPINNER_ANALYZING_DATA = 'Analyzing data...'
 WARNING_NO_SUGGESTIONS = 'No suggestions found'
 WARNING_LOAD_DATA_FIRST = 'Please load data first'
-ERROR_EXAMPLE_NOT_FOUND = 'Example data file not found!'
 
 INFO_NO_DATA = '👆 Please upload a SANS data file or load example data from the sidebar.'
 WARNING_NO_API_KEY = (
@@ -260,11 +316,12 @@ WARNING_NO_VARY = (
     '(or polydispersity width) to fit.'
 )
 SUCCESS_DATA_UPLOADED = '✓ Data uploaded successfully!'
-SUCCESS_EXAMPLE_LOADED = '✓ Example data loaded successfully!'
+SUCCESS_EXAMPLE_LOADED = "Example '{name}' loaded with model '{model}'."
 SUCCESS_MODEL_LOADED_PREFIX = '✓ Model "'
 SUCCESS_MODEL_LOADED_SUFFIX = '" loaded!'
 SUCCESS_FIT_COMPLETED = '✓ Fit completed successfully!'
 SUCCESS_PARAMS_UPDATED = '✓ Parameters updated!'
+ERROR_PARAMS_OUT_OF_BOUNDS = 'Parameters not updated: every value must lie within its bounds.'
 SUCCESS_AI_SUGGESTIONS_PREFIX = '✓ Found '
 SUCCESS_AI_SUGGESTIONS_SUFFIX = ' suggestions'
 

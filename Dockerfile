@@ -23,8 +23,6 @@ COPY src/ src/
 RUN pip install --no-cache-dir -e . && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
-# Note: simulated_sans_data.csv is bundled inside the package at src/sans_webapp/data/
 
 # Expose Streamlit port
 EXPOSE 8501

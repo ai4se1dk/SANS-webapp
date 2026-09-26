@@ -14,9 +14,11 @@ from typing import cast
 import streamlit as st
 from sans_fitter import SANSFitter
 
+from sans_webapp.sans_analysis_utils import bound_problem, set_param_within_bounds
 from sans_webapp.sans_types import FitResult, ParamInfo, ParamUpdate, PDUpdate
 from sans_webapp.services.session_state import clamp_for_display
 from sans_webapp.ui_constants import (
+    ERROR_PARAMS_OUT_OF_BOUNDS,
     PARAM_TAB_BASIC,
     PARAM_TAB_POLYDISPERSITY,
     PARAMETER_COLUMNS_LABELS,
@@ -99,7 +101,7 @@ def apply_fit_results_to_params(fitter: SANSFitter, params: dict[str, ParamInfo]
             if param_name in params:
                 # Regular parameter
                 st.session_state[f'value_{param_name}'] = clamp_for_display(float(fitted_value))
-                fitter.set_param(param_name, value=fitted_value)
+                set_param_within_bounds(fitter, param_name, value=fitted_value)
             elif param_name.endswith('_pd'):
                 # Polydispersity parameter - update fitter and session state
                 base_param = param_name[:-3]  # Remove '_pd' suffix
@@ -139,13 +141,34 @@ def build_param_updates_from_params(params: dict[str, ParamInfo]) -> dict[str, P
 def apply_param_updates(fitter: SANSFitter, param_updates: dict[str, ParamUpdate]) -> None:
     """Apply parameter updates to the fitter."""
     for param_name, updates in param_updates.items():
-        fitter.set_param(
+        set_param_within_bounds(
+            fitter,
             param_name,
             value=updates['value'],
             min=updates['min'],
             max=updates['max'],
             vary=updates['vary'],
         )
+
+
+def find_bound_problems(param_updates: dict[str, ParamUpdate]) -> list[str]:
+    """
+    Describe every parameter whose value lies outside its bounds (or min > max).
+
+    sans-fitter's set_param() accepts such settings, but a saved analysis
+    holding one cannot be loaded again, and a fit cannot start from it.
+
+    Args:
+        param_updates: Parameter updates from the parameter form
+
+    Returns:
+        One message per offending parameter; empty when all are valid
+    """
+    problems = [
+        bound_problem(name, update['value'], update['min'], update['max'])
+        for name, update in param_updates.items()
+    ]
+    return [problem for problem in problems if problem]
 
 
 def render_parameter_table(params: dict[str, ParamInfo]) -> dict[str, ParamUpdate]:
@@ -456,9 +479,13 @@ def render_basic_parameters_tab(
         submitted = st.form_submit_button(PARAMETER_UPDATE_BUTTON)
 
     if submitted:
-        apply_param_updates(fitter, param_updates)
-        st.session_state.param_updates = param_updates
-        st.success(SUCCESS_PARAMS_UPDATED)
+        problems = find_bound_problems(param_updates)
+        if problems:
+            st.error(ERROR_PARAMS_OUT_OF_BOUNDS + '\n\n' + '\n'.join(f'- {p}' for p in problems))
+        else:
+            apply_param_updates(fitter, param_updates)
+            st.session_state.param_updates = param_updates
+            st.success(SUCCESS_PARAMS_UPDATED)
 
     if 'param_updates' not in st.session_state:
         st.session_state.param_updates = build_param_updates_from_params(params)

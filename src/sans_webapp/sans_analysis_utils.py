@@ -5,7 +5,11 @@ Shared utility functions for SANS data analysis that can be used by both
 the Streamlit web application and command-line scripts without importing Streamlit.
 """
 
+import functools
+import json
 import logging
+import os
+import tempfile
 import threading
 import warnings
 from contextlib import contextmanager
@@ -13,9 +17,11 @@ from typing import Any, Optional
 
 import numpy as np
 import plotly.graph_objects as go
-from sans_fitter import SANSFitter, get_all_models
+from sans_fitter import SANSFitter, examples, get_all_models
 from sans_fitter.console import LOGGER_NAME
+from sans_fitter.data import ops as data_ops
 from sans_fitter.data.loader import has_real_data
+from sans_fitter.data.provenance import fingerprint_arrays
 from sans_fitter.plotting import PREVIEW_MODEL_TRACE_NAME, plot_fit
 
 CURRENT_PARAMETERS_LABEL = 'Current parameters'
@@ -32,6 +38,15 @@ __all__ = [
     'snapshot_parameters',
     'snapshot_context',
     'plot_parameter_comparison',
+    'load_uploaded_data',
+    'analysis_json',
+    'load_analysis_onto_data',
+    'report_html',
+    'analysis_data_summary',
+    'is_analysis_data',
+    'find_example_for_analysis',
+    'bound_problem',
+    'set_param_within_bounds',
     'calculate_residuals',
     'evaluate_model',
     'data_column_summary',
@@ -749,3 +764,205 @@ def plot_parameter_comparison(
     with _quiet_fitter():
         fig = fitter.compare(cases=cases, log_scale=log_scale, show=False)
     return _fit_container(fig)
+
+
+# =============================================================================
+# Analysis files and reports
+# =============================================================================
+
+
+def load_uploaded_data(file_name: str, contents: bytes) -> Any:
+    """
+    Read an uploaded data file into a fit-ready dataset.
+
+    The file is read under its original name, since sasdata picks its reader
+    from the extension. The fitter should get the dataset (``set_data()``),
+    not a path: the temporary file is deleted right away, so saved analyses
+    and reports then name the file instead of recording a dead path.
+
+    Args:
+        file_name: The uploaded file's name
+        contents: The uploaded file's contents
+
+    Returns:
+        A sasdata ``Data1D``
+    """
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, os.path.basename(file_name))
+        with open(path, 'wb') as file:
+            file.write(contents)
+        return data_ops.load(path)
+
+
+def analysis_json(fitter: SANSFitter) -> str:
+    """
+    Return the fitter's analysis (setup and, if still current, the fit) as JSON.
+
+    Wraps ``SANSFitter.save_analysis()``, which only writes to a file.
+
+    Args:
+        fitter: SANSFitter instance with a model loaded
+
+    Returns:
+        The analysis file's contents
+    """
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, 'analysis.json')
+        with _quiet_fitter():
+            fitter.save_analysis(path)
+        with open(path, encoding='utf-8') as file:
+            return file.read()
+
+
+def load_analysis_onto_data(contents: bytes, data: Any) -> SANSFitter:
+    """
+    Rebuild a fitter from a saved analysis, applied to already loaded data.
+
+    The webapp does not keep uploaded files, so the dataset an analysis
+    recorded cannot be reloaded from its path. sans-fitter reattaches the saved
+    fit only when *data* is the dataset it was fitted to; otherwise the setup
+    alone is restored, ready to fit.
+
+    Args:
+        contents: The analysis file's contents
+        data: The dataset to apply the analysis to
+
+    Returns:
+        A new, configured SANSFitter
+
+    Raises:
+        ValueError: If the file is not a valid analysis (sans-fitter's
+            ``AnalysisFileError``)
+    """
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, 'analysis.json')
+        with open(path, 'wb') as file:
+            file.write(contents)
+        with _quiet_fitter():
+            return SANSFitter.load_analysis(path, data=data)
+
+
+def report_html(fitter: SANSFitter) -> str:
+    """
+    Render sans-fitter's shareable report (settings, tables, plot) as HTML.
+
+    Before any fit this is a configuration report with a model preview.
+
+    Args:
+        fitter: SANSFitter instance with data and a model loaded
+
+    Returns:
+        A self-contained HTML document
+    """
+    with _quiet_fitter():
+        return fitter.report(fmt='html').to_html()
+
+
+def analysis_data_summary(contents: bytes) -> Optional[dict[str, Any]]:
+    """
+    Describe the dataset a saved analysis was made with.
+
+    Args:
+        contents: The analysis file's contents
+
+    Returns:
+        ``{'description', 'fingerprint'}``: a readable description of the data
+        (its label and point count, as far as recorded) and sans-fitter's array
+        fingerprint of it at save time. None when the analysis names no dataset
+        (saved from a model without data); it can then be applied to any data.
+
+    Raises:
+        ValueError: If the contents are not a sans-fitter analysis file
+    """
+    document = json.loads(contents)
+    schema = document.get('schema') if isinstance(document, dict) else None
+    if not isinstance(schema, dict) or schema.get('format') != 'sans-fitter-analysis':
+        raise ValueError('This is not a sans-fitter analysis file.')
+
+    data = document.get('data')
+    if not isinstance(data, dict) or not data.get('array_fingerprint_now'):
+        return None
+    description = f"'{data.get('label') or 'unnamed dataset'}'"
+    if data.get('n_points'):
+        description += f' ({data["n_points"]} points)'
+    return {'description': description, 'fingerprint': data['array_fingerprint_now']}
+
+
+def is_analysis_data(data: Any, summary: dict[str, Any]) -> bool:
+    """Whether *data* is the dataset described by ``analysis_data_summary()``."""
+    return fingerprint_arrays(data) == summary['fingerprint']
+
+
+@functools.cache
+def _example_fingerprints() -> dict[str, str]:
+    """Array fingerprint of each bundled example (fixed per installation)."""
+    return {name: fingerprint_arrays(examples.load(name)) for name in examples.list_examples()}
+
+
+def find_example_for_analysis(summary: dict[str, Any]) -> Optional[str]:
+    """
+    Name the bundled example whose data a saved analysis was made with.
+
+    Args:
+        summary: As returned by ``analysis_data_summary()``
+
+    Returns:
+        The example name, or None if the analysis used other data
+    """
+    for name, fingerprint in _example_fingerprints().items():
+        if fingerprint == summary['fingerprint']:
+            return name
+    return None
+
+
+# =============================================================================
+# Parameter writes
+# =============================================================================
+
+
+def bound_problem(name: str, value: float, low: float, high: float) -> Optional[str]:
+    """Describe why *value* with bounds [*low*, *high*] is invalid, or None if it is valid."""
+    if low > high:
+        return f'{name}: min {low:g} is above max {high:g}'
+    if not low <= value <= high:
+        return f'{name}: value {value:g} is outside [{low:g}, {high:g}]'
+    return None
+
+
+def set_param_within_bounds(
+    fitter: SANSFitter,
+    name: str,
+    value: Optional[float] = None,
+    min: Optional[float] = None,
+    max: Optional[float] = None,
+    vary: Optional[bool] = None,
+) -> None:
+    """
+    ``SANSFitter.set_param()``, refusing a result outside the parameter's bounds.
+
+    sans-fitter's set_param() accepts min > max or a value outside [min, max],
+    but load_analysis() rejects a file holding such a setting and a fit cannot
+    start from it. Every parameter value the app writes goes through here, so the
+    app never holds a setting it could save but not load again.
+
+    Args:
+        fitter: SANSFitter instance with a model loaded
+        name: Parameter name
+        value, min, max, vary: As for ``SANSFitter.set_param()``; None keeps
+            the current setting
+
+    Raises:
+        KeyError: If the parameter does not exist
+        ValueError: If the resulting setting is out of bounds; the fitter is
+            left unchanged
+    """
+    current = fitter.params[name]
+    problem = bound_problem(
+        name,
+        current['value'] if value is None else value,
+        current['min'] if min is None else min,
+        current['max'] if max is None else max,
+    )
+    if problem:
+        raise ValueError(problem)
+    fitter.set_param(name, value=value, min=min, max=max, vary=vary)

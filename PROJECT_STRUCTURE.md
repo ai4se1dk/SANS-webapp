@@ -95,11 +95,10 @@ python -m sans_webapp    # Module execution
 - **Purpose**: AI chat and model suggestion service
 - **Functions**: `send_message()`, `get_ai_suggestions()`
 
-### Data Files
+### Example Data
 
-#### `src/sans_webapp/data/simulated_sans_data.csv`
-- **Purpose**: Bundled example dataset (200 points)
-- **Included in package**: Yes, via `package-data` in pyproject.toml
+Example datasets come from sans-fitter's catalogue (`sans_fitter.examples`),
+which reads the files shipped with `sasdata`; the webapp bundles none of its own.
 
 ### Testing & Demo Files
 
@@ -127,7 +126,6 @@ python -m sans_webapp    # Module execution
 - **Purpose**: Package configuration with CLI entry point
 - **Entry Point**: `sans-webapp = "sans_webapp.__main__:main"`
 - **Package Discovery**: `where = ["src"]`
-- **Package Data**: Includes `data/*.csv` files
 
 ### Documentation Files
 
@@ -174,10 +172,9 @@ python -m sans_webapp    # Module execution
 ### External Data Files
 
 #### `simulated_sans_data.csv`
-- **Purpose**: Example dataset (also bundled inside package)
+- **Purpose**: Example dataset used by the tests and `demo_app.py`
 - **Points**: 200 data points
 - **Q Range**: 0.001 to 1.0 Å⁻¹
-- **Note**: The package includes this file in `src/sans_webapp/data/`
 
 ## Key Features Implemented
 

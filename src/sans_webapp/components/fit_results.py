@@ -19,6 +19,7 @@ from sans_webapp.sans_analysis_utils import (
     calculate_residuals,
     evaluate_model,
     plot_fit_results,
+    set_param_within_bounds,
 )
 from sans_webapp.sans_types import FitResult, ParamUpdate
 from sans_webapp.ui_constants import (
@@ -285,37 +286,41 @@ def _render_parameter_slider(fitter: SANSFitter) -> None:
 
         if param_changed:
             st.session_state.prev_selected_param = selected_param
+            # The slider reads its value from session state (key below), so start
+            # it at the parameter's current value whenever another one is picked
+            st.session_state.slider_value = float(current_value)
 
         if current_value != 0:
-            slider_min = current_value * SLIDER_SCALE_MIN
-            slider_max = current_value * SLIDER_SCALE_MAX
+            # sorted(): scaling a negative value swaps the ends
+            slider_min, slider_max = sorted(
+                (current_value * SLIDER_SCALE_MIN, current_value * SLIDER_SCALE_MAX)
+            )
         else:
             slider_min = SLIDER_DEFAULT_MIN
             slider_max = SLIDER_DEFAULT_MAX
+        # Never offer values outside the parameter's bounds
+        slider_min = max(slider_min, fitter.params[selected_param]['min'])
+        slider_max = min(slider_max, fitter.params[selected_param]['max'])
 
         def update_profile():
             new_value = st.session_state.slider_value
-            fitter.set_param(selected_param, value=new_value)
+            set_param_within_bounds(fitter, selected_param, value=new_value)
             if f'value_{selected_param}' in st.session_state:
                 st.session_state[f'value_{selected_param}'] = new_value
 
-        # Determine default value based on whether parameter changed
-        default_value = (
-            current_value if param_changed else st.session_state.get('slider_value', current_value)
-        )
+        # No slider when the bounds leave no room, or the value already lies outside them
+        if slider_min < slider_max and slider_min <= current_value <= slider_max:
+            st.slider(
+                f'{selected_param}',
+                min_value=float(slider_min),
+                max_value=float(slider_max),
+                format='%.4g',
+                key='slider_value',
+                on_change=update_profile,
+                label_visibility='collapsed',
+            )
 
-        st.slider(
-            f'{selected_param}',
-            min_value=float(slider_min),
-            max_value=float(slider_max),
-            value=float(default_value),
-            format='%.4g',
-            key='slider_value',
-            on_change=update_profile,
-            label_visibility='collapsed',
-        )
-
-        st.caption(f'Range: {slider_min:.4g} to {slider_max:.4g}')
+            st.caption(f'Range: {slider_min:.4g} to {slider_max:.4g}')
 
     if st.button(UPDATE_FROM_FIT_BUTTON):
         st.session_state.pending_update_from_fit = True

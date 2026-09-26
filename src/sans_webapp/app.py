@@ -17,6 +17,7 @@ from typing import cast
 import streamlit as st
 from sans_fitter import get_all_models  # noqa: F401 - re-exported for backwards compatibility
 
+from sans_webapp.components.analysis_files import render_analysis_files_sidebar
 from sans_webapp.components.data_preview import render_data_preview
 from sans_webapp.components.fit_results import render_fit_results
 from sans_webapp.components.model_preview import render_model_preview
@@ -30,6 +31,7 @@ from sans_webapp.components.sidebar import (
     render_data_upload_sidebar,
     render_model_selection_sidebar,
     render_q_range_controls,
+    render_resolution_controls,
 )
 from sans_webapp.sans_analysis_utils import (  # noqa: F401 - re-exported for backwards compatibility
     analyze_data_for_ai_suggestion,
@@ -127,6 +129,7 @@ def render_fitting_sidebar(param_updates: dict[str, ParamUpdate]) -> None:
 
         # Fit Q range (sans-fitter >= 0.4)
         render_q_range_controls(fitter)
+        render_resolution_controls(fitter)
 
     # Run Fit button always visible outside the expander
     if st.sidebar.button(FIT_RUN_BUTTON, type='primary'):
@@ -332,6 +335,7 @@ def main() -> None:
 
     render_data_upload_sidebar()
     render_model_selection_sidebar()
+    render_analysis_files_sidebar()
 
     # Create two-column layout: main content (70%) and AI chat (30%)
     col1, col2 = st.columns([0.7, 0.3])

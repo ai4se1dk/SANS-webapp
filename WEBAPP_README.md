@@ -136,8 +136,9 @@ The application will automatically open in your default web browser at `http://l
 ### 2. Upload Your Data
 
 **Option A: Use Example Data**
-- Click "Load Example Data" button in the sidebar
-- This loads bundled sample SANS data from the package
+- Pick an example dataset in the sidebar and click "Load Example"
+- Measured and simulated datasets from sans-fitter's catalogue; each loads with
+  a suitable model and starting parameters, ready to fit
 
 **Option B: Upload Your Own Data**
 - Click "Browse files" in the sidebar
@@ -523,8 +524,6 @@ SANS-webapp/
 │       ├── sans_analysis_utils.py  # Shared utility functions
 │       ├── sans_types.py       # TypedDict definitions
 │       ├── ui_constants.py     # UI string constants
-│       ├── data/               # Bundled example data
-│       │   └── simulated_sans_data.csv
 │       ├── components/         # UI rendering components
 │       │   ├── __init__.py
 │       │   ├── data_preview.py
@@ -538,7 +537,7 @@ SANS-webapp/
 ├── tests/
 │   └── test_app.py             # Unit tests (34 tests)
 ├── pyproject.toml              # Package configuration with CLI entry point
-├── simulated_sans_data.csv     # Example data (also bundled in package)
+├── simulated_sans_data.csv     # Example data for the tests and demo
 ├── Dockerfile                  # Docker deployment
 ├── Procfile                    # Heroku deployment
 ├── README.md                   # Main documentation
